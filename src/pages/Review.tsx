@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -54,8 +54,9 @@ const Review: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
-  const [showManualAssignModal, setShowManualAssignModal] = useState(false);
   const [unmatchedDocuments, setUnmatchedDocuments] = useState<Document[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showManualAssignModal, setShowManualAssignModal] = useState(false);
   const [selectedDocumentForAssign, setSelectedDocumentForAssign] = useState<string | null>(null);
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
@@ -436,12 +437,18 @@ const Review: React.FC = () => {
           )}
 
           <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-12rem)]">
-            <Card className="w-full xl:w-2/5 flex-shrink-0">
+            <Card className={`transition-all duration-300 flex-shrink-0 ${
+              sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-full xl:w-1/2'
+            }`}>
               <CardHeader className="py-3">
-                <CardTitle className="text-lg">Saldobilanz</CardTitle>
-                <CardDescription className="text-sm">
-                  Klicken Sie auf ein Konto um die gefundenen Nachweise anzuzeigen
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Saldobilanz</CardTitle>
+                    <CardDescription className="text-sm">
+                      Klicken Sie auf ein Konto um die gefundenen Nachweise anzuzeigen
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="max-h-[calc(100vh-16rem)] overflow-y-auto py-3">
                 <div className="space-y-4">
@@ -547,15 +554,29 @@ const Review: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="flex-1 min-w-0">
+            <Card className="flex-1 min-w-0 relative">
               <CardHeader className="py-3">
-                <CardTitle className="text-lg">Gefundene Nachweise</CardTitle>
-                <CardDescription className="text-sm">
-                  {selectedAccountData ? 
-                    `${selectedAccountData.account_number} - ${selectedAccountData.account_name}` :
-                    'Wählen Sie ein Konto aus der Liste links'
-                  }
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    className="flex items-center gap-2"
+                  >
+                    {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                    {sidebarCollapsed ? 'Saldobilanz anzeigen' : 'Saldobilanz ausblenden'}
+                  </Button>
+                  <div className="border-l border-border h-6"></div>
+                  <div>
+                    <CardTitle className="text-lg">Gefundene Nachweise</CardTitle>
+                    <CardDescription className="text-sm">
+                      {selectedAccountData ? 
+                        `${selectedAccountData.account_number} - ${selectedAccountData.account_name}` :
+                        'Wählen Sie ein Konto aus der Liste links'
+                      }
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="h-[calc(100vh-16rem)] overflow-hidden py-3">
                 {selectedAccountData ? (
