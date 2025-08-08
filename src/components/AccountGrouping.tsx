@@ -704,9 +704,6 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
                                     )}
                                     <span className="text-sm text-muted-foreground">({group.accounts.length} Konten)</span>
                                   </div>
-                                  <div className="text-right font-mono font-semibold">
-                                    {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
-                                  </div>
                                 </TableCell>
                                 <TableCell className="text-right font-mono font-semibold">
                                   {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
