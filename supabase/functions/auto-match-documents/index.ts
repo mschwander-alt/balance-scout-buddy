@@ -8,28 +8,27 @@ const corsHeaders = {
 }
 
 interface Assignment {
-  id: string;
-  account_number: string;
-  account_name: string;
-  current_year_balance: number;
-  previous_year_balance: number;
-  foreign_currency_balance?: number;
-  account_group_id: string;
-  account_group_name: string;
+  id: string
+  account_number: string
+  account_name: string
+  current_year_balance: number
+  previous_year_balance: number
+  foreign_currency_balance?: number
+  account_group_id: string
+  account_group_name: string
 }
 
-interface Document {
-  id: string;
-  file_name: string;
-  file_path: string;
-  file_type: string;
-  description?: string;
+interface DocumentInfo {
+  id: string
+  file_name: string
+  file_path: string
+  file_type: string
+  description?: string
 }
 
 serve(async (req) => {
   console.log('Auto-match function called')
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('Handling CORS preflight')
     return new Response(null, { headers: corsHeaders })
@@ -43,15 +42,17 @@ serve(async (req) => {
     )
 
     console.log('Parsing request body')
-    const { trial_balance_id, assignments, documents } = await req.json()
+    const requestData = await req.json()
+    const trialBalanceId = requestData.trial_balance_id
+    const assignments = requestData.assignments || []
+    const documents = requestData.documents || []
 
-    console.log(`Starting auto-match for trial balance: ${trial_balance_id}`)
+    console.log(`Starting auto-match for trial balance: ${trialBalanceId}`)
     console.log(`Processing ${assignments.length} assignments and ${documents.length} documents`)
 
     const matchedAssignments = []
     let matchedCount = 0
 
-    // Process each assignment
     for (const assignment of assignments) {
       console.log(`Processing assignment: ${assignment.account_number} - ${assignment.account_name}`)
       
@@ -59,24 +60,23 @@ serve(async (req) => {
       let bestConfidence = 0
       let matchStatus = 'unmatched'
 
-      // Look for documents that might contain this account's balance
-      for (const document of documents) {
+      for (const doc of documents) {
         try {
-          const confidence = await analyzeDocument(supabaseClient, document, assignment)
+          const confidence = await analyzeDocument(supabaseClient, doc, assignment)
           
-          if (confidence > 0.7) { // High confidence threshold
-            matchedDocuments.push(document.id)
+          if (confidence > 0.7) {
+            matchedDocuments.push(doc.id)
             bestConfidence = Math.max(bestConfidence, confidence)
             matchStatus = 'matched'
-            console.log(`Found high confidence match for ${assignment.account_number} in ${document.file_name} (${confidence})`)
-          } else if (confidence > 0.4) { // Medium confidence
-            matchedDocuments.push(document.id)
+            console.log(`High confidence match for ${assignment.account_number} in ${doc.file_name} (${confidence})`)
+          } else if (confidence > 0.4) {
+            matchedDocuments.push(doc.id)
             bestConfidence = Math.max(bestConfidence, confidence)
             matchStatus = 'matched'
-            console.log(`Found medium confidence match for ${assignment.account_number} in ${document.file_name} (${confidence})`)
+            console.log(`Medium confidence match for ${assignment.account_number} in ${doc.file_name} (${confidence})`)
           }
         } catch (error) {
-          console.error(`Error analyzing document ${document.file_name}:`, error)
+          console.error(`Error analyzing document ${doc.file_name}:`, error)
         }
       }
 
@@ -118,14 +118,12 @@ serve(async (req) => {
   }
 })
 
-async function analyzeDocument(supabaseClient: any, document: Document, assignment: Assignment): Promise<number> {
+async function analyzeDocument(supabaseClient: any, document: DocumentInfo, assignment: Assignment): Promise<number> {
   try {
     console.log(`Analyzing document: ${document.file_name} for account: ${assignment.account_number}`)
 
-    // For now, let's do a basic filename analysis to avoid storage issues
     let extractedText = document.file_name + ' ' + (document.description || '')
     
-    // Try to download and analyze the document content
     try {
       const { data: fileData, error: downloadError } = await supabaseClient.storage
         .from('account-evidence')
@@ -141,7 +139,6 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
       console.log(`Error downloading ${document.file_name}, using filename only:`, error)
     }
 
-    // Analyze the extracted text for matches
     return analyzeTextForMatches(extractedText, assignment)
 
   } catch (error) {
@@ -159,52 +156,44 @@ async function extractTextFromFile(fileData: Blob, fileType: string): Promise<st
     const buffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(buffer)
     
-    // Simple text extraction - look for readable ASCII characters
     const decoder = new TextDecoder('utf-8', { fatal: false })
-    let text = decoder.decode(uint8Array)
+    let rawText = decoder.decode(uint8Array)
     
-    // Extract readable text patterns
     let readableText = ''
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i]
+    for (let i = 0; i < rawText.length; i++) {
+      const char = rawText[i]
       const charCode = char.charCodeAt(0)
       
-      // Keep readable ASCII characters, numbers, and common symbols
       if ((charCode >= 32 && charCode <= 126) || charCode === 10 || charCode === 13) {
         readableText += char
       } else if (charCode >= 192 && charCode <= 255) {
-        // Keep extended ASCII for European characters
         readableText += char
       } else {
         readableText += ' '
       }
     }
     
-    // Clean up whitespace
     readableText = readableText.replace(/\s+/g, ' ').trim()
     
     console.log(`Extracted ${readableText.length} characters from ${fileType}`)
-    return readableText.substring(0, 10000) // Limit to prevent memory issues
+    return readableText.substring(0, 10000)
   } catch (error) {
     console.error('Error extracting text from file:', error)
     return ''
   }
 }
 
-function analyzeTextForMatches(text: string, assignment: Assignment): number {
+function analyzeTextForMatches(inputText: string, assignment: Assignment): number {
   let confidence = 0
   
-  // Convert text to lowercase for case-insensitive matching
-  const lowerText = text.toLowerCase()
+  const lowerText = inputText.toLowerCase()
   
-  // Look for account number (exact match)
   const accountNumber = assignment.account_number.toString()
   if (lowerText.includes(accountNumber.toLowerCase())) {
     confidence += 0.4
     console.log(`Found exact account number ${accountNumber} in text`)
   }
 
-  // Look for account name (partial matches)
   const accountNameWords = assignment.account_name.toLowerCase().split(' ')
   const foundWords = accountNameWords.filter(word => 
     word.length > 3 && lowerText.includes(word)
@@ -216,16 +205,13 @@ function analyzeTextForMatches(text: string, assignment: Assignment): number {
     console.log(`Found ${foundWords.length}/${accountNameWords.length} account name words: ${foundWords.join(', ')}`)
   }
 
-  // Look for balance amounts with various formatting
   const currentBalance = Math.abs(assignment.current_year_balance)
   const foreignBalance = assignment.foreign_currency_balance ? Math.abs(assignment.foreign_currency_balance) : null
 
-  // Enhanced number patterns for Swiss/German formatting
   const balanceStr = currentBalance.toFixed(2)
   const balanceStrComma = balanceStr.replace('.', ',')
   const balanceStrApostrophe = balanceStr.replace(/\B(?=(\d{3})+(?!\d))/g, "'")
   
-  // Check for various balance formats
   const balanceFormats = [
     balanceStr,
     balanceStrComma,
@@ -242,7 +228,6 @@ function analyzeTextForMatches(text: string, assignment: Assignment): number {
     }
   }
   
-  // Check foreign currency balance if available
   if (foreignBalance) {
     const foreignBalanceStr = foreignBalance.toFixed(2)
     const foreignBalanceStrComma = foreignBalanceStr.replace('.', ',')
@@ -254,5 +239,5 @@ function analyzeTextForMatches(text: string, assignment: Assignment): number {
   }
 
   console.log(`Final confidence score for ${assignment.account_number}: ${confidence.toFixed(3)}`)
-  return Math.min(confidence, 1.0) // Cap at 1.0
+  return Math.min(confidence, 1.0)
 }
