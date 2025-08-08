@@ -212,11 +212,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       {/* Document Content */}
       <div className="flex-1 overflow-hidden">
         {isPDF && fileUrl ? (
-          <div className="h-full w-full">
-            <embed
+          <div className="h-full w-full relative">
+            <iframe
               src={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-              type="application/pdf"
-              className="w-full h-full"
+              className="w-full h-full border-0"
+              title={document.file_name}
+              onError={() => {
+                console.error('PDF iframe failed to load');
+                setError('PDF konnte nicht angezeigt werden');
+              }}
             />
           </div>
         ) : isExcel ? (
