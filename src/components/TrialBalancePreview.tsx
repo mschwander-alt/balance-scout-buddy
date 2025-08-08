@@ -107,13 +107,21 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
       const accountNameIndex = headers.findIndex(h => h === trialBalanceData.account_name_column);
       const currentYearIndex = headers.findIndex(h => h === trialBalanceData.current_year_column);
       const previousYearIndex = headers.findIndex(h => h === trialBalanceData.previous_year_column);
-      const foreignCurrencyIndex = trialBalanceData.foreign_currency_column 
+      const foreignCurrencyIndex = (trialBalanceData.foreign_currency_column && trialBalanceData.foreign_currency_column.trim() !== '') 
         ? headers.findIndex(h => h === trialBalanceData.foreign_currency_column)
         : -1;
 
       if (accountNumberIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1 || previousYearIndex === -1) {
         throw new Error('Nicht alle konfigurierten Spalten wurden in der Excel-Datei gefunden.');
       }
+
+      console.log('Column indices:', {
+        accountNumber: accountNumberIndex,
+        accountName: accountNameIndex,
+        currentYear: currentYearIndex,
+        previousYear: previousYearIndex,
+        foreignCurrency: foreignCurrencyIndex
+      });
 
       // Parse data rows
       const parsedData: TrialBalanceRow[] = dataRows
@@ -200,7 +208,7 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
             <div>Kontobezeichnung: {trialBalance.account_name_column}</div>
             <div>Laufendes Jahr: {trialBalance.current_year_column}</div>
             <div>Vorjahr: {trialBalance.previous_year_column}</div>
-            {trialBalance.foreign_currency_column && (
+            {trialBalance.foreign_currency_column && trialBalance.foreign_currency_column.trim() !== '' && (
               <div>Fremdwährung: {trialBalance.foreign_currency_column}</div>
             )}
           </div>
@@ -226,7 +234,7 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
                 <TableHead className="text-right font-semibold">
                   Saldo {new Date().getFullYear() - 1}
                 </TableHead>
-                {trialBalance.foreign_currency_column && (
+                {trialBalance.foreign_currency_column && trialBalance.foreign_currency_column.trim() !== '' && (
                   <TableHead className="text-right font-semibold">
                     Fremdwährung
                   </TableHead>
@@ -249,7 +257,7 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
                     <TableCell className="text-right font-mono">
                       {formatSwissNumber(row.previousYear)}
                     </TableCell>
-                    {trialBalance.foreign_currency_column && (
+                    {trialBalance.foreign_currency_column && trialBalance.foreign_currency_column.trim() !== '' && (
                       <TableCell className="text-right font-mono">
                         {row.foreignCurrency !== undefined ? formatSwissNumber(row.foreignCurrency) : '-'}
                       </TableCell>
@@ -258,7 +266,7 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={trialBalance.foreign_currency_column ? 5 : 4} className="text-center py-8">
+                  <TableCell colSpan={trialBalance.foreign_currency_column && trialBalance.foreign_currency_column.trim() !== '' ? 5 : 4} className="text-center py-8">
                     <div className="text-muted-foreground">
                       <AlertCircle className="h-8 w-8 mx-auto mb-2" />
                       Keine Daten gefunden oder Fehler beim Parsen der Excel-Datei
