@@ -9,7 +9,9 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight, AlertCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface AccountGroup {
   id: string;
@@ -38,6 +40,7 @@ interface Document {
   file_name: string;
   file_path: string;
   file_type: string;
+  file_size: number;
   description?: string;
   extracted_amounts?: number[];
 }
@@ -56,6 +59,10 @@ const Review = () => {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showManualAssignModal, setShowManualAssignModal] = useState(false);
+  const [unmatchedDocuments, setUnmatchedDocuments] = useState<any[]>([]);
+  const [selectedDocumentForAssign, setSelectedDocumentForAssign] = useState<string | null>(null);
+  const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
 
   const loadData = useCallback(async () => {
     if (!user || !trialBalanceId) return;
@@ -196,6 +203,64 @@ const Review = () => {
     }
   };
 
+  const getUnmatchedDocuments = () => {
+    const matchedDocIds = new Set();
+    assignments.forEach(assignment => {
+      if (assignment.matched_documents) {
+        assignment.matched_documents.forEach(docId => matchedDocIds.add(docId));
+      }
+    });
+    
+    return documents.filter(doc => !matchedDocIds.has(doc.id));
+  };
+
+  const handleManualAssign = async (documentId: string, assignmentId: string) => {
+    try {
+      // Find the assignment and document
+      const assignment = assignments.find(a => a.id === assignmentId);
+      const document = documents.find(d => d.id === documentId);
+      
+      if (!assignment || !document) return;
+
+      // Update the assignment with manual match
+      const updatedAssignments = assignments.map(a => {
+        if (a.id === assignmentId) {
+          return {
+            ...a,
+            match_status: 'matched' as const,
+            confidence_score: 1.0, // Manual assignments get 100% confidence
+            matched_documents: [...(a.matched_documents || []), documentId]
+          };
+        }
+        return a;
+      });
+
+      setAssignments(updatedAssignments);
+      
+      // Update groups
+      setAccountGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          assignments: updatedAssignments.filter(a => a.account_group_id === group.id)
+        }))
+      );
+
+      toast({
+        title: "Erfolgreich zugewiesen",
+        description: `${document.file_name} wurde ${assignment.account_name} zugewiesen.`,
+      });
+
+      setSelectedDocumentForAssign(null);
+    } catch (error: any) {
+      console.error('Error during manual assign:', error);
+      toast({
+        title: "Fehler",
+        description: "Manuelle Zuweisung fehlgeschlagen.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const toggleGroup = (groupId: string) => {
     setAccountGroups(prevGroups =>
       prevGroups.map(group =>
@@ -293,7 +358,7 @@ const Review = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
+              <div className="flex gap-4">
                 <Button 
                   onClick={startAutoMatch}
                   disabled={isProcessing || accountGroups.length === 0}
@@ -302,6 +367,87 @@ const Review = () => {
                   <Search className="h-4 w-4" />
                   {isProcessing ? 'Prüfung läuft...' : 'Prüfung starten'}
                 </Button>
+                
+                <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setUnmatchedDocuments(getUnmatchedDocuments());
+                        setShowManualAssignModal(true);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Nicht gematchte Dateien manuell zuweisen
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Manuelle Dokumentenzuweisung</DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4">
+                      {getUnmatchedDocuments().length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">
+                          Alle Dokumente wurden automatisch zugeordnet.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            {getUnmatchedDocuments().length} Dokumente wurden noch nicht zugeordnet. 
+                            Wählen Sie ein Dokument und das entsprechende Konto aus.
+                          </p>
+                          
+                          <div className="space-y-3">
+                            {getUnmatchedDocuments().map((document) => (
+                              <div key={document.id} className="border rounded-lg p-4">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h4 className="font-medium">{document.file_name}</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      {document.file_type} • {Math.round(document.file_size / 1024)} KB
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2">
+                                    <Select 
+                                      value={selectedDocumentForAssign === document.id ? assignmentForDoc : ""}
+                                      onValueChange={(value) => {
+                                        setSelectedDocumentForAssign(document.id);
+                                        setAssignmentForDoc(value);
+                                      }}
+                                    >
+                                      <SelectTrigger className="w-64">
+                                        <SelectValue placeholder="Konto auswählen..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {assignments.map((assignment) => (
+                                          <SelectItem key={assignment.id} value={assignment.id}>
+                                            {assignment.account_number} - {assignment.account_name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    
+                                    <Button 
+                                      size="sm"
+                                      disabled={selectedDocumentForAssign !== document.id || !assignmentForDoc}
+                                      onClick={() => handleManualAssign(document.id, assignmentForDoc)}
+                                    >
+                                      Zuweisen
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                
                 {isProcessing && (
                   <div className="flex-1 max-w-md">
                     <Progress value={progress} className="w-full" />

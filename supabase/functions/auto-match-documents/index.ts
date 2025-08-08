@@ -185,34 +185,44 @@ async function analyzeDocumentForBalance(fileData: Blob, targetBalance: number, 
 
 async function extractTextFromExcel(fileData: Blob): Promise<string> {
   try {
+    console.log('Starting Excel extraction, file size:', fileData.size)
     const buffer = await fileData.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
+    console.log('Buffer created, size:', buffer.byteLength)
+    
+    const workbook = XLSX.read(buffer, { 
+      type: 'array',
+      cellText: false,
+      cellDates: false 
+    })
+    
+    console.log('Workbook loaded, sheets:', workbook.SheetNames)
     
     let allText = ''
     
     // Process each worksheet
     for (const sheetName of workbook.SheetNames) {
+      console.log(`Processing sheet: ${sheetName}`)
       const worksheet = workbook.Sheets[sheetName]
       
-      // Convert to JSON to get all cell values
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-        header: 1, 
-        defval: '',
-        raw: false // This ensures numbers are formatted as strings
-      })
+      // Get range of cells
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1')
       
-      // Convert all cells to text
-      for (const row of jsonData as any[][]) {
-        for (const cell of row) {
-          if (cell !== null && cell !== undefined && cell !== '') {
-            allText += cell.toString() + ' '
+      // Extract all cell values
+      for (let row = range.s.r; row <= range.e.r; row++) {
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
+          const cell = worksheet[cellAddress]
+          
+          if (cell && cell.v !== undefined) {
+            allText += cell.v.toString() + ' '
           }
         }
         allText += '\n'
       }
     }
     
-    console.log(`Extracted ${allText.length} characters from Excel file`)
+    console.log(`Excel extraction complete: ${allText.length} characters extracted`)
+    console.log(`First 200 chars: ${allText.substring(0, 200)}`)
     return allText
     
   } catch (error) {
