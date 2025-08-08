@@ -816,10 +816,10 @@ const Review = () => {
                                   </div>
                                 ) : documentPreview ? (
                                   document.file_type === 'application/pdf' ? (
-                                    <embed 
-                                      src={documentPreview} 
-                                      type="application/pdf" 
-                                      className="w-full h-full"
+                                    <iframe
+                                      src={documentPreview}
+                                      className="w-full h-full border-0"
+                                      title="PDF Preview"
                                     />
                                   ) : (
                                     <div className="p-4 text-center h-full flex items-center justify-center flex-col">
