@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Save, Eye } from 'lucide-react';
+import { Settings, Save, Eye, AlertCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface ColumnConfigProps {
   trialBalanceId: string;
@@ -15,6 +16,7 @@ interface ColumnConfigProps {
 interface TrialBalance {
   id: string;
   filename: string;
+  file_path: string;
   account_number_column?: string;
   account_name_column?: string;
   current_year_column?: string;
@@ -25,9 +27,10 @@ interface TrialBalance {
 const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigProps) => {
   const { toast } = useToast();
   const [trialBalance, setTrialBalance] = useState<TrialBalance | null>(null);
-  const [sampleColumns, setSampleColumns] = useState<string[]>([]);
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasError, setHasError] = useState(false);
   
   const [columnMapping, setColumnMapping] = useState({
     account_number_column: '',
@@ -43,6 +46,9 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
 
   const loadTrialBalance = async () => {
     try {
+      setHasError(false);
+      
+      // Load trial balance metadata
       const { data, error } = await supabase
         .from('trial_balances')
         .select('*')
@@ -50,7 +56,6 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
         .single();
 
       if (error) throw error;
-
       setTrialBalance(data);
       
       // Set existing mapping if available
@@ -64,19 +69,13 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
         });
       }
 
-      // Mock sample columns for demonstration
-      // In a real implementation, you would parse the Excel file to get actual column names
-      setSampleColumns([
-        'A - Kontonummer',
-        'B - Kontobezeichnung', 
-        'C - Saldo 2024',
-        'D - Saldo 2023',
-        'E - Fremdwährung',
-        'F - Zusatzinfo',
-        'G - Status'
-      ]);
+      // Load and parse Excel file to get column headers
+      if (data.file_path) {
+        await loadExcelHeaders(data.file_path);
+      }
     } catch (error: any) {
       console.error('Error loading trial balance:', error);
+      setHasError(true);
       toast({
         title: "Fehler beim Laden",
         description: error.message,
@@ -84,6 +83,49 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadExcelHeaders = async (filePath: string) => {
+    try {
+      // Download the Excel file from Supabase storage
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('trial-balances')
+        .download(filePath);
+
+      if (downloadError) throw downloadError;
+
+      // Parse Excel file to get headers
+      const arrayBuffer = await fileData.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // Get the first worksheet
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Convert to JSON to get headers
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      
+      if (jsonData.length > 0) {
+        const headers = jsonData[0] as string[];
+        // Filter out empty headers and convert to strings
+        const validHeaders = headers
+          .map((h, index) => h ? String(h).trim() : `Spalte ${index + 1}`)
+          .filter(h => h && h !== '');
+        
+        console.log('Excel headers loaded:', validHeaders);
+        setAvailableColumns(validHeaders);
+      } else {
+        throw new Error('Keine Spalten-Header in der Excel-Datei gefunden.');
+      }
+    } catch (error: any) {
+      console.error('Error loading Excel headers:', error);
+      setHasError(true);
+      toast({
+        title: "Fehler beim Lesen der Excel-Datei",
+        description: "Die Spalten-Header konnten nicht gelesen werden.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -131,7 +173,29 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
     return (
       <Card className="w-full max-w-2xl mx-auto">
         <CardContent className="flex items-center justify-center p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="text-muted-foreground">Excel-Datei wird analysiert...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (hasError || !trialBalance || availableColumns.length === 0) {
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardContent className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Fehler beim Laden der Excel-Datei</h3>
+            <p className="text-muted-foreground mb-4">
+              Die Spalten-Header konnten nicht gelesen werden.
+            </p>
+            <Button variant="outline" onClick={loadTrialBalance}>
+              Erneut versuchen
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -153,10 +217,10 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
         <div className="bg-muted/50 rounded-lg p-4">
           <h4 className="font-medium mb-2 flex items-center gap-2">
             <Eye className="h-4 w-4" />
-            Verfügbare Spalten in der Datei:
+            Verfügbare Spalten in "{trialBalance.filename}":
           </h4>
           <div className="text-sm text-muted-foreground">
-            {sampleColumns.join(', ')}
+            {availableColumns.join(', ')}
           </div>
         </div>
 
@@ -173,7 +237,7 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
                   <SelectValue placeholder="Spalte wählen..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {sampleColumns.map((col) => (
+                  {availableColumns.map((col) => (
                     <SelectItem key={col} value={col}>{col}</SelectItem>
                   ))}
                 </SelectContent>
@@ -190,7 +254,7 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
                   <SelectValue placeholder="Spalte wählen..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {sampleColumns.map((col) => (
+                  {availableColumns.map((col) => (
                     <SelectItem key={col} value={col}>{col}</SelectItem>
                   ))}
                 </SelectContent>
@@ -209,7 +273,7 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
                   <SelectValue placeholder="Spalte wählen..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {sampleColumns.map((col) => (
+                  {availableColumns.map((col) => (
                     <SelectItem key={col} value={col}>{col}</SelectItem>
                   ))}
                 </SelectContent>
@@ -226,7 +290,7 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
                   <SelectValue placeholder="Spalte wählen..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {sampleColumns.map((col) => (
+                  {availableColumns.map((col) => (
                     <SelectItem key={col} value={col}>{col}</SelectItem>
                   ))}
                 </SelectContent>
@@ -245,7 +309,7 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Keine Fremdwährung</SelectItem>
-                {sampleColumns.map((col) => (
+                {availableColumns.map((col) => (
                   <SelectItem key={col} value={col}>{col}</SelectItem>
                 ))}
               </SelectContent>
