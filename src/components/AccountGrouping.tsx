@@ -627,17 +627,42 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="accounts" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="accounts">Konto-Übersicht</TabsTrigger>
-                <TabsTrigger value="assignments">Zuordnungen</TabsTrigger>
-                <TabsTrigger value="overview">Team-Übersicht</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 bg-primary/10 border border-primary/20 mb-6">
+                <TabsTrigger 
+                  value="accounts"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg font-semibold"
+                >
+                  Konto-Übersicht
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="assignments"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg font-semibold"
+                >
+                  Zuordnungen
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="overview"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg font-semibold"
+                >
+                  Team-Übersicht
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="accounts" className="space-y-4">
                 <Tabs defaultValue="bilanz" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="bilanz">Bilanz</TabsTrigger>
-                <TabsTrigger value="erfolgsrechnung">Erfolgsrechnung</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 bg-muted/10 border-0 h-8 p-0 mb-4">
+                <TabsTrigger 
+                  value="bilanz"
+                  className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-sm text-sm font-medium"
+                >
+                  Bilanz
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="erfolgsrechnung"
+                  className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-sm text-sm font-medium"
+                >
+                  Erfolgsrechnung
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="bilanz" className="space-y-4">
