@@ -9,10 +9,11 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Eye, MessageSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 
 interface AccountGroup {
   id: string;
@@ -66,6 +67,8 @@ const Review = () => {
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [selectedAccountForView, setSelectedAccountForView] = useState<AccountAssignment | null>(null);
+  const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
 
   const saveMatchResults = async (matchedAssignments: AccountAssignment[]) => {
     try {
@@ -188,6 +191,9 @@ const Review = () => {
       setAccountGroups(groupedData);
       setAssignments(assignmentsWithResults);
       setDocuments(documentsData || []);
+      
+      // Load saved comments
+      setAccountComments(loadAccountComments());
 
     } catch (error: any) {
       console.error('Error loading data:', error);
@@ -288,6 +294,31 @@ const Review = () => {
       });
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const handleAccountClick = (assignment: AccountAssignment) => {
+    setSelectedAccountForView(assignment);
+  };
+
+  const updateAccountComment = (accountId: string, comment: string) => {
+    setAccountComments(prev => ({
+      ...prev,
+      [accountId]: comment
+    }));
+    
+    // Save comments to localStorage
+    const savedComments = { ...accountComments, [accountId]: comment };
+    localStorage.setItem(`account_comments_${trialBalanceId}`, JSON.stringify(savedComments));
+  };
+
+  const loadAccountComments = () => {
+    try {
+      const savedComments = localStorage.getItem(`account_comments_${trialBalanceId}`);
+      return savedComments ? JSON.parse(savedComments) : {};
+    } catch (error) {
+      console.error('Error loading account comments:', error);
+      return {};
     }
   };
 
@@ -662,13 +693,16 @@ const Review = () => {
                                   </TableHeader>
                                   <TableBody>
                                     {group.assignments.map((assignment) => (
-                                      <TableRow 
-                                        key={assignment.id}
-                                        className={`cursor-pointer hover:bg-muted/50 ${
-                                          selectedAccount === assignment.id ? 'bg-muted' : ''
-                                        }`}
-                                        onClick={() => setSelectedAccount(assignment.id)}
-                                      >
+                                       <TableRow 
+                                         key={assignment.id}
+                                         className={`cursor-pointer hover:bg-muted/50 ${
+                                           selectedAccount === assignment.id ? 'bg-muted' : ''
+                                         }`}
+                                         onClick={() => {
+                                           setSelectedAccount(assignment.id);
+                                           handleAccountClick(assignment);
+                                         }}
+                                       >
                                         <TableCell>
                                           <div>
                                             <div className="font-medium">{assignment.account_number}</div>
@@ -720,59 +754,147 @@ const Review = () => {
               <CardHeader>
                 <CardTitle>Gefundene Nachweise</CardTitle>
                 <CardDescription>
-                  {selectedAccountData 
-                    ? `Nachweise für Konto ${selectedAccountData.account_number}`
+                  {selectedAccountForView
+                    ? `Nachweise für Konto ${selectedAccountForView.account_number} - ${selectedAccountForView.account_name}`
                     : 'Wählen Sie ein Konto aus der Liste aus'
                   }
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!selectedAccountData ? (
+                {!selectedAccountForView ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Wählen Sie ein Konto aus der Liste aus</p>
                     <p className="text-sm">um die zugehörigen Nachweise anzuzeigen</p>
                   </div>
-                ) : selectedDocuments.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <XCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Keine Nachweise gefunden</p>
-                    <p className="text-sm">Für dieses Konto wurden keine passenden Dokumente gefunden</p>
-                  </div>
                 ) : (
-                  <div className="space-y-4">
-                    {selectedDocuments.map((document) => (
-                      <Card key={document.id}>
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-medium">{document.file_name}</h4>
-                              {document.description && (
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  {document.description}
-                                </p>
-                              )}
-                              {document.extracted_amounts && document.extracted_amounts.length > 0 && (
-                                <div className="mt-2">
-                                  <p className="text-sm font-medium">Gefundene Beträge:</p>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {document.extracted_amounts.map((amount, index) => (
-                                      <Badge key={index} variant="secondary">
-                                        {formatCurrency(amount)}
-                                      </Badge>
-                                    ))}
+                  <div className="space-y-6">
+                    {/* Account Summary */}
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold">{selectedAccountForView.account_number}</h3>
+                        <div className="flex items-center gap-2">
+                          {getMatchStatusIcon(selectedAccountForView.match_status)}
+                          <span className="text-sm">{getMatchStatusText(selectedAccountForView.match_status)}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">{selectedAccountForView.account_name}</p>
+                      <div className="flex justify-between text-sm">
+                        <span>Aktueller Saldo:</span>
+                        <span className="font-medium">{formatCurrency(selectedAccountForView.current_year_balance)}</span>
+                      </div>
+                      {selectedAccountForView.foreign_currency_balance && (
+                        <div className="flex justify-between text-sm">
+                          <span>Fremdwährung:</span>
+                          <span className="font-medium">{formatCurrency(selectedAccountForView.foreign_currency_balance)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Documents */}
+                    {selectedAccountForView.matched_documents && selectedAccountForView.matched_documents.length > 0 ? (
+                      <div className="space-y-4">
+                        <h4 className="font-medium">Zugeordnete Dokumente:</h4>
+                        {selectedAccountForView.matched_documents.map((docId) => {
+                          const document = documents.find(d => d.id === docId);
+                          if (!document) return null;
+                          
+                          return (
+                            <Card key={document.id} className="border-2">
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <h5 className="font-medium">{document.file_name}</h5>
+                                    <p className="text-sm text-muted-foreground">
+                                      {document.file_type} • {Math.round(document.file_size / 1024)} KB
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline">
+                                      {document.file_type.includes('pdf') ? 'PDF' : 
+                                       document.file_type.includes('excel') ? 'Excel' : 'Word'}
+                                    </Badge>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => previewDocument(document)}
+                                      disabled={previewLoading}
+                                    >
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      Anzeigen
+                                    </Button>
                                   </div>
                                 </div>
-                              )}
-                            </div>
-                            <Badge variant="outline">
-                              {document.file_type.includes('pdf') ? 'PDF' : 
-                               document.file_type.includes('excel') ? 'Excel' : 'Word'}
-                            </Badge>
+                                
+                                {/* Document Preview Area */}
+                                {documentPreview && (
+                                  <div className="mb-4 border rounded-lg overflow-hidden">
+                                    {document.file_type === 'application/pdf' ? (
+                                      <embed 
+                                        src={documentPreview} 
+                                        type="application/pdf" 
+                                        className="w-full h-96"
+                                      />
+                                    ) : (
+                                      <div className="p-4 text-center">
+                                        <p className="text-sm text-muted-foreground mb-2">
+                                          Excel-Vorschau wird derzeit nicht unterstützt.
+                                        </p>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm"
+                                          onClick={() => window.open(documentPreview, '_blank')}
+                                        >
+                                          In neuem Tab öffnen
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Comment Section */}
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                    <label className="text-sm font-medium">Kommentare:</label>
+                                  </div>
+                                  <Textarea
+                                    placeholder="Notizen oder Kommentare zu diesem Dokument..."
+                                    value={accountComments[`${selectedAccountForView.id}_${document.id}`] || ''}
+                                    onChange={(e) => updateAccountComment(`${selectedAccountForView.id}_${document.id}`, e.target.value)}
+                                    className="min-h-[80px]"
+                                  />
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <XCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>Keine Nachweise gefunden</p>
+                        <p className="text-sm">Für dieses Konto wurden keine passenden Dokumente gefunden</p>
+                      </div>
+                    )}
+
+                    {/* General Account Comment */}
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                            <label className="text-sm font-medium">Allgemeine Notizen zum Konto:</label>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          <Textarea
+                            placeholder="Allgemeine Bemerkungen oder Notizen zu diesem Konto..."
+                            value={accountComments[selectedAccountForView.id] || ''}
+                            onChange={(e) => updateAccountComment(selectedAccountForView.id, e.target.value)}
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
               </CardContent>
