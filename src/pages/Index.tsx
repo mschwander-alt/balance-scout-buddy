@@ -4,11 +4,14 @@ import { Button } from '@/components/ui/button';
 import UploadTrialBalance from '@/components/UploadTrialBalance';
 import ColumnConfig from '@/components/ColumnConfig';
 import TrialBalancePreview from '@/components/TrialBalancePreview';
+import TeamMembersManager from '@/components/TeamMembersManager';
+import AccountGrouping from '@/components/AccountGrouping';
 
 const Index = () => {
   const { user, signOut } = useAuth();
-  const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'preview' | 'dashboard'>('upload');
+  const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'preview' | 'team' | 'grouping' | 'dashboard'>('upload');
   const [currentTrialBalanceId, setCurrentTrialBalanceId] = useState<string>('');
+  const [currentTrialBalanceData, setCurrentTrialBalanceData] = useState<any>(null);
 
   const handleUploadSuccess = (trialBalanceId: string) => {
     setCurrentTrialBalanceId(trialBalanceId);
@@ -24,6 +27,14 @@ const Index = () => {
   };
 
   const handlePreviewConfirm = () => {
+    setCurrentStep('team');
+  };
+
+  const handleTeamSetupComplete = () => {
+    setCurrentStep('grouping');
+  };
+
+  const handleGroupingComplete = () => {
     setCurrentStep('dashboard');
   };
 
@@ -96,7 +107,50 @@ const Index = () => {
             <TrialBalancePreview 
               trialBalanceId={currentTrialBalanceId} 
               onEdit={handlePreviewEdit}
-              onConfirm={handlePreviewConfirm}
+              onConfirm={(data) => {
+                setCurrentTrialBalanceData(data);
+                handlePreviewConfirm();
+              }}
+            />
+          </div>
+        )}
+
+        {currentStep === 'team' && (
+          <div className="text-center space-y-8">
+            <div>
+              <h2 className="text-3xl font-bold mb-4 text-foreground">
+                Team-Mitglieder verwalten
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                Fügen Sie Team-Mitglieder hinzu, die später Prüfungsgebiete bearbeiten werden
+              </p>
+            </div>
+            <TeamMembersManager />
+            <div className="flex justify-center gap-4">
+              <Button variant="outline" onClick={() => setCurrentStep('preview')}>
+                Zurück zur Vorschau
+              </Button>
+              <Button onClick={handleTeamSetupComplete}>
+                Weiter zu Gruppierungen
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 'grouping' && (
+          <div className="text-center space-y-8">
+            <div>
+              <h2 className="text-3xl font-bold mb-4 text-foreground">
+                Konto-Gruppierungen erstellen
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                Gruppieren Sie verwandte Konten und ordnen Sie diese Team-Mitgliedern zu
+              </p>
+            </div>
+            <AccountGrouping 
+              trialBalanceId={currentTrialBalanceId}
+              trialBalanceData={currentTrialBalanceData}
+              onGroupingComplete={handleGroupingComplete}
             />
           </div>
         )}

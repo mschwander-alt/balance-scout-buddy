@@ -10,7 +10,7 @@ import * as XLSX from 'xlsx';
 interface TrialBalancePreviewProps {
   trialBalanceId: string;
   onEdit: () => void;
-  onConfirm: () => void;
+  onConfirm: (data: any) => void;
 }
 
 interface TrialBalanceData {
@@ -330,9 +330,9 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
             <ArrowLeft className="h-4 w-4 mr-2" />
             Konfiguration bearbeiten
           </Button>
-          <Button onClick={onConfirm}>
+          <Button onClick={() => onConfirm(trialBalance)}>
             <CheckCircle className="h-4 w-4 mr-2" />
-            Konfiguration bestätigen
+            Weiter zu Team-Setup
           </Button>
         </div>
       </CardContent>

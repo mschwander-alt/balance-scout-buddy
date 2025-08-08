@@ -14,6 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_group_assignments: {
+        Row: {
+          account_group_id: string
+          account_name: string
+          account_number: string
+          created_at: string
+          current_year_balance: number
+          foreign_currency_balance: number | null
+          id: string
+          previous_year_balance: number
+        }
+        Insert: {
+          account_group_id: string
+          account_name: string
+          account_number: string
+          created_at?: string
+          current_year_balance?: number
+          foreign_currency_balance?: number | null
+          id?: string
+          previous_year_balance?: number
+        }
+        Update: {
+          account_group_id?: string
+          account_name?: string
+          account_number?: string
+          created_at?: string
+          current_year_balance?: number
+          foreign_currency_balance?: number | null
+          id?: string
+          previous_year_balance?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_group_assignments_account_group_id_fkey"
+            columns: ["account_group_id"]
+            isOneToOne: false
+            referencedRelation: "account_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      account_groups: {
+        Row: {
+          assigned_member_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          status: string | null
+          trial_balance_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_member_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string | null
+          trial_balance_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_member_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string | null
+          trial_balance_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_groups_assigned_member_id_fkey"
+            columns: ["assigned_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_groups_trial_balance_id_fkey"
+            columns: ["trial_balance_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           company: string | null
@@ -41,6 +133,36 @@ export type Database = {
           id?: string
           role?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          role: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          role?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          role?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
