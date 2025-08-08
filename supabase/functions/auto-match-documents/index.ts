@@ -1,6 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import * as XLSX from 'https://deno.land/x/sheetjs@v0.18.3/xlsx.mjs'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -113,7 +112,7 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
   try {
     console.log(`Analyzing document: ${document.file_name} for account: ${assignment.account_number}`)
 
-    // Download the document from storage with proper auth headers
+    // Download the document from storage
     const { data: fileData, error: downloadError } = await supabaseClient.storage
       .from('account-evidence')
       .download(document.file_path)
@@ -125,7 +124,7 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
 
     let extractedText = ''
     
-    // Extract text based on file type
+    // Extract text based on file type - simplified approach
     if (document.file_type.includes('pdf')) {
       extractedText = await extractTextFromPDF(fileData)
     } else if (document.file_type.includes('excel') || document.file_type.includes('sheet')) {
@@ -148,37 +147,20 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
 
 async function extractTextFromPDF(fileData: Blob): Promise<string> {
   try {
-    // For now, we'll extract basic text patterns from PDF metadata and visible content
-    // This is a simplified approach that works with Deno
     const buffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(buffer)
     
-    // Convert to string and look for readable text patterns
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
+    // Simple text extraction from PDF - look for readable text patterns
+    const decoder = new TextDecoder('utf-8', { fatal: false })
+    let text = decoder.decode(uint8Array)
     
-    // Extract readable text using regex patterns for common PDF text structures
-    const textPatterns = [
-      /\/T\s*\([^)]*\)/g, // Text objects in PDF
-      /BT\s+([^ET]+)\s+ET/g, // Text blocks
-      /Tj\s*\[([^\]]*)\]/g, // Text arrays
-    ]
+    // Clean up the text and extract readable parts
+    text = text.replace(/[^\x20-\x7E\s\u00C0-\u017F]/g, ' ')
+               .replace(/\s+/g, ' ')
+               .trim()
     
-    let extractedText = ''
-    for (const pattern of textPatterns) {
-      const matches = text.match(pattern)
-      if (matches) {
-        extractedText += matches.join(' ')
-      }
-    }
-    
-    // Also look for plain readable text in the binary data
-    const readableText = text.replace(/[^\x20-\x7E\s]/g, ' ')
-                            .replace(/\s+/g, ' ')
-                            .trim()
-    
-    const finalText = extractedText + ' ' + readableText
-    console.log(`Extracted ${finalText.length} characters from PDF`)
-    return finalText
+    console.log(`Extracted ${text.length} characters from PDF`)
+    return text
   } catch (error) {
     console.error('Error extracting PDF text:', error)
     return ''
@@ -187,22 +169,18 @@ async function extractTextFromPDF(fileData: Blob): Promise<string> {
 
 async function extractTextFromExcel(fileData: Blob): Promise<string> {
   try {
+    // For Excel files, we'll use a simple approach to extract readable content
     const buffer = await fileData.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
+    const decoder = new TextDecoder('utf-8', { fatal: false })
+    let text = decoder.decode(buffer)
     
-    let allText = ''
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
-      
-      // Convert all cells to text
-      for (const row of jsonData as any[][]) {
-        allText += row.join(' ') + '\n'
-      }
-    }
+    // Clean up and extract readable text
+    text = text.replace(/[^\x20-\x7E\s\u00C0-\u017F]/g, ' ')
+               .replace(/\s+/g, ' ')
+               .trim()
     
-    console.log(`Extracted ${allText.length} characters from Excel`)
-    return allText
+    console.log(`Extracted ${text.length} characters from Excel`)
+    return text
   } catch (error) {
     console.error('Error extracting Excel text:', error)
     return ''
@@ -211,18 +189,17 @@ async function extractTextFromExcel(fileData: Blob): Promise<string> {
 
 async function extractTextFromWord(fileData: Blob): Promise<string> {
   try {
-    // Word documents are more complex to parse, for now we'll do basic text extraction
-    // In production, you would use libraries like mammoth.js
     const buffer = await fileData.arrayBuffer()
-    const text = new TextDecoder().decode(buffer)
+    const decoder = new TextDecoder('utf-8', { fatal: false })
+    let text = decoder.decode(buffer)
     
-    // Basic text extraction - look for readable text patterns
-    const cleanText = text.replace(/[\x00-\x1F\x7F-\x9F]/g, ' ')
-                          .replace(/\s+/g, ' ')
-                          .trim()
+    // Clean up and extract readable text
+    text = text.replace(/[^\x20-\x7E\s\u00C0-\u017F]/g, ' ')
+               .replace(/\s+/g, ' ')
+               .trim()
     
-    console.log(`Extracted ${cleanText.length} characters from Word document`)
-    return cleanText
+    console.log(`Extracted ${text.length} characters from Word document`)
+    return text
   } catch (error) {
     console.error('Error extracting Word text:', error)
     return ''
