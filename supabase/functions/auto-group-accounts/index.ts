@@ -23,184 +23,190 @@ interface GroupingSuggestion {
   subcategory: string;
 }
 
-// Schweizer Kontenrahmen nach Obligationenrecht
-const ACCOUNT_GROUPS = {
+// Schweizer Kontenrahmen nach Obligationenrecht - Standard Bilanzstruktur
+const STANDARD_ACCOUNT_GROUPS = [
   // AKTIVEN - Umlaufvermögen
-  'Flüssige Mittel': {
-    patterns: [/^10[0-9]{2}/, /^100[0-9]/, /^101[0-9]/, /^102[0-9]/],
+  {
+    name: 'Flüssige Mittel',
+    patterns: [/^100/, /^101/, /^102/, /^103/, /^104/, /^105/],
     category: 'aktiven' as const,
     subcategory: 'Umlaufvermögen',
-    description: 'Kasse, Post- und Bankguthaben'
+    description: 'Kasse, Post- und Bankguthaben',
+    order: 1
   },
-  'Forderungen aus Lieferungen und Leistungen': {
-    patterns: [/^11[0-9]{2}/, /^110[0-9]/, /^111[0-9]/, /^112[0-9]/],
+  {
+    name: 'Kurzfristig gehaltene Aktiven mit Börsenkurs',
+    patterns: [/^106/, /^107/, /^108/, /^109/],
     category: 'aktiven' as const,
     subcategory: 'Umlaufvermögen',
-    description: 'Kundenforderungen'
+    description: 'Kurzfristige Wertschriften',
+    order: 2
   },
-  'Übrige kurzfristige Forderungen': {
-    patterns: [/^13[0-9]{2}/, /^14[0-9]{2}/, /^130[0-9]/, /^140[0-9]/],
+  {
+    name: 'Forderungen aus Lieferungen und Leistungen',
+    patterns: [/^110/, /^111/, /^112/, /^113/],
     category: 'aktiven' as const,
     subcategory: 'Umlaufvermögen',
-    description: 'Diverse Forderungen, Vorschüsse, Verrechnungssteuer'
+    description: 'Kundenforderungen',
+    order: 3
   },
-  'Vorräte': {
-    patterns: [/^12[0-9]{2}/, /^120[0-9]/, /^121[0-9]/, /^122[0-9]/],
+  {
+    name: 'Übrige kurzfristige Forderungen',
+    patterns: [/^114/, /^115/, /^116/, /^117/, /^118/, /^119/],
     category: 'aktiven' as const,
     subcategory: 'Umlaufvermögen',
-    description: 'Material, Waren, unfertige und fertige Erzeugnisse'
+    description: 'Diverse Forderungen, Vorschüsse, Verrechnungssteuer',
+    order: 4
   },
-  'Aktive Rechnungsabgrenzung': {
-    patterns: [/^15[0-9]{2}/, /^150[0-9]/],
+  {
+    name: 'Vorräte und nicht fakturierte Dienstleistungen',
+    patterns: [/^120/, /^121/, /^122/, /^123/, /^124/, /^125/, /^126/, /^127/, /^128/, /^129/],
     category: 'aktiven' as const,
     subcategory: 'Umlaufvermögen',
-    description: 'Vorausbezahlte Aufwände'
+    description: 'Material, Waren, unfertige und fertige Erzeugnisse',
+    order: 5
+  },
+  {
+    name: 'Aktive Rechnungsabgrenzung',
+    patterns: [/^150/, /^151/, /^152/, /^153/, /^154/, /^155/, /^156/, /^157/, /^158/, /^159/],
+    category: 'aktiven' as const,
+    subcategory: 'Umlaufvermögen',
+    description: 'Vorausbezahlte Aufwände',
+    order: 6
   },
 
   // AKTIVEN - Anlagevermögen
-  'Finanzanlagen': {
-    patterns: [/^16[0-9]{2}/, /^17[0-9]{2}/, /^160[0-9]/, /^170[0-9]/],
+  {
+    name: 'Finanzanlagen',
+    patterns: [/^140/, /^141/, /^142/, /^143/, /^144/, /^145/, /^146/, /^147/],
     category: 'aktiven' as const,
     subcategory: 'Anlagevermögen',
-    description: 'Wertschriften, Beteiligungen, Darlehen'
+    description: 'Wertschriften, Darlehen',
+    order: 7
   },
-  'Sachanlagen': {
-    patterns: [/^18[0-9]{2}/, /^180[0-9]/, /^181[0-9]/, /^182[0-9]/, /^183[0-9]/, /^184[0-9]/],
+  {
+    name: 'Beteiligungen',
+    patterns: [/^148/, /^149/],
     category: 'aktiven' as const,
     subcategory: 'Anlagevermögen',
-    description: 'Grundstücke, Gebäude, Maschinen, Mobiliar, Fahrzeuge'
+    description: 'Beteiligungen an anderen Unternehmen',
+    order: 8
   },
-  'Immaterielle Anlagen': {
-    patterns: [/^19[0-9]{2}/, /^190[0-9]/, /^191[0-9]/],
+  {
+    name: 'Mobile Sachanlagen',
+    patterns: [/^160/, /^161/, /^162/, /^163/, /^164/, /^165/, /^166/, /^167/, /^168/, /^169/],
     category: 'aktiven' as const,
     subcategory: 'Anlagevermögen',
-    description: 'Patente, Lizenzen, Software, Goodwill'
+    description: 'Maschinen, Mobiliar, Fahrzeuge, IT-Anlagen',
+    order: 9
+  },
+  {
+    name: 'Immobile Sachanlagen',
+    patterns: [/^170/, /^171/, /^172/, /^173/, /^174/, /^175/, /^176/, /^177/, /^178/, /^179/],
+    category: 'aktiven' as const,
+    subcategory: 'Anlagevermögen',
+    description: 'Grundstücke, Gebäude',
+    order: 10
+  },
+  {
+    name: 'Immaterielle Werte',
+    patterns: [/^180/, /^181/, /^182/, /^183/, /^184/, /^185/, /^186/, /^187/, /^188/, /^189/],
+    category: 'aktiven' as const,
+    subcategory: 'Anlagevermögen',
+    description: 'Patente, Lizenzen, Software, Goodwill',
+    order: 11
+  },
+  {
+    name: 'Nicht einbezahltes Grund-, Gesellschafter- oder Stiftungskapital',
+    patterns: [/^190/, /^191/, /^192/, /^193/, /^194/, /^195/, /^196/, /^197/, /^198/, /^199/],
+    category: 'aktiven' as const,
+    subcategory: 'Anlagevermögen',
+    description: 'Ausstehende Kapitaleinlagen',
+    order: 12
   },
 
   // PASSIVEN - Fremdkapital kurzfristig
-  'Verbindlichkeiten aus Lieferungen und Leistungen': {
-    patterns: [/^20[0-9]{2}/, /^200[0-9]/, /^201[0-9]/],
+  {
+    name: 'Verbindlichkeiten aus Lieferungen und Leistungen',
+    patterns: [/^200/, /^201/, /^202/, /^203/, /^204/, /^205/, /^206/, /^207/, /^208/, /^209/],
     category: 'passiven' as const,
     subcategory: 'Fremdkapital kurzfristig',
-    description: 'Lieferantenverbindlichkeiten'
+    description: 'Lieferantenverbindlichkeiten',
+    order: 13
   },
-  'Kurzfristige Finanzverbindlichkeiten': {
-    patterns: [/^21[0-9]{2}/, /^210[0-9]/, /^211[0-9]/],
+  {
+    name: 'Kurzfristige verzinsliche Verbindlichkeiten',
+    patterns: [/^210/, /^211/, /^212/, /^213/, /^214/, /^215/, /^216/, /^217/, /^218/, /^219/],
     category: 'passiven' as const,
     subcategory: 'Fremdkapital kurzfristig',
-    description: 'Bankverbindlichkeiten, kurzfristige Darlehen'
+    description: 'Bankverbindlichkeiten, kurzfristige Darlehen',
+    order: 14
   },
-  'Übrige kurzfristige Verbindlichkeiten': {
-    patterns: [/^22[0-9]{2}/, /^23[0-9]{2}/, /^24[0-9]{2}/, /^220[0-9]/, /^230[0-9]/, /^240[0-9]/],
+  {
+    name: 'Übrige kurzfristige Verbindlichkeiten',
+    patterns: [/^220/, /^221/, /^222/, /^223/, /^224/, /^225/, /^226/, /^227/, /^228/, /^229/],
     category: 'passiven' as const,
     subcategory: 'Fremdkapital kurzfristig',
-    description: 'Sozialversicherungen, Steuern, diverse Verbindlichkeiten'
+    description: 'Sozialversicherungen, Steuern, diverse Verbindlichkeiten',
+    order: 15
   },
-  'Passive Rechnungsabgrenzung': {
-    patterns: [/^25[0-9]{2}/, /^250[0-9]/],
+  {
+    name: 'Passive Rechnungsabgrenzungen und kurzfristige Rückstellungen',
+    patterns: [/^230/, /^231/, /^232/, /^233/, /^234/, /^235/, /^236/, /^237/, /^238/, /^239/],
     category: 'passiven' as const,
     subcategory: 'Fremdkapital kurzfristig',
-    description: 'Erhaltene Vorauszahlungen, aufgelaufene Kosten'
-  },
-  'Rückstellungen': {
-    patterns: [/^26[0-9]{2}/, /^260[0-9]/, /^261[0-9]/],
-    category: 'passiven' as const,
-    subcategory: 'Fremdkapital kurzfristig',
-    description: 'Kurzfristige Rückstellungen'
+    description: 'Erhaltene Vorauszahlungen, aufgelaufene Kosten, kurzfristige Rückstellungen',
+    order: 16
   },
 
   // PASSIVEN - Fremdkapital langfristig
-  'Langfristige Finanzverbindlichkeiten': {
-    patterns: [/^27[0-9]{2}/, /^270[0-9]/, /^271[0-9]/],
+  {
+    name: 'Langfristige verzinsliche Verbindlichkeiten',
+    patterns: [/^240/, /^241/, /^242/, /^243/, /^244/, /^245/, /^246/, /^247/, /^248/, /^249/],
     category: 'passiven' as const,
     subcategory: 'Fremdkapital langfristig',
-    description: 'Hypotheken, langfristige Darlehen'
+    description: 'Hypotheken, langfristige Darlehen',
+    order: 17
   },
-  'Langfristige Rückstellungen': {
-    patterns: [/^28[0-9]{2}/, /^280[0-9]/, /^281[0-9]/],
+  {
+    name: 'Übrige langfristige Verbindlichkeiten',
+    patterns: [/^250/, /^251/, /^252/, /^253/, /^254/, /^255/, /^256/, /^257/, /^258/, /^259/],
     category: 'passiven' as const,
     subcategory: 'Fremdkapital langfristig',
-    description: 'Langfristige Rückstellungen'
+    description: 'Andere langfristige Verbindlichkeiten',
+    order: 18
+  },
+  {
+    name: 'Rückstellungen sowie vom Gesetz vorgesehene steuerlich zulässige Positionen',
+    patterns: [/^260/, /^261/, /^262/, /^263/, /^264/, /^265/, /^266/, /^267/, /^268/, /^269/],
+    category: 'passiven' as const,
+    subcategory: 'Fremdkapital langfristig',
+    description: 'Langfristige Rückstellungen',
+    order: 19
   },
 
   // PASSIVEN - Eigenkapital
-  'Grundkapital': {
-    patterns: [/^29[0-9]{2}/, /^290[0-9]/, /^291[0-9]/],
+  {
+    name: 'Eigenkapital (gemäss Einzelkarten)',
+    patterns: [/^280/, /^281/, /^282/, /^283/, /^284/, /^285/, /^286/, /^287/, /^288/, /^289/, /^290/, /^291/, /^292/, /^293/, /^294/, /^295/, /^296/, /^297/, /^298/, /^299/],
     category: 'passiven' as const,
     subcategory: 'Eigenkapital',
-    description: 'Aktienkapital, Stammkapital'
-  },
-  'Reserven': {
-    patterns: [/^292[0-9]/, /^293[0-9]/, /^294[0-9]/],
-    category: 'passiven' as const,
-    subcategory: 'Eigenkapital',
-    description: 'Gesetzliche und freie Reserven'
-  },
-  'Bilanzgewinn': {
-    patterns: [/^295[0-9]/, /^296[0-9]/, /^297[0-9]/],
-    category: 'passiven' as const,
-    subcategory: 'Eigenkapital',
-    description: 'Gewinnvortrag, Jahresgewinn'
-  },
-
-  // ERFOLGSRECHNUNG - Ertrag
-  'Netto-Erlöse': {
-    patterns: [/^30[0-9]{2}/, /^31[0-9]{2}/, /^300[0-9]/, /^310[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Ertrag',
-    description: 'Warenerlöse, Dienstleistungserlöse'
-  },
-  'Bestandesänderungen': {
-    patterns: [/^32[0-9]{2}/, /^320[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Ertrag',
-    description: 'Änderungen der Vorräte an unfertigen und fertigen Erzeugnissen'
-  },
-  'Andere Erträge': {
-    patterns: [/^36[0-9]{2}/, /^37[0-9]{2}/, /^38[0-9]{2}/, /^39[0-9]{2}/, /^360[0-9]/, /^370[0-9]/, /^380[0-9]/, /^390[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Ertrag',
-    description: 'Nebenerlöse, außerordentliche Erträge, Finanzertrag'
-  },
-
-  // ERFOLGSRECHNUNG - Aufwand
-  'Materialaufwand': {
-    patterns: [/^40[0-9]{2}/, /^41[0-9]{2}/, /^400[0-9]/, /^410[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Aufwand',
-    description: 'Material- und Wareneinkauf, Handelswarenaufwand'
-  },
-  'Personalaufwand': {
-    patterns: [/^50[0-9]{2}/, /^51[0-9]{2}/, /^500[0-9]/, /^510[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Aufwand',
-    description: 'Löhne, Sozialleistungen, andere Personalkosten'
-  },
-  'Anderer Betriebsaufwand': {
-    patterns: [/^52[0-9]{2}/, /^53[0-9]{2}/, /^54[0-9]{2}/, /^55[0-9]{2}/, /^56[0-9]{2}/, /^57[0-9]{2}/, /^520[0-9]/, /^530[0-9]/, /^540[0-9]/, /^550[0-9]/, /^560[0-9]/, /^570[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Aufwand',
-    description: 'Raumkosten, Unterhalt, Fahrzeugkosten, Versicherungen, Energie, Verwaltungsaufwand'
-  },
-  'Abschreibungen': {
-    patterns: [/^58[0-9]{2}/, /^580[0-9]/, /^581[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Aufwand',
-    description: 'Abschreibungen auf Anlagevermögen'
-  },
-  'Finanzaufwand': {
-    patterns: [/^59[0-9]{2}/, /^590[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Aufwand',
-    description: 'Zinsen, Bankspesen, Kursverluste'
-  },
-  'Außerordentlicher Aufwand': {
-    patterns: [/^65[0-9]{2}/, /^66[0-9]{2}/, /^67[0-9]{2}/, /^68[0-9]{2}/, /^69[0-9]{2}/, /^650[0-9]/, /^660[0-9]/, /^670[0-9]/, /^680[0-9]/, /^690[0-9]/],
-    category: 'erfolgsrechnung' as const,
-    subcategory: 'Aufwand',
-    description: 'Außerordentliche, einmalige und periodenfremde Aufwände'
+    description: 'Kapital, Reserven, Gewinn/Verlust',
+    order: 20
   }
-};
+];
+
+// Legacy mapping for backward compatibility
+const ACCOUNT_GROUPS: { [key: string]: any } = {};
+STANDARD_ACCOUNT_GROUPS.forEach(group => {
+  ACCOUNT_GROUPS[group.name] = {
+    patterns: group.patterns,
+    category: group.category,
+    subcategory: group.subcategory,
+    description: group.description,
+    order: group.order
+  };
+});
 
 function categorizeAccount(accountNumber: string): { groupName: string; config: any } | null {
   // Normalisiere die Kontonummer (entferne Leerzeichen, führende Nullen)
@@ -223,79 +229,35 @@ function categorizeAccount(accountNumber: string): { groupName: string; config: 
 
 function generateGroupingSuggestions(accounts: TrialBalanceAccount[]): GroupingSuggestion[] {
   const groups: { [key: string]: TrialBalanceAccount[] } = {};
-  const groupConfigs: { [key: string]: any } = {};
   
   // Kategorisiere alle Konten
   for (const account of accounts) {
     const result = categorizeAccount(account.accountNumber);
     if (result) {
-      const { groupName, config } = result;
+      const { groupName } = result;
       if (!groups[groupName]) {
         groups[groupName] = [];
-        groupConfigs[groupName] = config;
       }
       groups[groupName].push(account);
     }
   }
   
-  // Erstelle Gruppierungsvorschläge
+  // Erstelle ALLE Standard-Gruppierungsvorschläge (auch leere)
   const suggestions: GroupingSuggestion[] = [];
-  for (const [groupName, groupAccounts] of Object.entries(groups)) {
-    if (groupAccounts.length > 0) {
-      const config = groupConfigs[groupName];
-      suggestions.push({
-        name: groupName,
-        description: config.description,
-        accounts: groupAccounts,
-        category: config.category,
-        subcategory: config.subcategory
-      });
-    }
+  
+  for (const standardGroup of STANDARD_ACCOUNT_GROUPS) {
+    const groupAccounts = groups[standardGroup.name] || [];
+    
+    suggestions.push({
+      name: standardGroup.name,
+      description: standardGroup.description,
+      accounts: groupAccounts,
+      category: standardGroup.category,
+      subcategory: standardGroup.subcategory
+    });
   }
   
-  // Sortiere nach Schweizer OR Standard: Erst Bilanz (Aktiven, dann Passiven), dann Erfolgsrechnung
-  // Innerhalb jeder Kategorie nach Subcategory und dann nach Kontonummern sortieren
-  suggestions.sort((a, b) => {
-    // Hauptkategorien-Reihenfolge
-    if (a.category !== b.category) {
-      const order = ['aktiven', 'passiven', 'erfolgsrechnung'];
-      return order.indexOf(a.category) - order.indexOf(b.category);
-    }
-    
-    // Subcategory-Reihenfolge für bessere Strukturierung
-    if (a.subcategory !== b.subcategory) {
-      const subcategoryOrder = {
-        // Aktiven
-        'Umlaufvermögen': 1,
-        'Anlagevermögen': 2,
-        // Passiven
-        'Fremdkapital kurzfristig': 3,
-        'Fremdkapital langfristig': 4,
-        'Eigenkapital': 5,
-        // Erfolgsrechnung
-        'Ertrag': 6,
-        'Aufwand': 7
-      };
-      const orderA = subcategoryOrder[a.subcategory as keyof typeof subcategoryOrder] || 999;
-      const orderB = subcategoryOrder[b.subcategory as keyof typeof subcategoryOrder] || 999;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-    }
-    
-    // Innerhalb der gleichen Subcategory nach Kontonummern sortieren
-    // Nimm die kleinste Kontonummer aus jeder Gruppe als Referenz
-    const getMinAccountNumber = (accounts: any[]) => {
-      const numbers = accounts.map(acc => parseInt(acc.accountNumber.replace(/\D/g, '')) || 99999);
-      return Math.min(...numbers);
-    };
-    
-    const minA = getMinAccountNumber(a.accounts);
-    const minB = getMinAccountNumber(b.accounts);
-    
-    return minA - minB;
-  });
-  
+  // Sortierung ist bereits durch die Reihenfolge in STANDARD_ACCOUNT_GROUPS gegeben
   return suggestions;
 }
 
