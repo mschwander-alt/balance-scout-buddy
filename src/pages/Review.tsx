@@ -77,37 +77,24 @@ const Review: React.FC = () => {
     if (!trialBalanceId) return;
 
     try {
-      const [groupsResponse, documentsResponse] = await Promise.all([
+      const [groupsResponse, assignmentsResponse, documentsResponse] = await Promise.all([
         supabase.from('account_groups').select('*').eq('trial_balance_id', trialBalanceId),
+        supabase.from('account_group_assignments').select('*'),
         supabase.from('account_evidence').select('*').eq('trial_balance_id', trialBalanceId)
       ]);
 
       if (groupsResponse.error) throw groupsResponse.error;
+      if (assignmentsResponse.error) throw assignmentsResponse.error;
       if (documentsResponse.error) throw documentsResponse.error;
-
-      // Für Demo-Zwecke - später durch echte Assignment-Daten ersetzen
-      const demoAssignments = groupsResponse.data.flatMap(group => 
-        // Erstelle Demo-Assignments basierend auf der Gruppe
-        [
-          {
-            id: `${group.id}-1`,
-            account_group_id: group.id,
-            account_number: '1000',
-            account_name: 'Kasse',
-            current_year_balance: 5000,
-            match_status: 'pending' as const
-          }
-        ]
-      );
 
       const groupsWithAssignments = groupsResponse.data.map(group => ({
         ...group,
-        assignments: demoAssignments.filter(a => a.account_group_id === group.id),
+        assignments: assignmentsResponse.data.filter(a => a.account_group_id === group.id),
         isOpen: true
       }));
 
       setAccountGroups(groupsWithAssignments);
-      setAssignments(demoAssignments);
+      setAssignments(assignmentsResponse.data || []);
       setDocuments(documentsResponse.data || []);
     } catch (error: any) {
       console.error('Error loading data:', error);
