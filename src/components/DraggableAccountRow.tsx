@@ -49,16 +49,17 @@ export const DraggableAccountRow = ({
       style={style}
       className={`hover:bg-muted/25 ${isDragging ? 'shadow-lg z-50' : ''}`}
     >
-      {showCheckbox && (
-        <TableCell className="w-8">
+      {/* Always render checkbox column for consistent alignment */}
+      <TableCell className="w-8">
+        {showCheckbox && (
           <input
             type="checkbox"
             checked={isSelected}
             onChange={(e) => onSelectionChange?.(e.target.checked)}
             className="rounded"
           />
-        </TableCell>
-      )}
+        )}
+      </TableCell>
       <TableCell className="w-8">
         <div
           {...attributes}
