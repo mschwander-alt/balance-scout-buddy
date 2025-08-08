@@ -77,24 +77,42 @@ const Review: React.FC = () => {
     if (!trialBalanceId) return;
 
     try {
-      const [groupsResponse, assignmentsResponse, documentsResponse] = await Promise.all([
-        supabase.from('account_groups').select('*').eq('trial_balance_id', trialBalanceId),
-        supabase.from('account_group_assignments').select('*'),
-        supabase.from('account_evidence').select('*').eq('trial_balance_id', trialBalanceId)
-      ]);
+      // Lade Gruppen und deren Assignments mit einem JOIN
+      const groupsResponse = await supabase
+        .from('account_groups')
+        .select(`
+          *,
+          account_group_assignments (*)
+        `)
+        .eq('trial_balance_id', trialBalanceId);
+
+      const documentsResponse = await supabase
+        .from('account_evidence')
+        .select('*')
+        .eq('trial_balance_id', trialBalanceId);
 
       if (groupsResponse.error) throw groupsResponse.error;
-      if (assignmentsResponse.error) throw assignmentsResponse.error;
       if (documentsResponse.error) throw documentsResponse.error;
+
+      // Flache die Assignments aus allen Gruppen aus
+      const allAssignments = groupsResponse.data.flatMap(group => 
+        group.account_group_assignments?.map(assignment => ({
+          ...assignment,
+          match_status: assignment.match_status || 'pending'
+        })) || []
+      );
 
       const groupsWithAssignments = groupsResponse.data.map(group => ({
         ...group,
-        assignments: assignmentsResponse.data.filter(a => a.account_group_id === group.id),
+        assignments: group.account_group_assignments?.map(assignment => ({
+          ...assignment,
+          match_status: assignment.match_status || 'pending'
+        })) || [],
         isOpen: true
       }));
 
       setAccountGroups(groupsWithAssignments);
-      setAssignments(assignmentsResponse.data || []);
+      setAssignments(allAssignments);
       setDocuments(documentsResponse.data || []);
     } catch (error: any) {
       console.error('Error loading data:', error);
