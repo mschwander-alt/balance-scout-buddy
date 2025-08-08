@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Layers, Plus, Save, User, Users } from 'lucide-react';
+import { Layers, Plus, Save, User, Users, Zap, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 
@@ -55,6 +55,7 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [isAutoGrouping, setIsAutoGrouping] = useState(false);
   
   const [groupFormData, setGroupFormData] = useState({
     name: '',
@@ -252,6 +253,100 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
     }
   };
 
+  const handleAutoGrouping = async () => {
+    if (!user) return;
+    
+    setIsAutoGrouping(true);
+    
+    try {
+      // Bereite die Kontodaten für die Edge Function vor
+      const accountsData = trialBalanceRows.map(row => ({
+        accountNumber: row.accountNumber,
+        accountName: row.accountName,
+        currentYear: row.currentYear,
+        previousYear: row.previousYear,
+        foreignCurrency: row.foreignCurrency
+      }));
+
+      console.log('Sending accounts for auto-grouping:', accountsData.length);
+
+      // Rufe die Edge Function auf
+      const { data, error } = await supabase.functions.invoke('auto-group-accounts', {
+        body: { accounts: accountsData }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Unbekannter Fehler bei der automatischen Gruppierung');
+      }
+
+      const { suggestions, summary } = data;
+      console.log('Auto-grouping results:', { suggestions, summary });
+
+      // Erstelle die Gruppierungen automatisch
+      let createdGroups = 0;
+      for (const suggestion of suggestions) {
+        if (suggestion.accounts.length > 0) {
+          try {
+            // Erstelle die Gruppe
+            const { data: groupData, error: groupError } = await supabase
+              .from('account_groups')
+              .insert({
+                trial_balance_id: trialBalanceId,
+                user_id: user.id,
+                name: suggestion.name,
+                description: `${suggestion.description} (${suggestion.subcategory})`,
+                status: 'pending'
+              })
+              .select()
+              .single();
+
+            if (groupError) throw groupError;
+
+            // Erstelle die Zuordnungen
+            const assignments = suggestion.accounts.map(account => ({
+              account_group_id: groupData.id,
+              account_number: account.accountNumber,
+              account_name: account.accountName,
+              current_year_balance: account.currentYear,
+              previous_year_balance: account.previousYear,
+              foreign_currency_balance: account.foreignCurrency || null,
+            }));
+
+            const { error: assignmentError } = await supabase
+              .from('account_group_assignments')
+              .insert(assignments);
+
+            if (assignmentError) throw assignmentError;
+
+            createdGroups++;
+          } catch (error) {
+            console.error(`Fehler beim Erstellen der Gruppe "${suggestion.name}":`, error);
+          }
+        }
+      }
+
+      toast({
+        title: "Automatische Gruppierung abgeschlossen",
+        description: `${createdGroups} Gruppierungen nach Schweizer OR erstellt. ${summary.categorizedAccounts} von ${summary.totalAccounts} Konten wurden zugeordnet.`,
+      });
+
+      // Lade die aktualisierten Gruppierungen
+      await loadAccountGroups();
+      
+    } catch (error: any) {
+      console.error('Error in auto-grouping:', error);
+      toast({
+        title: "Fehler bei automatischer Gruppierung",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAutoGrouping(false);
+    }
+  };
+
   const formatSwissNumber = (value: number): string => {
     return new Intl.NumberFormat('de-CH', {
       minimumFractionDigits: 2,
@@ -319,71 +414,86 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
               <span>Unzugeordnet: <strong>{unassignedAccounts.length}</strong> Konten</span>
               <span>Gruppierungen: <strong>{accountGroups.length}</strong></span>
             </div>
-            <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
-              <DialogTrigger asChild>
-                <Button disabled={selectedAccounts.size === 0}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue Gruppierung ({selectedAccounts.size})
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Neue Gruppierung erstellen</DialogTitle>
-                  <DialogDescription>
-                    Erstellen Sie eine neue Gruppierung mit {selectedAccounts.size} ausgewählten Konten
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreateGroup} className="space-y-4">
-                  <div>
-                    <Label htmlFor="groupName">Name der Gruppierung</Label>
-                    <Input
-                      id="groupName"
-                      value={groupFormData.name}
-                      onChange={(e) => setGroupFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="z.B. Kasse und Bank"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="groupDescription">Beschreibung (optional)</Label>
-                    <Textarea
-                      id="groupDescription"
-                      value={groupFormData.description}
-                      onChange={(e) => setGroupFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Zusätzliche Beschreibung der Gruppierung"
-                      rows={3}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="assignedMember">Zugeordnetes Team-Mitglied</Label>
-                    <Select 
-                      value={groupFormData.assigned_member_id} 
-                      onValueChange={(value) => setGroupFormData(prev => ({ ...prev, assigned_member_id: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Team-Mitglied auswählen (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Noch nicht zuordnen</SelectItem>
-                        {teamMembers.map((member) => (
-                          <SelectItem key={member.id} value={member.id}>
-                            {member.name} ({member.email})
-                          </SelectItem>
-                        ))}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
-                      Abbrechen
-                    </Button>
-                    <Button type="submit">
-                      <Save className="h-4 w-4 mr-2" />
-                      Gruppierung erstellen
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleAutoGrouping}
+                disabled={isAutoGrouping || unassignedAccounts.length === 0}
+              >
+                {isAutoGrouping ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                Auto-Gruppierung (OR)
+              </Button>
+              <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button disabled={selectedAccounts.size === 0}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Neue Gruppierung ({selectedAccounts.size})
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Neue Gruppierung erstellen</DialogTitle>
+                    <DialogDescription>
+                      Erstellen Sie eine neue Gruppierung mit {selectedAccounts.size} ausgewählten Konten
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateGroup} className="space-y-4">
+                    <div>
+                      <Label htmlFor="groupName">Name der Gruppierung</Label>
+                      <Input
+                        id="groupName"
+                        value={groupFormData.name}
+                        onChange={(e) => setGroupFormData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="z.B. Kasse und Bank"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="groupDescription">Beschreibung (optional)</Label>
+                      <Textarea
+                        id="groupDescription"
+                        value={groupFormData.description}
+                        onChange={(e) => setGroupFormData(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Zusätzliche Beschreibung der Gruppierung"
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="assignedMember">Zugeordnetes Team-Mitglied</Label>
+                      <Select 
+                        value={groupFormData.assigned_member_id} 
+                        onValueChange={(value) => setGroupFormData(prev => ({ ...prev, assigned_member_id: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Team-Mitglied auswählen (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Noch nicht zuordnen</SelectItem>
+                          {teamMembers.map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name} ({member.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
+                        Abbrechen
+                      </Button>
+                      <Button type="submit">
+                        <Save className="h-4 w-4 mr-2" />
+                        Gruppierung erstellen
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardContent>
       </Card>
