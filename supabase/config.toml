@@ -12,3 +12,6 @@ port = 54322
 
 [functions.auto-group-accounts]
 verify_jwt = false
+
+[functions.auto-match-documents]
+verify_jwt = false
