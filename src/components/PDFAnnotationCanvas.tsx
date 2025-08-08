@@ -64,32 +64,45 @@ export const PDFAnnotationCanvas: React.FC<PDFAnnotationCanvasProps> = ({
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
-    const canvas = new FabricCanvas(canvasRef.current, {
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,
-      backgroundColor: 'transparent',
-      selection: activeTool === 'select',
+    // Wait for container to be sized
+    const resizeObserver = new ResizeObserver(() => {
+      if (!canvasRef.current || !containerRef.current) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      
+      const canvas = new FabricCanvas(canvasRef.current, {
+        width: rect.width,
+        height: rect.height,
+        backgroundColor: 'transparent',
+        selection: activeTool === 'select',
+      });
+
+      // Handle mouse events for annotation creation
+      canvas.on('mouse:down', (event) => {
+        if (activeTool === 'note' && event.pointer) {
+          setPendingNote({ x: event.pointer.x, y: event.pointer.y });
+          setShowNoteInput(true);
+        } else if (activeTool === 'highlight' && event.pointer) {
+          createHighlight(event.pointer.x, event.pointer.y);
+        } else if (activeTool === 'rectangle' && event.pointer) {
+          createRectangle(event.pointer.x, event.pointer.y);
+        } else if (activeTool === 'text' && event.pointer) {
+          createText(event.pointer.x, event.pointer.y);
+        }
+      });
+
+      setFabricCanvas(canvas);
+      onLoad?.();
+
+      return () => {
+        canvas.dispose();
+      };
     });
 
-    // Handle mouse events for annotation creation
-    canvas.on('mouse:down', (event) => {
-      if (activeTool === 'note' && event.pointer) {
-        setPendingNote({ x: event.pointer.x, y: event.pointer.y });
-        setShowNoteInput(true);
-      } else if (activeTool === 'highlight' && event.pointer) {
-        createHighlight(event.pointer.x, event.pointer.y);
-      } else if (activeTool === 'rectangle' && event.pointer) {
-        createRectangle(event.pointer.x, event.pointer.y);
-      } else if (activeTool === 'text' && event.pointer) {
-        createText(event.pointer.x, event.pointer.y);
-      }
-    });
-
-    setFabricCanvas(canvas);
-    onLoad?.();
+    resizeObserver.observe(containerRef.current);
 
     return () => {
-      canvas.dispose();
+      resizeObserver.disconnect();
     };
   }, [activeTool]);
 
