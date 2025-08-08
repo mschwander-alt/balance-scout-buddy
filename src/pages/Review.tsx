@@ -64,6 +64,36 @@ const Review = () => {
   const [selectedDocumentForAssign, setSelectedDocumentForAssign] = useState<string | null>(null);
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
 
+  const saveMatchResults = async (matchedAssignments: AccountAssignment[]) => {
+    try {
+      // Create a table to save match results if it doesn't exist
+      const updates = matchedAssignments.map(assignment => ({
+        assignment_id: assignment.id,
+        match_status: assignment.match_status,
+        confidence_score: assignment.confidence_score || 0,
+        matched_documents: assignment.matched_documents || []
+      }));
+
+      // For now, we'll store this in localStorage as a quick solution
+      // In production, you'd want a proper database table for match results
+      localStorage.setItem(`match_results_${trialBalanceId}`, JSON.stringify(updates));
+      
+      console.log('Match results saved:', updates);
+    } catch (error) {
+      console.error('Error saving match results:', error);
+    }
+  };
+
+  const loadMatchResults = () => {
+    try {
+      const savedResults = localStorage.getItem(`match_results_${trialBalanceId}`);
+      return savedResults ? JSON.parse(savedResults) : [];
+    } catch (error) {
+      console.error('Error loading match results:', error);
+      return [];
+    }
+  };
+
   const loadData = useCallback(async () => {
     if (!user || !trialBalanceId) return;
 
@@ -125,20 +155,35 @@ const Review = () => {
           confidence_score: 0,
           matched_documents: []
         }));
+
+      // Load saved match results and apply them
+      const savedMatchResults = loadMatchResults();
+      const assignmentsWithResults = processedAssignments.map(assignment => {
+        const savedResult = savedMatchResults.find((r: any) => r.assignment_id === assignment.id);
+        if (savedResult) {
+          return {
+            ...assignment,
+            match_status: savedResult.match_status,
+            confidence_score: savedResult.confidence_score,
+            matched_documents: savedResult.matched_documents
+          };
+        }
+        return assignment;
+      });
       
-      console.log('Processed assignments:', processedAssignments);
+      console.log('Processed assignments:', assignmentsWithResults);
 
       // Group assignments by account group
       const groupedData = (groupsData || []).map(group => ({
         id: group.id,
         name: group.name,
         description: group.description,
-        assignments: processedAssignments.filter(a => a.account_group_id === group.id),
+        assignments: assignmentsWithResults.filter(a => a.account_group_id === group.id),
         isOpen: true // Start with groups open
       }));
 
       setAccountGroups(groupedData);
-      setAssignments(processedAssignments);
+      setAssignments(assignmentsWithResults);
       setDocuments(documentsData || []);
 
     } catch (error: any) {
@@ -174,6 +219,12 @@ const Review = () => {
 
       // Update assignments with match results
       const updatedAssignments = data.matched_assignments || [];
+      
+      // Save match results to database
+      if (updatedAssignments.length > 0) {
+        await saveMatchResults(updatedAssignments);
+      }
+      
       setAssignments(updatedAssignments);
       
       // Update groups with new assignment data
@@ -234,6 +285,9 @@ const Review = () => {
         }
         return a;
       });
+
+      // Save manual assignment result
+      await saveMatchResults(updatedAssignments);
 
       setAssignments(updatedAssignments);
       
