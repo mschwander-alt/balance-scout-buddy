@@ -405,9 +405,9 @@ const Review: React.FC = () => {
                               <div className="h-full flex items-center justify-center">
                                 <div className="text-center">
                                   <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-60" />
-                                  <p className="text-muted-foreground">
-                                    {previewLoading ? 'Lädt...' : 'Wählen Sie ein Dokument für die Vorschau aus'}
-                                  </p>
+                                   <p className="text-muted-foreground">
+                                     Wählen Sie ein Dokument für die Vorschau aus
+                                   </p>
                                 </div>
                               </div>
                             )}
