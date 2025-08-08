@@ -96,19 +96,30 @@ const Review = () => {
       if (documentsError) throw documentsError;
 
       // Process assignments data
-      const processedAssignments = (assignmentsData || []).map(assignment => ({
-        id: assignment.id,
-        account_number: assignment.account_number,
-        account_name: assignment.account_name,
-        current_year_balance: assignment.current_year_balance,
-        previous_year_balance: assignment.previous_year_balance,
-        foreign_currency_balance: assignment.foreign_currency_balance,
-        account_group_id: assignment.account_group_id,
-        account_group_name: assignment.account_groups?.name || 'Unbekannte Gruppe',
-        match_status: 'pending' as const,
-        confidence_score: 0,
-        matched_documents: []
-      }));
+      console.log('Raw assignments data:', assignmentsData);
+      const processedAssignments = (assignmentsData || [])
+        .filter(assignment => {
+          const hasRequiredData = assignment.account_number && assignment.account_name;
+          if (!hasRequiredData) {
+            console.log('Skipping assignment with missing data:', assignment);
+          }
+          return hasRequiredData;
+        })
+        .map(assignment => ({
+          id: assignment.id,
+          account_number: assignment.account_number,
+          account_name: assignment.account_name,
+          current_year_balance: assignment.current_year_balance || 0,
+          previous_year_balance: assignment.previous_year_balance || 0,
+          foreign_currency_balance: assignment.foreign_currency_balance,
+          account_group_id: assignment.account_group_id,
+          account_group_name: assignment.account_groups?.name || 'Unbekannte Gruppe',
+          match_status: 'pending' as const,
+          confidence_score: 0,
+          matched_documents: []
+        }));
+      
+      console.log('Processed assignments:', processedAssignments);
 
       // Group assignments by account group
       const groupedData = (groupsData || []).map(group => ({
@@ -140,6 +151,9 @@ const Review = () => {
     setProgress(0);
 
     try {
+      console.log('Starting auto-match with assignments:', assignments);
+      console.log('Documents for matching:', documents);
+      
       // Call edge function for auto-matching
       const { data, error } = await supabase.functions.invoke('auto-match-documents', {
         body: {
