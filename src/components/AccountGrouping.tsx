@@ -71,6 +71,8 @@ interface AccountGroupingProps {
 const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete }: AccountGroupingProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL RETURNS
   const [isLoading, setIsLoading] = useState(true);
   const [trialBalanceRows, setTrialBalanceRows] = useState<TrialBalanceRow[]>([]);
   const [accountGroups, setAccountGroups] = useState<AccountGroup[]>([]);
@@ -84,6 +86,14 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
     description: '',
     assigned_member_id: ''
   });
+
+  // Drag & drop sensors - MUST be with all other hooks at the top
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     loadData();
@@ -416,13 +426,6 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
 
   const unassignedAccounts = getUnassignedAccounts();
   const hasForeignCurrency = !!trialBalanceData.foreign_currency_column;
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
