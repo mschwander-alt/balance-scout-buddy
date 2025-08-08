@@ -277,14 +277,21 @@ const Review = () => {
   const previewDocument = async (document: Document) => {
     setPreviewLoading(true);
     try {
+      // Get signed URL for document preview instead of downloading blob
       const { data, error } = await supabase.storage
         .from('account-evidence')
-        .download(document.file_path);
+        .createSignedUrl(document.file_path, 3600); // 1 hour expiry
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating signed URL:', error);
+        throw error;
+      }
       
-      const url = URL.createObjectURL(data);
-      setDocumentPreview(url);
+      if (data?.signedUrl) {
+        setDocumentPreview(data.signedUrl);
+      } else {
+        throw new Error('No signed URL received');
+      }
     } catch (error) {
       console.error('Error previewing document:', error);
       toast({
