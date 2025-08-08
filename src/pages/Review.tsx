@@ -502,119 +502,108 @@ const Review = () => {
                       Nicht gematchte Dateien manuell zuweisen
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                  <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
                     <DialogHeader>
                       <DialogTitle>Manuelle Dokumentenzuweisung</DialogTitle>
                     </DialogHeader>
                     
-                    <div className="space-y-4">
+                    <div className="flex-1 flex gap-6 min-h-0">
                       {getUnmatchedDocuments().length === 0 ? (
-                        <p className="text-center text-muted-foreground py-8">
-                          Alle Dokumente wurden automatisch zugeordnet.
-                        </p>
+                        <div className="flex-1 flex items-center justify-center">
+                          <p className="text-center text-muted-foreground">
+                            Alle Dokumente wurden automatisch zugeordnet.
+                          </p>
+                        </div>
                       ) : (
                         <>
-                          <p className="text-sm text-muted-foreground">
-                            {getUnmatchedDocuments().length} Dokumente wurden noch nicht zugeordnet. 
-                            Wählen Sie ein Dokument und das entsprechende Konto aus.
-                          </p>
-                          
-                           <div className="space-y-3">
-                             {getUnmatchedDocuments().map((document) => (
-                               <div key={document.id} className="border rounded-lg p-4">
-                                 <div className="flex items-center justify-between">
-                                   <div className="flex items-center gap-3">
-                                     <div>
-                                       <h4 className="font-medium">{document.file_name}</h4>
-                                       <p className="text-sm text-muted-foreground">
-                                         {document.file_type} • {Math.round(document.file_size / 1024)} KB
-                                       </p>
-                                     </div>
-                                     
-                                     <Popover>
-                                       <PopoverTrigger asChild>
-                                         <Button 
-                                           variant="outline" 
-                                           size="sm"
-                                           onClick={() => previewDocument(document)}
-                                           disabled={previewLoading}
-                                         >
-                                           <Eye className="h-4 w-4" />
-                                           Vorschau
-                                         </Button>
-                                       </PopoverTrigger>
-                                       <PopoverContent className="w-96 max-h-80 p-0" side="left">
-                                         {documentPreview ? (
-                                           document.file_type === 'application/pdf' ? (
-                                             <embed 
-                                               src={documentPreview} 
-                                               type="application/pdf" 
-                                               className="w-full h-80"
-                                             />
-                                           ) : (
-                                             <div className="p-4">
-                                               <p className="text-sm text-muted-foreground">
-                                                 Excel-Vorschau wird derzeit nicht unterstützt.
-                                               </p>
-                                               <Button 
-                                                 variant="outline" 
-                                                 size="sm" 
-                                                 className="mt-2"
-                                                 onClick={() => window.open(documentPreview, '_blank')}
-                                               >
-                                                 In neuem Tab öffnen
-                                               </Button>
-                                             </div>
-                                           )
-                                         ) : (
-                                           <div className="p-4 text-center">
-                                             <p className="text-sm text-muted-foreground">
-                                               {previewLoading ? 'Lädt...' : 'Keine Vorschau verfügbar'}
-                                             </p>
-                                           </div>
-                                         )}
-                                       </PopoverContent>
-                                     </Popover>
-                                   </div>
-                                   
-                                   <div className="flex items-center gap-2">
-                                     <Select 
-                                       value={selectedDocumentForAssign === document.id ? assignmentForDoc : ""}
-                                       onValueChange={(value) => {
-                                         setSelectedDocumentForAssign(document.id);
-                                         setAssignmentForDoc(value);
-                                       }}
-                                     >
-                                       <SelectTrigger className="w-64">
-                                         <SelectValue placeholder="Konto auswählen..." />
-                                       </SelectTrigger>
-                                       <SelectContent>
-                                         {assignments
-                                           .filter((assignment, index, self) => 
-                                             index === self.findIndex(a => 
-                                               a.account_number === assignment.account_number && 
-                                               a.account_name === assignment.account_name
-                                             )
-                                           )
-                                           .map((assignment) => (
-                                             <SelectItem key={assignment.id} value={assignment.id}>
-                                               {assignment.account_number} - {assignment.account_name}
-                                             </SelectItem>
-                                           ))}
-                                       </SelectContent>
-                                    </Select>
+                          {/* Document List */}
+                          <div className="w-1/2 flex flex-col gap-4 overflow-y-auto">
+                            <p className="text-sm text-muted-foreground">
+                              {getUnmatchedDocuments().length} Dokumente wurden noch nicht zugeordnet. 
+                              Wählen Sie ein Dokument und das entsprechende Konto aus.
+                            </p>
+                            
+                            <div className="space-y-3">
+                              {getUnmatchedDocuments().map((document) => (
+                                <div key={document.id} className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                                  selectedDocumentForAssign === document.id ? 'border-primary bg-muted/50' : 'hover:bg-muted/30'
+                                }`}
+                                onClick={() => {
+                                  setSelectedDocumentForAssign(document.id);
+                                  previewDocument(document);
+                                }}>
+                                  <div className="space-y-3">
+                                    <div>
+                                      <h4 className="font-medium">{document.file_name}</h4>
+                                      <p className="text-sm text-muted-foreground">
+                                        {document.file_type} • {Math.round(document.file_size / 1024)} KB
+                                      </p>
+                                    </div>
                                     
-                                    <Button 
-                                      size="sm"
-                                      disabled={selectedDocumentForAssign !== document.id || !assignmentForDoc}
-                                      onClick={() => handleManualAssign(document.id, assignmentForDoc)}
-                                    >
-                                      Zuweisen
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                      <Select 
+                                        value={selectedDocumentForAssign === document.id ? assignmentForDoc : ""}
+                                        onValueChange={(value) => {
+                                          setSelectedDocumentForAssign(document.id);
+                                          setAssignmentForDoc(value);
+                                        }}
+                                      >
+                                        <SelectTrigger className="flex-1">
+                                          <SelectValue placeholder="Konto auswählen..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {assignments
+                                            .filter((assignment, index, self) => 
+                                              index === self.findIndex(a => 
+                                                a.account_number === assignment.account_number && 
+                                                a.account_name === assignment.account_name
+                                              )
+                                            )
+                                            .map((assignment) => (
+                                              <SelectItem key={assignment.id} value={assignment.id}>
+                                                {assignment.account_number} - {assignment.account_name}
+                                              </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                      </Select>
+                                      
+                                      <Button 
+                                        size="sm"
+                                        disabled={selectedDocumentForAssign !== document.id || !assignmentForDoc}
+                                        onClick={() => handleManualAssign(document.id, assignmentForDoc)}
+                                      >
+                                        Zuweisen
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Document Preview */}
+                          <div className="w-1/2 border rounded-lg flex flex-col min-h-0">
+                            <div className="p-3 border-b bg-muted/30">
+                              <h5 className="font-medium">Dokumentvorschau</h5>
+                            </div>
+                            <div className="flex-1 min-h-0">
+                              {selectedDocumentForAssign && documentPreview ? (
+                                <DocumentViewer 
+                                  document={getUnmatchedDocuments().find(d => d.id === selectedDocumentForAssign)!}
+                                  onLoad={() => {}}
+                                  onError={(error) => console.error('Preview error:', error)}
+                                />
+                              ) : (
+                                <div className="h-full flex items-center justify-center">
+                                  <div className="text-center">
+                                    <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-60" />
+                                    <p className="text-muted-foreground">
+                                      {previewLoading ? 'Lädt...' : 'Wählen Sie ein Dokument für die Vorschau aus'}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </>
                       )}
