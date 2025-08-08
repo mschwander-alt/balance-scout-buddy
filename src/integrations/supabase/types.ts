@@ -64,30 +64,39 @@ export type Database = {
           account_group_id: string
           account_name: string
           account_number: string
+          confidence_score: number | null
           created_at: string
           current_year_balance: number
           foreign_currency_balance: number | null
           id: string
+          match_status: string | null
+          matched_documents: string[] | null
           previous_year_balance: number
         }
         Insert: {
           account_group_id: string
           account_name: string
           account_number: string
+          confidence_score?: number | null
           created_at?: string
           current_year_balance?: number
           foreign_currency_balance?: number | null
           id?: string
+          match_status?: string | null
+          matched_documents?: string[] | null
           previous_year_balance?: number
         }
         Update: {
           account_group_id?: string
           account_name?: string
           account_number?: string
+          confidence_score?: number | null
           created_at?: string
           current_year_balance?: number
           foreign_currency_balance?: number | null
           id?: string
+          match_status?: string | null
+          matched_documents?: string[] | null
           previous_year_balance?: number
         }
         Relationships: [
@@ -267,7 +276,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      auto_match_documents_function: {
+        Args: { trial_balance_id_param: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
