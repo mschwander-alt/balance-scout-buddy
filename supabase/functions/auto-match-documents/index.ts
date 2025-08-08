@@ -1,8 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-// Import real text extraction libraries
-// @deno-types="https://cdn.skypack.dev/@types/pdf-parse@1.1.1"
-import pdfParse from 'https://cdn.skypack.dev/pdf-parse@1.1.1'
 import * as XLSX from 'https://deno.land/x/sheetjs@v0.18.3/xlsx.mjs'
 
 const corsHeaders = {
@@ -151,12 +148,37 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
 
 async function extractTextFromPDF(fileData: Blob): Promise<string> {
   try {
+    // For now, we'll extract basic text patterns from PDF metadata and visible content
+    // This is a simplified approach that works with Deno
     const buffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(buffer)
     
-    const data = await pdfParse(uint8Array)
-    console.log(`Extracted ${data.text.length} characters from PDF`)
-    return data.text
+    // Convert to string and look for readable text patterns
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
+    
+    // Extract readable text using regex patterns for common PDF text structures
+    const textPatterns = [
+      /\/T\s*\([^)]*\)/g, // Text objects in PDF
+      /BT\s+([^ET]+)\s+ET/g, // Text blocks
+      /Tj\s*\[([^\]]*)\]/g, // Text arrays
+    ]
+    
+    let extractedText = ''
+    for (const pattern of textPatterns) {
+      const matches = text.match(pattern)
+      if (matches) {
+        extractedText += matches.join(' ')
+      }
+    }
+    
+    // Also look for plain readable text in the binary data
+    const readableText = text.replace(/[^\x20-\x7E\s]/g, ' ')
+                            .replace(/\s+/g, ' ')
+                            .trim()
+    
+    const finalText = extractedText + ' ' + readableText
+    console.log(`Extracted ${finalText.length} characters from PDF`)
+    return finalText
   } catch (error) {
     console.error('Error extracting PDF text:', error)
     return ''
