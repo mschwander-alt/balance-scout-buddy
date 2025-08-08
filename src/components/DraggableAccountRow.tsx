@@ -15,9 +15,19 @@ interface DraggableAccountRowProps {
   account: TrialBalanceRow;
   hasForeignCurrency: boolean;
   formatNumber: (value: number) => string;
+  showCheckbox?: boolean;
+  isSelected?: boolean;
+  onSelectionChange?: (selected: boolean) => void;
 }
 
-export const DraggableAccountRow = ({ account, hasForeignCurrency, formatNumber }: DraggableAccountRowProps) => {
+export const DraggableAccountRow = ({ 
+  account, 
+  hasForeignCurrency, 
+  formatNumber,
+  showCheckbox = false,
+  isSelected = false,
+  onSelectionChange
+}: DraggableAccountRowProps) => {
   const {
     attributes,
     listeners,
@@ -37,8 +47,18 @@ export const DraggableAccountRow = ({ account, hasForeignCurrency, formatNumber 
     <TableRow
       ref={setNodeRef}
       style={style}
-      className={`hover:bg-muted/25 ${isDragging ? 'shadow-lg' : ''}`}
+      className={`hover:bg-muted/25 ${isDragging ? 'shadow-lg z-50' : ''}`}
     >
+      {showCheckbox && (
+        <TableCell className="w-8">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onSelectionChange?.(e.target.checked)}
+            className="rounded"
+          />
+        </TableCell>
+      )}
       <TableCell className="w-8">
         <div
           {...attributes}

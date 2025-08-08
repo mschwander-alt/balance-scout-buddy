@@ -668,27 +668,23 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
                       strategy={verticalListSortingStrategy}
                     >
                       {unassignedAccounts.map((account) => (
-                        <TableRow key={account.accountNumber}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedAccounts.has(account.accountNumber)}
-                              onCheckedChange={(checked) => {
-                                const newSelection = new Set(selectedAccounts);
-                                if (checked) {
-                                  newSelection.add(account.accountNumber);
-                                } else {
-                                  newSelection.delete(account.accountNumber);
-                                }
-                                setSelectedAccounts(newSelection);
-                              }}
-                            />
-                          </TableCell>
-                          <DraggableAccountRow
-                            account={account}
-                            hasForeignCurrency={hasForeignCurrency}
-                            formatNumber={formatSwissNumber}
-                          />
-                        </TableRow>
+                        <DraggableAccountRow
+                          key={account.accountNumber}
+                          account={account}
+                          hasForeignCurrency={hasForeignCurrency}
+                          formatNumber={formatSwissNumber}
+                          showCheckbox={true}
+                          isSelected={selectedAccounts.has(account.accountNumber)}
+                          onSelectionChange={(checked) => {
+                            const newSelection = new Set(selectedAccounts);
+                            if (checked) {
+                              newSelection.add(account.accountNumber);
+                            } else {
+                              newSelection.delete(account.accountNumber);
+                            }
+                            setSelectedAccounts(newSelection);
+                          }}
+                        />
                       ))}
                     </SortableContext>
                   </TableBody>
