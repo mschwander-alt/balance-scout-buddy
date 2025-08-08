@@ -98,7 +98,7 @@ const Review: React.FC = () => {
       const allAssignments = groupsResponse.data.flatMap(group => 
         group.account_group_assignments?.map(assignment => ({
           ...assignment,
-          match_status: assignment.match_status || 'pending'
+          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched'
         })) || []
       );
 
@@ -106,7 +106,7 @@ const Review: React.FC = () => {
         ...group,
         assignments: group.account_group_assignments?.map(assignment => ({
           ...assignment,
-          match_status: assignment.match_status || 'pending'
+          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched'
         })) || [],
         isOpen: true
       }));
@@ -166,8 +166,8 @@ const Review: React.FC = () => {
   };
 
   const saveMatchResults = async (updatedAssignments: Assignment[]) => {
-    // Placeholder for saving - wird später implementiert
-    console.log('Match results would be saved:', updatedAssignments);
+    // Die Match-Ergebnisse werden jetzt direkt in der Datenbank-Funktion gespeichert
+    console.log('Match results saved in database function:', updatedAssignments);
   };
 
   const handleManualAssign = async (documentId: string, assignmentId: string) => {
@@ -286,7 +286,7 @@ const Review: React.FC = () => {
             <div className="flex items-center gap-3">
               <Button 
                 onClick={startAutoMatch}
-                disabled={isProcessing || accountGroups.length === 0}
+                disabled={isProcessing}
                 className="flex items-center gap-2"
               >
                 <Search className="h-4 w-4" />
