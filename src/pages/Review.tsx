@@ -213,9 +213,9 @@ const Review = () => {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('de-DE', {
+    return new Intl.NumberFormat('de-CH', {
       style: 'currency',
-      currency: 'EUR'
+      currency: 'CHF'
     }).format(amount);
   };
 
