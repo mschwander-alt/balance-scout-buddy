@@ -176,12 +176,24 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       {/* Document Content */}
       <div className="flex-1 overflow-hidden">
         {isPDF && fileUrl ? (
-          <iframe
-            ref={iframeRef}
-            src={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-            className="w-full h-full border-none"
-            title={document.file_name}
-          />
+          <object
+            data={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+            type="application/pdf"
+            className="w-full h-full"
+          >
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-60" />
+                <h3 className="text-lg font-medium mb-2">PDF kann nicht angezeigt werden</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Ihr Browser unterstützt keine PDF-Anzeige oder das PDF ist beschädigt.
+                </p>
+                <Button onClick={downloadDocument} variant="outline">
+                  PDF herunterladen
+                </Button>
+              </div>
+            </div>
+          </object>
         ) : isExcel ? (
           <div className="flex flex-col h-full">
             {/* Excel Sheet Tabs */}
