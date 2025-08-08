@@ -580,13 +580,13 @@ const Review: React.FC = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="h-[calc(100vh-16rem)] overflow-hidden py-3 flex flex-col">
+              <CardContent className="h-[calc(100vh-12rem)] overflow-hidden py-3 flex flex-col">
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="flex flex-col h-full">
                       <div className="flex-1 min-h-0 space-y-4 overflow-y-auto mb-3">
                         {selectedDocuments.map((doc) => (
-                          <div key={doc.id} className="border rounded-lg h-[calc(100%-120px)]">
+                          <div key={doc.id} className="border rounded-lg h-[calc(100%-100px)]">
                             <DocumentViewer 
                               document={doc}
                               onLoad={() => {}}
@@ -597,7 +597,7 @@ const Review: React.FC = () => {
                       </div>
                       
                       {/* Kommentarfeld */}
-                      <div className="border-t pt-3 h-[120px] flex-shrink-0">
+                      <div className="border-t pt-3 h-[100px] flex-shrink-0">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-foreground">
                             Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
@@ -609,7 +609,7 @@ const Review: React.FC = () => {
                               ...prev,
                               [selectedAccountData.id]: e.target.value
                             }))}
-                            className="h-[80px] resize-none"
+                            className="h-[60px] resize-none text-sm"
                           />
                         </div>
                       </div>
