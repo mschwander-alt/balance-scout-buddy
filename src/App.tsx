@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import DocumentUpload from "./pages/DocumentUpload";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,11 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/documents" element={
+              <ProtectedRoute>
+                <DocumentUpload />
+              </ProtectedRoute>
+            } />
             <Route path="/" element={
               <ProtectedRoute>
                 <Index />

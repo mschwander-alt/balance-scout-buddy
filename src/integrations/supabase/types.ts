@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_evidence: {
+        Row: {
+          account_group_id: string | null
+          created_at: string
+          description: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+          trial_balance_id: string
+          updated_at: string
+          upload_date: string
+          user_id: string
+        }
+        Insert: {
+          account_group_id?: string | null
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+          trial_balance_id: string
+          updated_at?: string
+          upload_date?: string
+          user_id: string
+        }
+        Update: {
+          account_group_id?: string | null
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          trial_balance_id?: string
+          updated_at?: string
+          upload_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       account_group_assignments: {
         Row: {
           account_group_id: string

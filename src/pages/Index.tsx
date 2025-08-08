@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import UploadTrialBalance from '@/components/UploadTrialBalance';
@@ -9,6 +10,7 @@ import AccountGrouping from '@/components/AccountGrouping';
 
 const Index = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'preview' | 'team' | 'grouping' | 'dashboard'>('upload');
   const [currentTrialBalanceId, setCurrentTrialBalanceId] = useState<string>('');
   const [currentTrialBalanceData, setCurrentTrialBalanceData] = useState<any>(null);
@@ -35,7 +37,7 @@ const Index = () => {
   };
 
   const handleGroupingComplete = () => {
-    setCurrentStep('dashboard');
+    navigate(`/documents?trial_balance_id=${currentTrialBalanceId}`);
   };
 
   const resetToUpload = () => {
