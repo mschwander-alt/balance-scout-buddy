@@ -760,16 +760,7 @@ const Review = () => {
 
             {/* Right Side - Document Viewer */}
             <Card>
-              <CardHeader>
-                <CardTitle>Dokumentenvorschau</CardTitle>
-                <CardDescription>
-                  {selectedAccountForView
-                    ? `${selectedAccountForView.account_number} - ${selectedAccountForView.account_name}`
-                    : 'Wählen Sie ein Konto aus der Liste aus'
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-2">
+              <CardContent className="p-2 h-full">
                 {!selectedAccountForView ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />

@@ -6,8 +6,10 @@ import { Badge } from './ui/badge';
 import { FileText, Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-// Set up PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Set up PDF.js worker - use CDN fallback without import issues
+if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+}
 
 interface DocumentViewerProps {
   document: {
