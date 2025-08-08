@@ -93,14 +93,17 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
   };
 
   const handleAssignmentChange = (groupId: string, memberId: string) => {
+    // Convert "unassigned" back to empty string for database
+    const actualMemberId = memberId === "unassigned" ? "" : memberId;
     setPendingAssignments(prev => ({
       ...prev,
-      [groupId]: memberId || ''
+      [groupId]: actualMemberId
     }));
   };
 
   const saveAssignment = async (groupId: string) => {
     const memberId = pendingAssignments[groupId];
+    // memberId is already processed in handleAssignmentChange
     
     try {
       const { error } = await supabase
@@ -144,6 +147,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
     try {
       for (const [groupId, memberId] of updates) {
+        // memberId is already processed (empty string for unassigned)
         await supabase
           .from('account_groups')
           .update({
@@ -344,14 +348,16 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={pendingAssignments[group.id] ?? group.assigned_member_id ?? ''}
+                        value={pendingAssignments[group.id] !== undefined 
+                          ? (pendingAssignments[group.id] || "unassigned")
+                          : (group.assigned_member_id || "unassigned")}
                         onValueChange={(value) => handleAssignmentChange(group.id, value)}
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Team-Mitglied auswählen" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nicht zugeordnet</SelectItem>
+                          <SelectItem value="unassigned">Nicht zugeordnet</SelectItem>
                           {teamMembers.map((member) => (
                             <SelectItem key={member.id} value={member.id}>
                               {member.name} ({member.role})
@@ -365,7 +371,9 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                         <Button
                           size="sm"
                           onClick={() => saveAssignment(group.id)}
-                          disabled={pendingAssignments[group.id] === (group.assigned_member_id || '')}
+                          disabled={
+                            (pendingAssignments[group.id] || "") === (group.assigned_member_id || "")
+                          }
                         >
                           Speichern
                         </Button>

@@ -581,14 +581,17 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
                       <div>
                         <Label htmlFor="assignedMember">Zugeordnetes Team-Mitglied</Label>
                         <Select 
-                          value={groupFormData.assigned_member_id} 
-                          onValueChange={(value) => setGroupFormData(prev => ({ ...prev, assigned_member_id: value }))}
+                          value={groupFormData.assigned_member_id || "unassigned"} 
+                          onValueChange={(value) => setGroupFormData(prev => ({ 
+                            ...prev, 
+                            assigned_member_id: value === "unassigned" ? "" : value 
+                          }))}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Team-Mitglied auswählen (optional)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Noch nicht zuordnen</SelectItem>
+                            <SelectItem value="unassigned">Noch nicht zuordnen</SelectItem>
                             {teamMembers.map((member) => (
                               <SelectItem key={member.id} value={member.id}>
                                 {member.name} ({member.email})
