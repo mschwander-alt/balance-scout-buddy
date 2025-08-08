@@ -1,5 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Import real text extraction libraries
+// @deno-types="https://cdn.skypack.dev/@types/pdf-parse@1.1.1"
+import pdfParse from 'https://cdn.skypack.dev/pdf-parse@1.1.1'
+import * as XLSX from 'https://deno.land/x/sheetjs@v0.18.3/xlsx.mjs'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -112,7 +116,7 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
   try {
     console.log(`Analyzing document: ${document.file_name} for account: ${assignment.account_number}`)
 
-    // Download the document from storage
+    // Download the document from storage with proper auth headers
     const { data: fileData, error: downloadError } = await supabaseClient.storage
       .from('account-evidence')
       .download(document.file_path)
@@ -147,10 +151,12 @@ async function analyzeDocument(supabaseClient: any, document: Document, assignme
 
 async function extractTextFromPDF(fileData: Blob): Promise<string> {
   try {
-    // For now, return placeholder text since PDF parsing requires additional libraries
-    // In a production environment, you would use libraries like pdf-parse or similar
-    console.log('PDF text extraction - placeholder implementation')
-    return 'PDF content placeholder'
+    const buffer = await fileData.arrayBuffer()
+    const uint8Array = new Uint8Array(buffer)
+    
+    const data = await pdfParse(uint8Array)
+    console.log(`Extracted ${data.text.length} characters from PDF`)
+    return data.text
   } catch (error) {
     console.error('Error extracting PDF text:', error)
     return ''
@@ -159,10 +165,22 @@ async function extractTextFromPDF(fileData: Blob): Promise<string> {
 
 async function extractTextFromExcel(fileData: Blob): Promise<string> {
   try {
-    // Placeholder for Excel parsing
-    // In production, use libraries like xlsx or similar
-    console.log('Excel text extraction - placeholder implementation')
-    return 'Excel content placeholder'
+    const buffer = await fileData.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    
+    let allText = ''
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+      
+      // Convert all cells to text
+      for (const row of jsonData as any[][]) {
+        allText += row.join(' ') + '\n'
+      }
+    }
+    
+    console.log(`Extracted ${allText.length} characters from Excel`)
+    return allText
   } catch (error) {
     console.error('Error extracting Excel text:', error)
     return ''
@@ -171,10 +189,18 @@ async function extractTextFromExcel(fileData: Blob): Promise<string> {
 
 async function extractTextFromWord(fileData: Blob): Promise<string> {
   try {
-    // Placeholder for Word document parsing
-    // In production, use libraries like mammoth or similar
-    console.log('Word document text extraction - placeholder implementation')
-    return 'Word content placeholder'
+    // Word documents are more complex to parse, for now we'll do basic text extraction
+    // In production, you would use libraries like mammoth.js
+    const buffer = await fileData.arrayBuffer()
+    const text = new TextDecoder().decode(buffer)
+    
+    // Basic text extraction - look for readable text patterns
+    const cleanText = text.replace(/[\x00-\x1F\x7F-\x9F]/g, ' ')
+                          .replace(/\s+/g, ' ')
+                          .trim()
+    
+    console.log(`Extracted ${cleanText.length} characters from Word document`)
+    return cleanText
   } catch (error) {
     console.error('Error extracting Word text:', error)
     return ''
@@ -184,57 +210,77 @@ async function extractTextFromWord(fileData: Blob): Promise<string> {
 function analyzeTextForMatches(text: string, assignment: Assignment): number {
   let confidence = 0
   
-  // Look for account number
-  if (text.includes(assignment.account_number)) {
-    confidence += 0.3
-    console.log(`Found account number ${assignment.account_number} in text`)
+  // Convert text to lowercase for case-insensitive matching
+  const lowerText = text.toLowerCase()
+  
+  // Look for account number (exact match)
+  const accountNumber = assignment.account_number.toString()
+  if (lowerText.includes(accountNumber.toLowerCase())) {
+    confidence += 0.4
+    console.log(`Found exact account number ${accountNumber} in text`)
   }
 
   // Look for account name (partial matches)
   const accountNameWords = assignment.account_name.toLowerCase().split(' ')
   const foundWords = accountNameWords.filter(word => 
-    word.length > 3 && text.toLowerCase().includes(word)
+    word.length > 3 && lowerText.includes(word)
   )
   
   if (foundWords.length > 0) {
-    confidence += (foundWords.length / accountNameWords.length) * 0.3
-    console.log(`Found ${foundWords.length}/${accountNameWords.length} account name words`)
+    const nameMatchScore = (foundWords.length / accountNameWords.length) * 0.3
+    confidence += nameMatchScore
+    console.log(`Found ${foundWords.length}/${accountNameWords.length} account name words: ${foundWords.join(', ')}`)
   }
 
-  // Look for balance amounts (with some tolerance for formatting)
+  // Look for balance amounts with various formatting
   const currentBalance = Math.abs(assignment.current_year_balance)
   const foreignBalance = assignment.foreign_currency_balance ? Math.abs(assignment.foreign_currency_balance) : null
 
-  // Extract numbers from text and compare
-  const numberPattern = /[\d\.,]+/g
-  const numbersInText = text.match(numberPattern) || []
-  
-  for (const numberStr of numbersInText) {
-    const cleanNumber = parseFloat(numberStr.replace(/[,\.]/g, ''))
+  // Enhanced number pattern to catch Swiss/German formatting
+  const numberPatterns = [
+    /(?:CHF|EUR|USD)?\s*[\-]?\s*([\d]{1,3}(?:['\s,.][\d]{3})*(?:[.,][\d]{2})?)/g,
+    /[\-]?\s*([\d]{1,3}(?:['\s,.][\d]{3})*(?:[.,][\d]{2})?)\s*(?:CHF|EUR|USD)?/g,
+    /([\d]{1,10}(?:[.,][\d]{2})?)/g  // Simple pattern for basic numbers
+  ]
+
+  for (const pattern of numberPatterns) {
+    const matches = text.matchAll(pattern)
     
-    if (!isNaN(cleanNumber)) {
-      // Check for exact match with some tolerance
-      if (Math.abs(cleanNumber - currentBalance) < 0.01) {
-        confidence += 0.5
-        console.log(`Found exact current year balance match: ${cleanNumber}`)
-        break
-      }
+    for (const match of matches) {
+      const numberStr = match[1] || match[0]
+      // Clean the number string - remove separators but keep decimal
+      const cleanNumber = numberStr
+        .replace(/['\s]/g, '') // Remove apostrophes and spaces (Swiss thousands separator)
+        .replace(/,(\d{3})/g, '$1') // Remove thousands commas
+        .replace(/,(\d{1,2})$/, '.$1') // Convert decimal comma to dot
       
-      // Check foreign currency balance
-      if (foreignBalance && Math.abs(cleanNumber - foreignBalance) < 0.01) {
-        confidence += 0.5
-        console.log(`Found exact foreign currency balance match: ${cleanNumber}`)
-        break
-      }
+      const parsedNumber = parseFloat(cleanNumber)
       
-      // Check for close matches (within 10%)
-      if (Math.abs(cleanNumber - currentBalance) / currentBalance < 0.1) {
-        confidence += 0.2
-        console.log(`Found close current year balance match: ${cleanNumber} vs ${currentBalance}`)
+      if (!isNaN(parsedNumber) && parsedNumber > 0) {
+        // Check for exact match (within 1 CHF tolerance)
+        if (Math.abs(parsedNumber - currentBalance) <= 1) {
+          confidence += 0.6
+          console.log(`Found EXACT current year balance match: ${parsedNumber} vs ${currentBalance}`)
+          break
+        }
+        
+        // Check foreign currency balance
+        if (foreignBalance && Math.abs(parsedNumber - foreignBalance) <= 1) {
+          confidence += 0.6
+          console.log(`Found EXACT foreign currency balance match: ${parsedNumber} vs ${foreignBalance}`)
+          break
+        }
+        
+        // Check for close matches (within 5%)
+        const tolerance = currentBalance * 0.05
+        if (Math.abs(parsedNumber - currentBalance) <= tolerance) {
+          confidence += 0.3
+          console.log(`Found CLOSE current year balance match: ${parsedNumber} vs ${currentBalance} (tolerance: ${tolerance})`)
+        }
       }
     }
   }
 
-  console.log(`Final confidence score for ${assignment.account_number}: ${confidence}`)
+  console.log(`Final confidence score for ${assignment.account_number}: ${confidence.toFixed(3)}`)
   return Math.min(confidence, 1.0) // Cap at 1.0
 }

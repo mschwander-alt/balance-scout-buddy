@@ -61,6 +61,15 @@ const Review = () => {
     if (!user || !trialBalanceId) return;
 
     try {
+      // Load account groups first to get correct order
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('account_groups')
+        .select('*')
+        .eq('trial_balance_id', trialBalanceId)
+        .order('created_at', { ascending: true }); // Same order as in AccountGrouping
+
+      if (groupsError) throw groupsError;
+
       // Load account assignments with groups
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from('account_group_assignments')
@@ -76,15 +85,6 @@ const Review = () => {
         .order('account_number');
 
       if (assignmentsError) throw assignmentsError;
-
-      // Load account groups
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('account_groups')
-        .select('*')
-        .eq('trial_balance_id', trialBalanceId)
-        .order('name');
-
-      if (groupsError) throw groupsError;
 
       // Load documents
       const { data: documentsData, error: documentsError } = await supabase
