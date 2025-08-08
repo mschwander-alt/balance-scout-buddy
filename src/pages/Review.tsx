@@ -258,38 +258,39 @@ const Review: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-foreground">Audit Agent</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
+      <header className="border-b border-border bg-card py-2">
+        <div className="container mx-auto px-2 py-2 flex justify-between items-center">
+          <h1 className="text-xl font-bold text-foreground">Audit Agent</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
               Willkommen, {user?.email}
             </span>
-            <Button variant="outline" onClick={signOut}>
+            <Button variant="outline" size="sm" onClick={signOut}>
               Abmelden
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          <div className="flex items-center justify-between">
+      <main className="container mx-auto px-2 py-3">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between py-2">
             <div>
-              <h2 className="text-3xl font-bold text-foreground">
+              <h2 className="text-2xl font-bold text-foreground">
                 Automatische Prüfung
               </h2>
-              <p className="text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Abgleich der Kontosalden mit den hochgeladenen Nachweisen
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Button 
                 onClick={startAutoMatch}
                 disabled={isProcessing}
+                size="sm"
                 className="flex items-center gap-2"
               >
-                <Search className="h-4 w-4" />
+                <Search className="h-3 w-3" />
                 {isProcessing ? 'Prüfung läuft...' : 'Prüfung starten'}
               </Button>
               
@@ -297,13 +298,14 @@ const Review: React.FC = () => {
                 <DialogTrigger asChild>
                   <Button 
                     variant="outline" 
+                    size="sm"
                     onClick={() => {
                       setUnmatchedDocuments(getUnmatchedDocuments());
                       setShowManualAssignModal(true);
                     }}
                     className="flex items-center gap-2"
                   >
-                    <FileText className="h-4 w-4" />
+                    <FileText className="h-3 w-3" />
                     Nicht gematchte Dateien manuell zuweisen
                   </Button>
                 </DialogTrigger>
@@ -416,9 +418,10 @@ const Review: React.FC = () => {
               
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}
               >
-                <ArrowLeft className="h-4 w-4 mr-2" />
+                <ArrowLeft className="h-3 w-3 mr-2" />
                 Zurück
               </Button>
             </div>
@@ -432,15 +435,15 @@ const Review: React.FC = () => {
             </div>
           )}
 
-          <div className="flex flex-col xl:flex-row gap-8 min-h-[700px]">
+          <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-12rem)]">
             <Card className="w-full xl:w-2/5 flex-shrink-0">
-              <CardHeader>
-                <CardTitle>Saldobilanz</CardTitle>
-                <CardDescription>
+              <CardHeader className="py-3">
+                <CardTitle className="text-lg">Saldobilanz</CardTitle>
+                <CardDescription className="text-sm">
                   Klicken Sie auf ein Konto um die gefundenen Nachweise anzuzeigen
                 </CardDescription>
               </CardHeader>
-              <CardContent className="max-h-[600px] overflow-y-auto">
+              <CardContent className="max-h-[calc(100vh-16rem)] overflow-y-auto py-3">
                 <div className="space-y-4">
                   {accountGroups.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
@@ -545,16 +548,16 @@ const Review: React.FC = () => {
             </Card>
 
             <Card className="flex-1 min-w-0">
-              <CardHeader>
-                <CardTitle>Gefundene Nachweise</CardTitle>
-                <CardDescription>
+              <CardHeader className="py-3">
+                <CardTitle className="text-lg">Gefundene Nachweise</CardTitle>
+                <CardDescription className="text-sm">
                   {selectedAccountData ? 
                     `${selectedAccountData.account_number} - ${selectedAccountData.account_name}` :
                     'Wählen Sie ein Konto aus der Liste links'
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent className="h-[600px] overflow-hidden">
+              <CardContent className="h-[calc(100vh-16rem)] overflow-hidden py-3">
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="space-y-4 h-full overflow-y-auto">
@@ -583,11 +586,11 @@ const Review: React.FC = () => {
             </Card>
           </div>
 
-          <div className="flex justify-center gap-4">
-            <Button variant="outline" onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}>
+          <div className="flex justify-center gap-3 py-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}>
               Zurück zu Dokumenten
             </Button>
-            <Button onClick={() => navigate('/')}>
+            <Button size="sm" onClick={() => navigate('/')}>
               Zur Übersicht
             </Button>
           </div>
