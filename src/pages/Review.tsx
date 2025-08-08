@@ -5,6 +5,7 @@ import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -61,6 +62,7 @@ const Review: React.FC = () => {
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -578,19 +580,39 @@ const Review: React.FC = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="h-[calc(100vh-16rem)] overflow-hidden py-3">
+              <CardContent className="h-[calc(100vh-20rem)] overflow-hidden py-3 flex flex-col">
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
-                    <div className="space-y-4 h-full overflow-y-auto">
-                      {selectedDocuments.map((doc) => (
-                        <div key={doc.id} className="border rounded-lg h-full">
-                          <DocumentViewer 
-                            document={doc}
-                            onLoad={() => {}}
-                            onError={(error) => console.error('Error loading document:', error)}
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 space-y-4 overflow-y-auto mb-4">
+                        {selectedDocuments.map((doc) => (
+                          <div key={doc.id} className="border rounded-lg">
+                            <DocumentViewer 
+                              document={doc}
+                              onLoad={() => {}}
+                              onError={(error) => console.error('Document viewer error:', error)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Kommentarfeld */}
+                      <div className="border-t pt-4 flex-shrink-0">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                          </label>
+                          <Textarea
+                            placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
+                            value={accountComments[selectedAccountData.id] || ''}
+                            onChange={(e) => setAccountComments(prev => ({
+                              ...prev,
+                              [selectedAccountData.id]: e.target.value
+                            }))}
+                            className="min-h-[80px] resize-none"
                           />
                         </div>
-                      ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
