@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { DocumentViewer } from "@/components/DocumentViewer";
 
 interface AccountGroup {
   id: string;
@@ -306,15 +307,7 @@ const Review = () => {
 
   const handleAccountClick = (assignment: AccountAssignment) => {
     setSelectedAccountForView(assignment);
-    
-    // Automatically load preview for the first document
-    if (assignment.matched_documents && assignment.matched_documents.length > 0) {
-      const firstDocId = assignment.matched_documents[0];
-      const firstDoc = documents.find(d => d.id === firstDocId);
-      if (firstDoc) {
-        previewDocument(firstDoc);
-      }
-    }
+    setPreviewLoading(true);
   };
 
   const updateAccountComment = (accountId: string, comment: string) => {
@@ -808,51 +801,16 @@ const Review = () => {
                                 </Badge>
                               </div>
                               
-                              {/* Large Document Preview Area */}
-                              <div className="border rounded-lg overflow-hidden" style={{ height: '70vh' }}>
-                                {previewLoading ? (
-                                  <div className="p-8 text-center h-full flex items-center justify-center">
-                                    <p className="text-sm text-muted-foreground">Lädt Dokument...</p>
-                                  </div>
-                                ) : documentPreview ? (
-                                  <div className="h-full flex flex-col items-center justify-center p-8 space-y-4">
-                                    <div className="text-center">
-                                      <FileText className="h-16 w-16 mx-auto mb-4 text-primary opacity-60" />
-                                      <h3 className="text-lg font-medium mb-2">{document.file_name}</h3>
-                                      <p className="text-sm text-muted-foreground mb-4">
-                                        {document.file_type.includes('pdf') ? 'PDF-Dokument' : 'Excel-Dokument'}
-                                      </p>
-                                    </div>
-                                    <div className="flex gap-3">
-                                      <Button 
-                                        onClick={() => window.open(documentPreview, '_blank')}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <Eye className="h-4 w-4" />
-                                        In neuem Tab öffnen
-                                      </Button>
-                                      <Button 
-                                        variant="outline"
-                                        onClick={() => {
-                                          const link = window.document.createElement('a');
-                                          link.href = documentPreview;
-                                          link.download = document.file_name;
-                                          link.click();
-                                        }}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <FileText className="h-4 w-4" />
-                                        Herunterladen
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="p-4 text-center h-full flex items-center justify-center">
-                                    <p className="text-sm text-muted-foreground">
-                                      Dokument konnte nicht geladen werden
-                                    </p>
-                                  </div>
-                                )}
+                              {/* Document Viewer */}
+                              <div style={{ height: '70vh' }}>
+                                <DocumentViewer 
+                                  document={document}
+                                  onLoad={() => setPreviewLoading(false)}
+                                  onError={(error) => {
+                                    setPreviewLoading(false);
+                                    console.error('Document viewer error:', error);
+                                  }}
+                                />
                               </div>
                               
                               {/* Comment Section */}
