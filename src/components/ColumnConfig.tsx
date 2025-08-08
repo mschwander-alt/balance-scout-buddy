@@ -60,7 +60,7 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
           account_name_column: data.account_name_column || '',
           current_year_column: data.current_year_column || '',
           previous_year_column: data.previous_year_column || '',
-          foreign_currency_column: data.foreign_currency_column || ''
+          foreign_currency_column: data.foreign_currency_column || 'none'
         });
       }
 
@@ -238,13 +238,13 @@ const ColumnConfig = ({ trialBalanceId, onConfigurationComplete }: ColumnConfigP
             <Label htmlFor="foreign-currency">Fremdwährung (optional)</Label>
             <Select 
               value={columnMapping.foreign_currency_column} 
-              onValueChange={(value) => setColumnMapping(prev => ({...prev, foreign_currency_column: value}))}
+              onValueChange={(value) => setColumnMapping(prev => ({...prev, foreign_currency_column: value === 'none' ? '' : value}))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Spalte wählen (optional)..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Keine Fremdwährung</SelectItem>
+                <SelectItem value="none">Keine Fremdwährung</SelectItem>
                 {sampleColumns.map((col) => (
                   <SelectItem key={col} value={col}>{col}</SelectItem>
                 ))}
