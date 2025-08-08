@@ -432,15 +432,15 @@ const Review: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <Card>
+          <div className="flex flex-col xl:flex-row gap-8 min-h-[700px]">
+            <Card className="w-full xl:w-2/5 flex-shrink-0">
               <CardHeader>
                 <CardTitle>Saldobilanz</CardTitle>
                 <CardDescription>
                   Klicken Sie auf ein Konto um die gefundenen Nachweise anzuzeigen
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-h-[600px] overflow-y-auto">
                 <div className="space-y-4">
                   {accountGroups.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
@@ -544,7 +544,7 @@ const Review: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="flex-1 min-w-0">
               <CardHeader>
                 <CardTitle>Gefundene Nachweise</CardTitle>
                 <CardDescription>
@@ -554,12 +554,12 @@ const Review: React.FC = () => {
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="h-[600px] overflow-hidden">
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-4 h-full overflow-y-auto">
                       {selectedDocuments.map((doc) => (
-                        <div key={doc.id} className="border rounded-lg">
+                        <div key={doc.id} className="border rounded-lg h-full">
                           <DocumentViewer 
                             document={doc}
                             onLoad={() => {}}
@@ -569,13 +569,13 @@ const Review: React.FC = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>Keine Nachweise für dieses Konto gefunden</p>
                     </div>
                   )
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
                   </div>
                 )}
