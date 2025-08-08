@@ -253,13 +253,47 @@ function generateGroupingSuggestions(accounts: TrialBalanceAccount[]): GroupingS
     }
   }
   
-  // Sortiere nach Kategorie und Namen
+  // Sortiere nach Schweizer OR Standard: Erst Bilanz (Aktiven, dann Passiven), dann Erfolgsrechnung
+  // Innerhalb jeder Kategorie nach Subcategory und dann nach Kontonummern sortieren
   suggestions.sort((a, b) => {
+    // Hauptkategorien-Reihenfolge
     if (a.category !== b.category) {
       const order = ['aktiven', 'passiven', 'erfolgsrechnung'];
       return order.indexOf(a.category) - order.indexOf(b.category);
     }
-    return a.name.localeCompare(b.name);
+    
+    // Subcategory-Reihenfolge für bessere Strukturierung
+    if (a.subcategory !== b.subcategory) {
+      const subcategoryOrder = {
+        // Aktiven
+        'Umlaufvermögen': 1,
+        'Anlagevermögen': 2,
+        // Passiven
+        'Fremdkapital kurzfristig': 3,
+        'Fremdkapital langfristig': 4,
+        'Eigenkapital': 5,
+        // Erfolgsrechnung
+        'Ertrag': 6,
+        'Aufwand': 7
+      };
+      const orderA = subcategoryOrder[a.subcategory as keyof typeof subcategoryOrder] || 999;
+      const orderB = subcategoryOrder[b.subcategory as keyof typeof subcategoryOrder] || 999;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+    }
+    
+    // Innerhalb der gleichen Subcategory nach Kontonummern sortieren
+    // Nimm die kleinste Kontonummer aus jeder Gruppe als Referenz
+    const getMinAccountNumber = (accounts: any[]) => {
+      const numbers = accounts.map(acc => parseInt(acc.accountNumber.replace(/\D/g, '')) || 99999);
+      return Math.min(...numbers);
+    };
+    
+    const minA = getMinAccountNumber(a.accounts);
+    const minB = getMinAccountNumber(b.accounts);
+    
+    return minA - minB;
   });
   
   return suggestions;

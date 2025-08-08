@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Layers, Plus, Save, User, Users, Zap, Sparkles, GripVertical } from 'lucide-react';
+import { Layers, Plus, Save, User, Users, Zap, Sparkles, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import {
@@ -80,6 +80,7 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isAutoGrouping, setIsAutoGrouping] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   const [groupFormData, setGroupFormData] = useState({
     name: '',
@@ -657,63 +658,79 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
                     {/* Render Account Groups */}
                     {accountGroups.map((group) => (
                       <React.Fragment key={`group-${group.id}`}>
-                        {/* Group Header Row */}
-                        <TableRow className="bg-primary/5 border-t-2 border-primary/20">
-                          <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                  <Layers className="h-4 w-4 text-primary" />
-                                  <span className="font-semibold text-primary">{group.name}</span>
-                                  {getStatusBadge(group.status)}
-                                </div>
-                                {group.description && (
-                                  <span className="text-sm text-muted-foreground">- {group.description}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                {group.assigned_member && (
-                                  <div className="flex items-center gap-1">
-                                    <User className="h-4 w-4" />
-                                    {group.assigned_member.name}
-                                  </div>
-                                )}
-                                <span>{group.accounts.length} Konten</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                         {/* Group Header Row */}
+                         <TableRow 
+                           className="bg-primary/5 border-t-2 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+                           onClick={() => {
+                             const newExpanded = new Set(expandedGroups);
+                             if (expandedGroups.has(group.id)) {
+                               newExpanded.delete(group.id);
+                             } else {
+                               newExpanded.add(group.id);
+                             }
+                             setExpandedGroups(newExpanded);
+                           }}
+                         >
+                           <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
+                             <div className="flex items-center justify-between">
+                               <div className="flex items-center gap-3">
+                                 <div className="flex items-center gap-2">
+                                   {expandedGroups.has(group.id) ? (
+                                     <ChevronDown className="h-4 w-4 text-primary" />
+                                   ) : (
+                                     <ChevronRight className="h-4 w-4 text-primary" />
+                                   )}
+                                   <Layers className="h-4 w-4 text-primary" />
+                                   <span className="font-semibold text-primary">{group.name}</span>
+                                   {getStatusBadge(group.status)}
+                                 </div>
+                                 {group.description && (
+                                   <span className="text-sm text-muted-foreground">- {group.description}</span>
+                                 )}
+                               </div>
+                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                 {group.assigned_member && (
+                                   <div className="flex items-center gap-1">
+                                     <User className="h-4 w-4" />
+                                     {group.assigned_member.name}
+                                   </div>
+                                 )}
+                                 <span>{group.accounts.length} Konten</span>
+                               </div>
+                             </div>
+                           </TableCell>
+                         </TableRow>
+                         
+                         {/* Group Accounts - Only show when expanded */}
+                         {expandedGroups.has(group.id) && group.accounts.map((account) => (
+                           <DraggableAccountRow
+                             key={account.accountNumber}
+                             account={account}
+                             hasForeignCurrency={hasForeignCurrency}
+                             formatNumber={formatSwissNumber}
+                             showCheckbox={false}
+                           />
+                         ))}
                         
-                        {/* Group Accounts */}
-                        {group.accounts.map((account) => (
-                          <DraggableAccountRow
-                            key={account.accountNumber}
-                            account={account}
-                            hasForeignCurrency={hasForeignCurrency}
-                            formatNumber={formatSwissNumber}
-                            showCheckbox={false}
-                          />
-                        ))}
-                        
-                        {/* Group Total Row */}
-                        <TableRow className="bg-muted/30 font-semibold border-b-2">
-                          <TableCell></TableCell>
-                          <TableCell></TableCell>
-                          <TableCell className="text-left font-semibold" colSpan={2}>
-                            Total {group.name}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-semibold">
-                            {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-semibold">
-                            {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.previousYear, 0))}
-                          </TableCell>
-                          {hasForeignCurrency && (
-                            <TableCell className="text-right font-mono font-semibold">
-                              {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + (acc.foreignCurrency || 0), 0))}
-                            </TableCell>
-                          )}
-                        </TableRow>
+                         {/* Group Total Row - Always show */}
+                         <TableRow className="bg-muted/30 font-semibold border-b-2">
+                           <TableCell></TableCell>
+                           <TableCell></TableCell>
+                           <TableCell className="text-left font-semibold" colSpan={2}>
+                             Total {group.name}
+                           </TableCell>
+                           <TableCell className="text-right font-mono font-semibold">
+                             {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
+                           </TableCell>
+                           <TableCell className="text-right font-mono font-semibold">
+                             {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.previousYear, 0))}
+                           </TableCell>
+                           {hasForeignCurrency && (
+                             <TableCell className="text-right font-mono font-semibold">
+                               {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + (acc.foreignCurrency || 0), 0))}
+                             </TableCell>
+                           )}
+                         </TableRow>
                       </React.Fragment>
                     ))}
 
