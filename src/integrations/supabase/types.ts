@@ -44,6 +44,57 @@ export type Database = {
         }
         Relationships: []
       }
+      trial_balances: {
+        Row: {
+          account_name_column: string | null
+          account_number_column: string | null
+          created_at: string
+          current_year_column: string | null
+          file_path: string
+          file_size: number | null
+          filename: string
+          foreign_currency_column: string | null
+          id: string
+          previous_year_column: string | null
+          status: string | null
+          updated_at: string
+          upload_date: string
+          user_id: string
+        }
+        Insert: {
+          account_name_column?: string | null
+          account_number_column?: string | null
+          created_at?: string
+          current_year_column?: string | null
+          file_path: string
+          file_size?: number | null
+          filename: string
+          foreign_currency_column?: string | null
+          id?: string
+          previous_year_column?: string | null
+          status?: string | null
+          updated_at?: string
+          upload_date?: string
+          user_id: string
+        }
+        Update: {
+          account_name_column?: string | null
+          account_number_column?: string | null
+          created_at?: string
+          current_year_column?: string | null
+          file_path?: string
+          file_size?: number | null
+          filename?: string
+          foreign_currency_column?: string | null
+          id?: string
+          previous_year_column?: string | null
+          status?: string | null
+          updated_at?: string
+          upload_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
