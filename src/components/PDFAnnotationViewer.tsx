@@ -85,7 +85,14 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
         .createSignedUrl(document.file_path, 3600);
 
       if (error) throw error;
-      setDocumentUrl(data.signedUrl);
+      
+      // Ensure we have a full URL
+      const fullUrl = data.signedUrl.startsWith('http') 
+        ? data.signedUrl 
+        : `https://szrpyhwjqftwxhaagcds.supabase.co/storage/v1${data.signedUrl}`;
+      
+      console.log('PDF URL loaded:', fullUrl);
+      setDocumentUrl(fullUrl);
       onLoad?.();
     } catch (error: any) {
       console.error('Error loading document:', error);
@@ -235,6 +242,7 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
   };
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    console.log('PDF loaded successfully, pages:', numPages);
     setNumPages(numPages);
     setLoading(false);
   };
@@ -243,7 +251,7 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
     console.error('PDF load error:', error);
     setLoading(false);
     onError?.(error);
-    toast.error('Fehler beim Laden des PDFs');
+    toast.error('Fehler beim Laden des PDFs: ' + (error.message || 'Unbekannter Fehler'));
   };
 
   useEffect(() => {
@@ -331,7 +339,7 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
           >
-            {documentUrl && (
+            {documentUrl ? (
               <Document
                 file={documentUrl}
                 onLoadSuccess={onDocumentLoadSuccess}
@@ -350,9 +358,10 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
                   </div>
                 }
                 error={
-                  <div className="flex items-center justify-center h-96">
+                  <div className="flex items-center justify-center h-96 p-4">
                     <div className="text-center">
-                      <p className="text-sm text-destructive">Fehler beim Laden des PDFs</p>
+                      <p className="text-sm text-destructive mb-2">Fehler beim Laden des PDFs</p>
+                      <p className="text-xs text-muted-foreground">Möglicherweise ist das PDF beschädigt oder nicht zugänglich.</p>
                     </div>
                   </div>
                 }
@@ -362,8 +371,19 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
                   scale={scale}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
+                  loading={
+                    <div className="flex items-center justify-center h-96">
+                      <div className="animate-spin h-6 w-6 border-4 border-primary border-t-transparent rounded-full"></div>
+                    </div>
+                  }
                 />
               </Document>
+            ) : (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Keine PDF-URL verfügbar</p>
+                </div>
+              </div>
             )}
             
             {/* Annotation Overlays */}
