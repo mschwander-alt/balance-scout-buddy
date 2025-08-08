@@ -815,26 +815,37 @@ const Review = () => {
                                     <p className="text-sm text-muted-foreground">Lädt Dokument...</p>
                                   </div>
                                 ) : documentPreview ? (
-                                  document.file_type === 'application/pdf' ? (
-                                    <iframe
-                                      src={documentPreview}
-                                      className="w-full h-full border-0"
-                                      title="PDF Preview"
-                                    />
-                                  ) : (
-                                    <div className="p-4 text-center h-full flex items-center justify-center flex-col">
+                                  <div className="h-full flex flex-col items-center justify-center p-8 space-y-4">
+                                    <div className="text-center">
+                                      <FileText className="h-16 w-16 mx-auto mb-4 text-primary opacity-60" />
+                                      <h3 className="text-lg font-medium mb-2">{document.file_name}</h3>
                                       <p className="text-sm text-muted-foreground mb-4">
-                                        Excel-Vorschau wird derzeit nicht unterstützt.
+                                        {document.file_type.includes('pdf') ? 'PDF-Dokument' : 'Excel-Dokument'}
                                       </p>
+                                    </div>
+                                    <div className="flex gap-3">
                                       <Button 
-                                        variant="outline" 
-                                        size="sm"
                                         onClick={() => window.open(documentPreview, '_blank')}
+                                        className="flex items-center gap-2"
                                       >
+                                        <Eye className="h-4 w-4" />
                                         In neuem Tab öffnen
                                       </Button>
+                                      <Button 
+                                        variant="outline"
+                                        onClick={() => {
+                                          const link = window.document.createElement('a');
+                                          link.href = documentPreview;
+                                          link.download = document.file_name;
+                                          link.click();
+                                        }}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <FileText className="h-4 w-4" />
+                                        Herunterladen
+                                      </Button>
                                     </div>
-                                  )
+                                  </div>
                                 ) : (
                                   <div className="p-4 text-center h-full flex items-center justify-center">
                                     <p className="text-sm text-muted-foreground">
