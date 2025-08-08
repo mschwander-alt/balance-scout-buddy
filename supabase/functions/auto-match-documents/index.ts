@@ -4,252 +4,89 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
-}
-
-interface Assignment {
-  id: string
-  account_number: string
-  account_name: string
-  current_year_balance: number
-  previous_year_balance: number
-  foreign_currency_balance?: number
-  account_group_id: string
-  account_group_name: string
-}
-
-interface DocumentInfo {
-  id: string
-  file_name: string
-  file_path: string
-  file_type: string
-  description?: string
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json'
 }
 
 serve(async (req) => {
-  console.log('Auto-match function called', req.method)
+  console.log(`Received ${req.method} request`)
   
-  // Always add CORS headers to all responses
-  const responseHeaders = {
-    ...corsHeaders,
-    'Content-Type': 'application/json'
-  }
-  
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight')
+    console.log('Handling OPTIONS request')
     return new Response(null, { 
-      headers: responseHeaders,
-      status: 200 
+      status: 200,
+      headers: corsHeaders 
     })
   }
 
   try {
-    console.log('Creating Supabase client')
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    )
-
-    console.log('Parsing request body')
+    console.log('Processing POST request')
+    
     const requestData = await req.json()
-    const trialBalanceId = requestData.trial_balance_id
+    console.log('Request data received:', {
+      trial_balance_id: requestData.trial_balance_id,
+      assignments_count: requestData.assignments?.length || 0,
+      documents_count: requestData.documents?.length || 0
+    })
+
     const assignments = requestData.assignments || []
     const documents = requestData.documents || []
 
-    console.log(`Starting auto-match for trial balance: ${trialBalanceId}`)
-    console.log(`Processing ${assignments.length} assignments and ${documents.length} documents`)
-
-    const matchedAssignments = []
-    let matchedCount = 0
-
-    for (const assignment of assignments) {
-      console.log(`Processing assignment: ${assignment.account_number} - ${assignment.account_name}`)
+    // Simple matching logic - just check filenames for account numbers
+    const matchedAssignments = assignments.map(assignment => {
+      console.log(`Processing account ${assignment.account_number}`)
       
       const matchedDocuments = []
-      let bestConfidence = 0
-      let matchStatus = 'unmatched'
+      let confidence = 0
+      let status = 'unmatched'
 
+      // Simple filename matching
       for (const doc of documents) {
-        try {
-          const confidence = await analyzeDocument(supabaseClient, doc, assignment)
-          
-          if (confidence > 0.7) {
-            matchedDocuments.push(doc.id)
-            bestConfidence = Math.max(bestConfidence, confidence)
-            matchStatus = 'matched'
-            console.log(`High confidence match for ${assignment.account_number} in ${doc.file_name} (${confidence})`)
-          } else if (confidence > 0.4) {
-            matchedDocuments.push(doc.id)
-            bestConfidence = Math.max(bestConfidence, confidence)
-            matchStatus = 'matched'
-            console.log(`Medium confidence match for ${assignment.account_number} in ${doc.file_name} (${confidence})`)
-          }
-        } catch (error) {
-          console.error(`Error analyzing document ${doc.file_name}:`, error)
+        const fileName = doc.file_name?.toLowerCase() || ''
+        const accountNumber = assignment.account_number?.toString() || ''
+        
+        if (fileName.includes(accountNumber.toLowerCase())) {
+          matchedDocuments.push(doc.id)
+          confidence = 0.8
+          status = 'matched'
+          console.log(`Found match: ${doc.file_name} contains ${accountNumber}`)
+          break
         }
       }
 
-      if (matchStatus === 'matched') {
-        matchedCount++
-      }
-
-      matchedAssignments.push({
+      return {
         ...assignment,
-        match_status: matchStatus,
-        confidence_score: bestConfidence,
+        match_status: status,
+        confidence_score: confidence,
         matched_documents: matchedDocuments
-      })
+      }
+    })
+
+    const matchedCount = matchedAssignments.filter(a => a.match_status === 'matched').length
+
+    console.log(`Matching completed: ${matchedCount}/${assignments.length} matched`)
+
+    const response = {
+      matched_assignments: matchedAssignments,
+      matched_count: matchedCount,
+      total_count: assignments.length
     }
 
-    console.log(`Auto-match completed: ${matchedCount}/${assignments.length} accounts matched`)
-
-    return new Response(
-      JSON.stringify({
-        matched_assignments: matchedAssignments,
-        matched_count: matchedCount,
-        total_count: assignments.length
-      }),
-      {
-        headers: responseHeaders,
-        status: 200
-      }
-    )
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: corsHeaders
+    })
 
   } catch (error) {
-    console.error('Error in auto-match-documents:', error)
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Unknown error occurred',
-        stack: error.stack 
-      }),
-      {
-        headers: responseHeaders,
-        status: 500
-      }
-    )
+    console.error('Error in auto-match:', error)
+    
+    return new Response(JSON.stringify({ 
+      error: 'Auto-match failed',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: corsHeaders
+    })
   }
 })
-
-async function analyzeDocument(supabaseClient: any, document: DocumentInfo, assignment: Assignment): Promise<number> {
-  try {
-    console.log(`Analyzing document: ${document.file_name} for account: ${assignment.account_number}`)
-
-    let extractedText = document.file_name + ' ' + (document.description || '')
-    
-    try {
-      const { data: fileData, error: downloadError } = await supabaseClient.storage
-        .from('account-evidence')
-        .download(document.file_path)
-
-      if (!downloadError && fileData) {
-        const additionalText = await extractTextFromFile(fileData, document.file_type)
-        extractedText += ' ' + additionalText
-      } else {
-        console.log(`Could not download file ${document.file_name}, using filename only`)
-      }
-    } catch (error) {
-      console.log(`Error downloading ${document.file_name}, using filename only:`, error)
-    }
-
-    return analyzeTextForMatches(extractedText, assignment)
-
-  } catch (error) {
-    console.error(`Error analyzing document ${document.file_name}:`, error)
-    return 0
-  }
-}
-
-async function extractTextFromFile(fileData: Blob, fileType: string): Promise<string> {
-  try {
-    if (!fileData || fileData.size === 0) {
-      return ''
-    }
-
-    const buffer = await fileData.arrayBuffer()
-    const uint8Array = new Uint8Array(buffer)
-    
-    const decoder = new TextDecoder('utf-8', { fatal: false })
-    let rawText = decoder.decode(uint8Array)
-    
-    let readableText = ''
-    for (let i = 0; i < rawText.length; i++) {
-      const char = rawText[i]
-      const charCode = char.charCodeAt(0)
-      
-      if ((charCode >= 32 && charCode <= 126) || charCode === 10 || charCode === 13) {
-        readableText += char
-      } else if (charCode >= 192 && charCode <= 255) {
-        readableText += char
-      } else {
-        readableText += ' '
-      }
-    }
-    
-    readableText = readableText.replace(/\s+/g, ' ').trim()
-    
-    console.log(`Extracted ${readableText.length} characters from ${fileType}`)
-    return readableText.substring(0, 10000)
-  } catch (error) {
-    console.error('Error extracting text from file:', error)
-    return ''
-  }
-}
-
-function analyzeTextForMatches(inputText: string, assignment: Assignment): number {
-  let confidence = 0
-  
-  const lowerText = inputText.toLowerCase()
-  
-  const accountNumber = assignment.account_number.toString()
-  if (lowerText.includes(accountNumber.toLowerCase())) {
-    confidence += 0.4
-    console.log(`Found exact account number ${accountNumber} in text`)
-  }
-
-  const accountNameWords = assignment.account_name.toLowerCase().split(' ')
-  const foundWords = accountNameWords.filter(word => 
-    word.length > 3 && lowerText.includes(word)
-  )
-  
-  if (foundWords.length > 0) {
-    const nameMatchScore = (foundWords.length / accountNameWords.length) * 0.3
-    confidence += nameMatchScore
-    console.log(`Found ${foundWords.length}/${accountNameWords.length} account name words: ${foundWords.join(', ')}`)
-  }
-
-  const currentBalance = Math.abs(assignment.current_year_balance)
-  const foreignBalance = assignment.foreign_currency_balance ? Math.abs(assignment.foreign_currency_balance) : null
-
-  const balanceStr = currentBalance.toFixed(2)
-  const balanceStrComma = balanceStr.replace('.', ',')
-  const balanceStrApostrophe = balanceStr.replace(/\B(?=(\d{3})+(?!\d))/g, "'")
-  
-  const balanceFormats = [
-    balanceStr,
-    balanceStrComma,
-    balanceStrApostrophe,
-    currentBalance.toString(),
-    Math.round(currentBalance).toString()
-  ]
-  
-  for (const format of balanceFormats) {
-    if (lowerText.includes(format)) {
-      confidence += 0.6
-      console.log(`Found balance match: ${format} in text`)
-      break
-    }
-  }
-  
-  if (foreignBalance) {
-    const foreignBalanceStr = foreignBalance.toFixed(2)
-    const foreignBalanceStrComma = foreignBalanceStr.replace('.', ',')
-    
-    if (lowerText.includes(foreignBalanceStr) || lowerText.includes(foreignBalanceStrComma)) {
-      confidence += 0.6
-      console.log(`Found foreign currency balance match: ${foreignBalanceStr}`)
-    }
-  }
-
-  console.log(`Final confidence score for ${assignment.account_number}: ${confidence.toFixed(3)}`)
-  return Math.min(confidence, 1.0)
-}
