@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,14 +13,33 @@ import {
   ZoomIn, 
   ZoomOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-// Set worker source for PDF.js using CDN
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Dynamic imports for PDF.js to prevent SSR issues
+let Document: any = null;
+let Page: any = null;
+let pdfjs: any = null;
+
+const loadPDFJS = async () => {
+  try {
+    const pdfModule = await import('react-pdf');
+    Document = pdfModule.Document;
+    Page = pdfModule.Page;
+    pdfjs = pdfModule.pdfjs;
+    
+    // Set worker source for PDF.js using CDN
+    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+    return true;
+  } catch (error) {
+    console.error('Failed to load PDF.js:', error);
+    return false;
+  }
+};
 
 interface DocumentProps {
   id: string;
@@ -76,6 +92,12 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [pendingAnnotation, setPendingAnnotation] = useState<Omit<Annotation, 'id' | 'content'> | null>(null);
+  const [pdfJSLoaded, setPdfJSLoaded] = useState(false);
+
+  // Load PDF.js dynamically
+  useEffect(() => {
+    loadPDFJS().then(setPdfJSLoaded);
+  }, []);
 
   // Load PDF URL
   const loadDocumentUrl = useCallback(async () => {
@@ -259,12 +281,47 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
     loadAnnotations();
   }, [loadDocumentUrl, loadAnnotations]);
 
-  if (loading || !documentUrl) {
+  if (loading || !documentUrl || !pdfJSLoaded) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-sm text-muted-foreground">PDF wird geladen...</p>
+          <p className="text-sm text-muted-foreground">
+            {!pdfJSLoaded ? 'PDF-Viewer wird geladen...' : 'PDF wird geladen...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback for when PDF.js fails to load
+  if (!Document || !Page) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+          <div className="flex items-center gap-2">
+            <h4 className="font-medium text-sm">{document.file_name}</h4>
+            <Badge variant="secondary" className="text-xs">PDF</Badge>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(documentUrl, '_blank')}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" />
+            In neuem Tab öffnen
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <p className="text-sm text-muted-foreground">
+              PDF-Viewer konnte nicht geladen werden
+            </p>
+            <Button onClick={() => window.open(documentUrl, '_blank')}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              PDF in neuem Tab öffnen
+            </Button>
+          </div>
         </div>
       </div>
     );
