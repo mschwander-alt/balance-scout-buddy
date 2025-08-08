@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { FileText, Download, ExternalLink } from 'lucide-react';
+import { FileText, Download, ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+// Setup PDF.js worker using jsDelivr CDN
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 interface DocumentViewerProps {
   document: {
@@ -22,7 +26,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onLoad, 
   onError 
 }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pageNum, setPageNum] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [scale, setScale] = useState<number>(1.0);
+  const [rotation, setRotation] = useState<number>(0);
   const [excelData, setExcelData] = useState<any[][]>([]);
   const [excelSheets, setExcelSheets] = useState<string[]>([]);
   const [activeSheet, setActiveSheet] = useState<string>('');
@@ -32,6 +42,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   useEffect(() => {
     loadDocument();
   }, [document]);
+
+  useEffect(() => {
+    if (pdfDoc && canvasRef.current) {
+      renderPage();
+    }
+  }, [pdfDoc, pageNum, scale, rotation]);
 
   const loadDocument = async () => {
     setLoading(true);
@@ -48,11 +64,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (data?.signedUrl) {
         setFileUrl(data.signedUrl);
         
-        // Handle Excel files specially
-        if (document.file_type.includes('spreadsheet') || 
-            document.file_type.includes('excel') ||
-            document.file_name.endsWith('.xlsx') ||
-            document.file_name.endsWith('.xls')) {
+        // Handle different file types
+        if (document.file_type === 'application/pdf') {
+          await loadPdf(data.signedUrl);
+        } else if (document.file_type.includes('spreadsheet') || 
+                   document.file_type.includes('excel') ||
+                   document.file_name.endsWith('.xlsx') ||
+                   document.file_name.endsWith('.xls')) {
           await loadExcelData(data.signedUrl);
         }
         
@@ -64,6 +82,53 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       onError?.(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPdf = async (url: string) => {
+    try {
+      const loadingTask = pdfjsLib.getDocument({
+        url: url,
+        cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+        cMapPacked: true,
+      });
+      
+      const pdf = await loadingTask.promise;
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setPageNum(1);
+    } catch (err) {
+      console.error('Error loading PDF:', err);
+      throw new Error('PDF konnte nicht geladen werden');
+    }
+  };
+
+  const renderPage = async () => {
+    if (!pdfDoc || !canvasRef.current) return;
+
+    try {
+      const page = await pdfDoc.getPage(pageNum);
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      // Calculate scale to fit container
+      const containerWidth = canvas.parentElement?.clientWidth || 800;
+      const viewport = page.getViewport({ scale: 1, rotation });
+      const scaleFactor = Math.min((containerWidth - 40) / viewport.width, scale);
+      
+      const scaledViewport = page.getViewport({ scale: scaleFactor, rotation });
+
+      canvas.height = scaledViewport.height;
+      canvas.width = scaledViewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: scaledViewport,
+      };
+
+      await page.render(renderContext).promise;
+    } catch (err) {
+      console.error('Error rendering page:', err);
     }
   };
 
@@ -110,11 +175,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     link.href = fileUrl;
     link.download = document.file_name;
     link.click();
-  };
-
-  const openInNewTab = () => {
-    if (!fileUrl) return;
-    window.open(fileUrl, '_blank');
   };
 
   const isPDF = document.file_type === 'application/pdf';
@@ -166,15 +226,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={openInNewTab}
-            className="flex items-center gap-1"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Öffnen
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline" 
             onClick={downloadDocument}
             className="flex items-center gap-1"
           >
@@ -185,7 +236,66 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
       {/* Document Content */}
       <div className="flex-1 overflow-auto">
-        {isExcel ? (
+        {isPDF && pdfDoc ? (
+          <div className="flex flex-col h-full">
+            {/* PDF Controls */}
+            <div className="flex items-center justify-between p-2 border-b bg-background">
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
+                >
+                  <ZoomOut className="h-3 w-3" />
+                </Button>
+                <span className="text-sm min-w-[50px] text-center">{Math.round(scale * 100)}%</span>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setScale(s => Math.min(3.0, s + 0.1))}
+                >
+                  <ZoomIn className="h-3 w-3" />
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setRotation(r => (r + 90) % 360)}
+                >
+                  <RotateCw className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPageNum(p => Math.max(1, p - 1))}
+                  disabled={pageNum <= 1}
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <span className="text-sm min-w-[60px] text-center">
+                  {pageNum} / {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPageNum(p => Math.min(totalPages, p + 1))}
+                  disabled={pageNum >= totalPages}
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            {/* PDF Canvas */}
+            <div className="flex-1 overflow-auto p-4 bg-gray-50 flex justify-center">
+              <canvas 
+                ref={canvasRef}
+                className="shadow-lg bg-white border max-w-full h-auto"
+              />
+            </div>
+          </div>
+        ) : isExcel ? (
           <div className="flex flex-col h-full">
             {/* Excel Sheet Tabs */}
             {excelSheets.length > 1 && (
@@ -238,40 +348,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               )}
             </div>
           </div>
-        ) : isPDF ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center max-w-md mx-auto p-8">
-              <div className="mb-6">
-                <FileText className="h-20 w-20 mx-auto mb-4 text-primary opacity-80" />
-                <h3 className="text-xl font-semibold mb-2">{document.file_name}</h3>
-                <p className="text-muted-foreground mb-6">
-                  PDF-Dokument bereit zur Anzeige
-                </p>
-              </div>
-              <div className="space-y-3">
-                <Button 
-                  onClick={openInNewTab}
-                  className="w-full flex items-center gap-2"
-                  size="lg"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  PDF in neuem Tab öffnen
-                </Button>
-                <Button 
-                  onClick={downloadDocument}
-                  variant="outline"
-                  className="w-full flex items-center gap-2"
-                  size="lg"
-                >
-                  <Download className="h-4 w-4" />
-                  PDF herunterladen
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-4">
-                Das PDF öffnet sich in einem neuen Tab für die beste Darstellung
-              </p>
-            </div>
-          </div>
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
@@ -280,14 +356,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               <p className="text-sm text-muted-foreground mb-4">
                 Dieser Dateityp kann nicht in der Vorschau angezeigt werden.
               </p>
-              <div className="space-y-2">
-                <Button onClick={openInNewTab} className="w-full">
-                  In neuem Tab öffnen
-                </Button>
-                <Button onClick={downloadDocument} variant="outline" className="w-full">
-                  Herunterladen
-                </Button>
-              </div>
+              <Button onClick={downloadDocument} variant="outline">
+                Herunterladen
+              </Button>
             </div>
           </div>
         )}
