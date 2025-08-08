@@ -583,10 +583,10 @@ const Review: React.FC = () => {
               <CardContent className="h-[calc(100vh-12rem)] overflow-hidden py-3 flex flex-col">
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
-                    <div className="flex flex-col h-full">
-                      <div className="flex-1 min-h-0 space-y-4 overflow-y-auto mb-3">
+                    <div className="flex flex-col h-full gap-4">
+                      <div className="flex-1 min-h-0 border rounded-lg">
                         {selectedDocuments.map((doc) => (
-                          <div key={doc.id} className="border rounded-lg h-[calc(100%-100px)]">
+                          <div key={doc.id} className="h-full">
                             <DocumentViewer 
                               document={doc}
                               onLoad={() => {}}
@@ -597,9 +597,9 @@ const Review: React.FC = () => {
                       </div>
                       
                       {/* Kommentarfeld */}
-                      <div className="border-t pt-3 h-[100px] flex-shrink-0">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-foreground">
+                      <div className="border-t pt-4 h-[160px] flex-shrink-0">
+                        <div className="space-y-3">
+                          <label className="text-sm font-medium text-foreground block">
                             Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
                           </label>
                           <Textarea
@@ -609,7 +609,7 @@ const Review: React.FC = () => {
                               ...prev,
                               [selectedAccountData.id]: e.target.value
                             }))}
-                            className="h-[60px] resize-none text-sm"
+                            className="h-[120px] resize-none"
                           />
                         </div>
                       </div>
