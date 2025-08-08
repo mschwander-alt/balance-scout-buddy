@@ -37,6 +37,7 @@ import {
 } from '@dnd-kit/utilities';
 import { AccountGroupSection } from './AccountGroupSection';
 import { DraggableAccountRow } from './DraggableAccountRow';
+import AssignmentManager from './AssignmentManager';
 
 interface TeamMember {
   id: string;
@@ -622,7 +623,15 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="bilanz" className="w-full">
+            <Tabs defaultValue="accounts" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="accounts">Konto-Übersicht</TabsTrigger>
+                <TabsTrigger value="assignments">Zuordnungen</TabsTrigger>
+                <TabsTrigger value="overview">Team-Übersicht</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="accounts" className="space-y-4">
+                <Tabs defaultValue="bilanz" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="bilanz">Bilanz</TabsTrigger>
                 <TabsTrigger value="erfolgsrechnung">Erfolgsrechnung</TabsTrigger>
@@ -916,6 +925,78 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
                     </TableBody>
                   </Table>
                 </div>
+              </TabsContent>
+                </Tabs>
+              </TabsContent>
+              
+              <TabsContent value="assignments" className="space-y-4">
+                <AssignmentManager 
+                  trialBalanceId={trialBalanceId}
+                  onAssignmentsUpdated={loadAccountGroups}
+                />
+              </TabsContent>
+              
+              <TabsContent value="overview" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Team-Übersicht</CardTitle>
+                    <CardDescription>
+                      Überblick über alle Team-Mitglieder und ihre zugeordneten Aufgaben
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4">
+                      {teamMembers.map(member => {
+                        const assignedGroups = accountGroups.filter(g => g.assigned_member_id === member.id);
+                        const totalAccounts = assignedGroups.reduce((sum, group) => sum + group.accounts.length, 0);
+                        
+                        return (
+                          <div key={member.id} className="p-4 border rounded-lg">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <User className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                  <div className="font-medium">{member.name}</div>
+                                  <div className="text-sm text-muted-foreground">{member.email} • {member.role}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-primary">{assignedGroups.length}</div>
+                                <div className="text-sm text-muted-foreground">Gruppen</div>
+                              </div>
+                            </div>
+                            
+                            {assignedGroups.length > 0 ? (
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium">Zugeordnete Gruppierungen:</div>
+                                <div className="grid gap-2">
+                                  {assignedGroups.map(group => (
+                                    <div key={group.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                                      <span className="text-sm">{group.name}</span>
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant="outline">{group.accounts.length} Konten</Badge>
+                                        {getStatusBadge(group.status)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-2">
+                                  Insgesamt {totalAccounts} Konten zugeordnet
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">
+                                Keine Gruppierungen zugeordnet
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
             </Tabs>
           </CardContent>
