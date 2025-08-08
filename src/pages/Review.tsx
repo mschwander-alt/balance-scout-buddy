@@ -690,15 +690,15 @@ const Review = () => {
                                            handleAccountClick(assignment);
                                          }}
                                        >
-                                        <TableCell>
-                                          <div>
-                                            <div className="font-medium">{assignment.account_number}</div>
-                                            <div className="text-sm text-muted-foreground">
-                                              {assignment.account_name}
-                                            </div>
-                                          </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
+                                         <TableCell className="py-2">
+                                           <div className="flex items-center gap-2">
+                                             <span className="font-medium">{assignment.account_number}</span>
+                                             <span className="text-sm text-muted-foreground">
+                                               {assignment.account_name}
+                                             </span>
+                                           </div>
+                                         </TableCell>
+                                        <TableCell className="text-right py-2">
                                           <div className="font-medium">
                                             {formatCurrency(assignment.current_year_balance)}
                                           </div>
@@ -708,19 +708,19 @@ const Review = () => {
                                             </div>
                                           )}
                                         </TableCell>
-                                        <TableCell className="text-center">
-                                          <div className="flex flex-col items-center gap-1">
-                                            {getMatchStatusIcon(assignment.match_status)}
-                                            <span className="text-xs">
-                                              {getMatchStatusText(assignment.match_status)}
-                                            </span>
-                                            {assignment.confidence_score && assignment.confidence_score > 0 && (
-                                              <Badge variant="secondary" className="text-xs">
-                                                {Math.round(assignment.confidence_score * 100)}%
-                                              </Badge>
-                                            )}
-                                          </div>
-                                        </TableCell>
+                                         <TableCell className="text-center py-2">
+                                           <div className="flex items-center justify-center gap-2">
+                                             {getMatchStatusIcon(assignment.match_status)}
+                                             <span className="text-sm">
+                                               {getMatchStatusText(assignment.match_status)}
+                                               {assignment.match_status === 'matched' && assignment.confidence_score && (
+                                                 <span className="text-xs text-muted-foreground ml-1">
+                                                   {Math.round(assignment.confidence_score * 100)}%
+                                                 </span>
+                                               )}
+                                             </span>
+                                           </div>
+                                         </TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
