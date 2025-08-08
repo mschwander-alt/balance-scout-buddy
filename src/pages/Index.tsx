@@ -3,10 +3,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import UploadTrialBalance from '@/components/UploadTrialBalance';
 import ColumnConfig from '@/components/ColumnConfig';
+import TrialBalancePreview from '@/components/TrialBalancePreview';
 
 const Index = () => {
   const { user, signOut } = useAuth();
-  const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'dashboard'>('upload');
+  const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'preview' | 'dashboard'>('upload');
   const [currentTrialBalanceId, setCurrentTrialBalanceId] = useState<string>('');
 
   const handleUploadSuccess = (trialBalanceId: string) => {
@@ -15,6 +16,14 @@ const Index = () => {
   };
 
   const handleConfigurationComplete = () => {
+    setCurrentStep('preview');
+  };
+
+  const handlePreviewEdit = () => {
+    setCurrentStep('configure');
+  };
+
+  const handlePreviewConfirm = () => {
     setCurrentStep('dashboard');
   };
 
@@ -71,6 +80,24 @@ const Index = () => {
             <Button variant="outline" onClick={resetToUpload}>
               Neue Datei hochladen
             </Button>
+          </div>
+        )}
+
+        {currentStep === 'preview' && (
+          <div className="text-center space-y-8">
+            <div>
+              <h2 className="text-3xl font-bold mb-4 text-foreground">
+                Saldobilanz überprüfen
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                Überprüfen Sie die Darstellung Ihrer konfigurierten Saldobilanz
+              </p>
+            </div>
+            <TrialBalancePreview 
+              trialBalanceId={currentTrialBalanceId} 
+              onEdit={handlePreviewEdit}
+              onConfirm={handlePreviewConfirm}
+            />
           </div>
         )}
 
