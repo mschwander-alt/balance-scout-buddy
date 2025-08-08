@@ -450,58 +450,37 @@ const Review = () => {
         <div className="space-y-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-4xl font-bold mb-4 text-foreground">
+              <h2 className="text-3xl font-bold text-foreground">
                 Automatische Prüfung
               </h2>
-              <p className="text-xl text-muted-foreground">
+              <p className="text-muted-foreground mt-1">
                 Abgleich der Kontosalden mit den hochgeladenen Nachweisen
               </p>
             </div>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Zurück
-            </Button>
-          </div>
-
-          {/* Control Panel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Automatischer Abgleich
-              </CardTitle>
-              <CardDescription>
-                Das System durchsucht alle Dokumente und gleicht die Werte mit den Kontosalden ab
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <Button 
-                  onClick={startAutoMatch}
-                  disabled={isProcessing || accountGroups.length === 0}
-                  className="flex items-center gap-2"
-                >
-                  <Search className="h-4 w-4" />
-                  {isProcessing ? 'Prüfung läuft...' : 'Prüfung starten'}
-                </Button>
-                
-                <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setUnmatchedDocuments(getUnmatchedDocuments());
-                        setShowManualAssignModal(true);
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Nicht gematchte Dateien manuell zuweisen
-                    </Button>
-                  </DialogTrigger>
+            <div className="flex items-center gap-3">
+              <Button 
+                onClick={startAutoMatch}
+                disabled={isProcessing || accountGroups.length === 0}
+                className="flex items-center gap-2"
+              >
+                <Search className="h-4 w-4" />
+                {isProcessing ? 'Prüfung läuft...' : 'Prüfung starten'}
+              </Button>
+              
+              <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setUnmatchedDocuments(getUnmatchedDocuments());
+                      setShowManualAssignModal(true);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Nicht gematchte Dateien manuell zuweisen
+                  </Button>
+                </DialogTrigger>
                   <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
                     <DialogHeader>
                       <DialogTitle>Manuelle Dokumentenzuweisung</DialogTitle>
@@ -611,14 +590,24 @@ const Review = () => {
                   </DialogContent>
                 </Dialog>
                 
-                {isProcessing && (
-                  <div className="flex-1 max-w-md">
-                    <Progress value={progress} className="w-full" />
-                  </div>
-                )}
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Zurück
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+
+          {isProcessing && (
+            <div className="flex justify-center">
+              <div className="max-w-md w-full">
+                <Progress value={progress} className="w-full" />
+              </div>
+            </div>
+          )}
 
           {/* Split View */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
