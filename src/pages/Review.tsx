@@ -278,7 +278,7 @@ const Review = () => {
     setPreviewLoading(true);
     try {
       const { data, error } = await supabase.storage
-        .from('documents')
+        .from('account-evidence')
         .download(document.file_path);
       
       if (error) throw error;
@@ -299,6 +299,15 @@ const Review = () => {
 
   const handleAccountClick = (assignment: AccountAssignment) => {
     setSelectedAccountForView(assignment);
+    
+    // Automatically load preview for the first document
+    if (assignment.matched_documents && assignment.matched_documents.length > 0) {
+      const firstDocId = assignment.matched_documents[0];
+      const firstDoc = documents.find(d => d.id === firstDocId);
+      if (firstDoc) {
+        previewDocument(firstDoc);
+      }
+    }
   };
 
   const updateAccountComment = (accountId: string, comment: string) => {
@@ -809,27 +818,20 @@ const Review = () => {
                                       {document.file_type} • {Math.round(document.file_size / 1024)} KB
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline">
-                                      {document.file_type.includes('pdf') ? 'PDF' : 
-                                       document.file_type.includes('excel') ? 'Excel' : 'Word'}
-                                    </Badge>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => previewDocument(document)}
-                                      disabled={previewLoading}
-                                    >
-                                      <Eye className="h-4 w-4 mr-1" />
-                                      Anzeigen
-                                    </Button>
-                                  </div>
+                                  <Badge variant="outline">
+                                    {document.file_type.includes('pdf') ? 'PDF' : 
+                                     document.file_type.includes('excel') ? 'Excel' : 'Word'}
+                                  </Badge>
                                 </div>
                                 
-                                {/* Document Preview Area */}
-                                {documentPreview && (
-                                  <div className="mb-4 border rounded-lg overflow-hidden">
-                                    {document.file_type === 'application/pdf' ? (
+                                {/* Document Preview Area - Always visible */}
+                                <div className="mb-4 border rounded-lg overflow-hidden">
+                                  {previewLoading ? (
+                                    <div className="p-8 text-center">
+                                      <p className="text-sm text-muted-foreground">Lädt...</p>
+                                    </div>
+                                  ) : documentPreview ? (
+                                    document.file_type === 'application/pdf' ? (
                                       <embed 
                                         src={documentPreview} 
                                         type="application/pdf" 
@@ -848,9 +850,15 @@ const Review = () => {
                                           In neuem Tab öffnen
                                         </Button>
                                       </div>
-                                    )}
-                                  </div>
-                                )}
+                                    )
+                                  ) : (
+                                    <div className="p-4 text-center">
+                                      <p className="text-sm text-muted-foreground">
+                                        Dokument konnte nicht geladen werden
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
                                 
                                 {/* Comment Section */}
                                 <div className="space-y-2">
