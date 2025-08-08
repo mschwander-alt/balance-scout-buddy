@@ -14,7 +14,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
-import { AnnotatedPDFViewer } from '@/components/AnnotatedPDFViewer';
 
 interface Assignment {
   id: string;
@@ -727,10 +726,8 @@ const Review: React.FC = () => {
                       <div className="flex-1 min-h-0 border rounded-lg">
                         {selectedDocuments.map((doc) => (
                           <div key={doc.id} className="h-full">
-                            <AnnotatedPDFViewer 
+                            <DocumentViewer 
                               document={doc}
-                              assignmentId={selectedAccountData.id}
-                              trialBalanceId={trialBalanceId!}
                               onLoad={() => {}}
                               onError={(error) => console.error('Document viewer error:', error)}
                             />
