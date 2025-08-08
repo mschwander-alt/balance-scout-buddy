@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
+import { AnnotatedPDFViewer } from '@/components/AnnotatedPDFViewer';
 
 interface Assignment {
   id: string;
@@ -63,6 +64,7 @@ const Review: React.FC = () => {
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
+  const [loadedComments, setLoadedComments] = useState<{[key: string]: boolean}>({});
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -77,51 +79,76 @@ const Review: React.FC = () => {
   }, [documents, assignments]);
 
   const loadData = useCallback(async () => {
-    if (!trialBalanceId) return;
-
+    if (!trialBalanceId || !user) return;
+    
     try {
-      // Lade Gruppen und deren Assignments mit einem JOIN
-      const groupsResponse = await supabase
+      // Lade Account Groups mit Assignments
+      const { data: groupsData, error: groupsError } = await supabase
         .from('account_groups')
         .select(`
           *,
-          account_group_assignments (*)
+          assignments:account_group_assignments(*)
         `)
         .eq('trial_balance_id', trialBalanceId);
 
-      const documentsResponse = await supabase
+      if (groupsError) throw groupsError;
+
+      // Lade Dokumente
+      const { data: documentsResponse, error: documentsError } = await supabase
         .from('account_evidence')
         .select('*')
         .eq('trial_balance_id', trialBalanceId);
 
-      if (groupsResponse.error) throw groupsResponse.error;
-      if (documentsResponse.error) throw documentsResponse.error;
+      if (documentsError) throw documentsError;
 
-      // Flache die Assignments aus allen Gruppen aus
-      const allAssignments = groupsResponse.data.flatMap(group => 
-        group.account_group_assignments?.map(assignment => ({
+      // Lade gespeicherte Kommentare
+      const { data: commentsData, error: commentsError } = await supabase
+        .from('account_comments')
+        .select('*')
+        .eq('trial_balance_id', trialBalanceId)
+        .eq('user_id', user.id);
+
+      if (commentsError) throw commentsError;
+
+      // Verarbeite Daten mit Type Casting für nullable Felder
+      const allAssignments = groupsData.flatMap(group => 
+        group.assignments.map(assignment => ({
           ...assignment,
-          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched'
-        })) || []
+          account_group_id: group.id,
+          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+          confidence_score: assignment.confidence_score || undefined,
+          matched_documents: assignment.matched_documents || undefined
+        }))
       );
 
-      const groupsWithAssignments = groupsResponse.data.map(group => ({
-        ...group,
-        assignments: group.account_group_assignments?.map(assignment => ({
-          ...assignment,
-          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched'
-        })) || [],
-        isOpen: true
-      }));
+      // Erstelle Kommentar-Mapping
+      const commentMap: {[key: string]: string} = {};
+      const loadedMap: {[key: string]: boolean} = {};
+      
+      commentsData?.forEach(comment => {
+        commentMap[comment.assignment_id] = comment.comment_text;
+        loadedMap[comment.assignment_id] = true;
+      });
 
-      setAccountGroups(groupsWithAssignments);
       setAssignments(allAssignments);
-      setDocuments(documentsResponse.data || []);
+      setDocuments(documentsResponse || []);
+      setAccountGroups(groupsData.map(group => ({
+        ...group,
+        assignments: group.assignments.map(assignment => ({
+          ...assignment,
+          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+          confidence_score: assignment.confidence_score || undefined,
+          matched_documents: assignment.matched_documents || undefined
+        })),
+        isOpen: false
+      })));
+      setAccountComments(commentMap);
+      setLoadedComments(loadedMap);
     } catch (error: any) {
       console.error('Error loading data:', error);
       toast.error('Fehler beim Laden der Daten');
     }
-  }, [trialBalanceId]);
+  }, [trialBalanceId, user]);
 
   const previewDocument = async (document: Document) => {
     setPreviewLoading(true);
@@ -245,6 +272,82 @@ const Review: React.FC = () => {
       console.error('Error during manual assign:', error);
       toast.error('Manuelle Zuweisung fehlgeschlagen');
     }
+  };
+
+  // Funktion zum Speichern von Kommentaren
+  const saveComment = async (assignmentId: string, commentText: string) => {
+    if (!user || !trialBalanceId) return;
+
+    try {
+      // Prüfe ob bereits ein Kommentar existiert
+      const { data: existingComment } = await supabase
+        .from('account_comments')
+        .select('id')
+        .eq('assignment_id', assignmentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingComment) {
+        // Update bestehenden Kommentar
+        const { error } = await supabase
+          .from('account_comments')
+          .update({ comment_text: commentText })
+          .eq('id', existingComment.id);
+        
+        if (error) throw error;
+      } else {
+        // Erstelle neuen Kommentar
+        const { error } = await supabase
+          .from('account_comments')
+          .insert({
+            user_id: user.id,
+            trial_balance_id: trialBalanceId,
+            assignment_id: assignmentId,
+            comment_text: commentText
+          });
+        
+        if (error) throw error;
+      }
+
+      // Markiere als geladen
+      setLoadedComments(prev => ({
+        ...prev,
+        [assignmentId]: true
+      }));
+
+    } catch (error: any) {
+      console.error('Error saving comment:', error);
+      toast.error('Fehler beim Speichern des Kommentars');
+    }
+  };
+
+  // Debounce utility function
+  const debounce = (func: Function, delay: number) => {
+    let timeoutId: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func.apply(null, args), delay);
+    };
+  };
+
+  // Debounced comment save
+  const debouncedSaveComment = useCallback(
+    debounce((assignmentId: string, commentText: string) => {
+      if (commentText.trim()) {
+        saveComment(assignmentId, commentText);
+      }
+    }, 1000),
+    [user, trialBalanceId]
+  );
+
+  const handleCommentChange = (assignmentId: string, value: string) => {
+    setAccountComments(prev => ({
+      ...prev,
+      [assignmentId]: value
+    }));
+    
+    // Auto-save nach 1 Sekunde
+    debouncedSaveComment(assignmentId, value);
   };
 
   const toggleGroup = (groupId: string) => {
@@ -624,8 +727,10 @@ const Review: React.FC = () => {
                       <div className="flex-1 min-h-0 border rounded-lg">
                         {selectedDocuments.map((doc) => (
                           <div key={doc.id} className="h-full">
-                            <DocumentViewer 
+                            <AnnotatedPDFViewer 
                               document={doc}
+                              assignmentId={selectedAccountData.id}
+                              trialBalanceId={trialBalanceId!}
                               onLoad={() => {}}
                               onError={(error) => console.error('Document viewer error:', error)}
                             />
@@ -642,12 +747,14 @@ const Review: React.FC = () => {
                           <Textarea
                             placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
                             value={accountComments[selectedAccountData.id] || ''}
-                            onChange={(e) => setAccountComments(prev => ({
-                              ...prev,
-                              [selectedAccountData.id]: e.target.value
-                            }))}
+                            onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
                             className="h-[120px] resize-none"
                           />
+                          {loadedComments[selectedAccountData.id] && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              ✓ Kommentar gespeichert
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_comments: {
+        Row: {
+          assignment_id: string
+          comment_text: string
+          created_at: string
+          id: string
+          trial_balance_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignment_id: string
+          comment_text: string
+          created_at?: string
+          id?: string
+          trial_balance_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignment_id?: string
+          comment_text?: string
+          created_at?: string
+          id?: string
+          trial_balance_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       account_evidence: {
         Row: {
           account_group_id: string | null
@@ -159,6 +189,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pdf_annotations: {
+        Row: {
+          annotation_type: string
+          assignment_id: string
+          color: string | null
+          content: string | null
+          coordinates: Json
+          created_at: string
+          document_id: string
+          id: string
+          page_number: number
+          trial_balance_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          annotation_type?: string
+          assignment_id: string
+          color?: string | null
+          content?: string | null
+          coordinates: Json
+          created_at?: string
+          document_id: string
+          id?: string
+          page_number: number
+          trial_balance_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          annotation_type?: string
+          assignment_id?: string
+          color?: string | null
+          content?: string | null
+          coordinates?: Json
+          created_at?: string
+          document_id?: string
+          id?: string
+          page_number?: number
+          trial_balance_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
