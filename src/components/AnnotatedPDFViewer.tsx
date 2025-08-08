@@ -251,7 +251,7 @@ export const AnnotatedPDFViewer: React.FC<AnnotatedPDFViewerProps> = ({
         {documentUrl && (
           <iframe
             ref={iframeRef}
-            src={`${documentUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+            src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
             className="w-full h-full border-0"
             title={document.file_name}
           />
