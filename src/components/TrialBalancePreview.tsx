@@ -102,20 +102,39 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
       const headers = jsonData[0] as string[];
       const dataRows = jsonData.slice(1);
 
-      // Find column indices based on configuration
-      const accountNumberIndex = headers.findIndex(h => h === trialBalanceData.account_number_column);
-      const accountNameIndex = headers.findIndex(h => h === trialBalanceData.account_name_column);
-      const currentYearIndex = headers.findIndex(h => h === trialBalanceData.current_year_column);
-      const previousYearIndex = headers.findIndex(h => h === trialBalanceData.previous_year_column);
-      const foreignCurrencyIndex = (trialBalanceData.foreign_currency_column && trialBalanceData.foreign_currency_column.trim() !== '') 
-        ? headers.findIndex(h => h === trialBalanceData.foreign_currency_column)
-        : -1;
+      console.log('Excel headers found:', headers);
+      console.log('Looking for columns:', {
+        accountNumber: trialBalanceData.account_number_column,
+        accountName: trialBalanceData.account_name_column,
+        currentYear: trialBalanceData.current_year_column,
+        previousYear: trialBalanceData.previous_year_column,
+        foreignCurrency: trialBalanceData.foreign_currency_column
+      });
 
-      if (accountNumberIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1 || previousYearIndex === -1) {
-        throw new Error('Nicht alle konfigurierten Spalten wurden in der Excel-Datei gefunden.');
-      }
+      // Find column indices based on configuration with flexible matching
+      const findColumnIndex = (searchValue: string | undefined, headers: string[]): number => {
+        if (!searchValue || searchValue.trim() === '') return -1;
+        
+        // Exact match first
+        let index = headers.findIndex(h => h === searchValue);
+        if (index !== -1) return index;
+        
+        // Try trimmed match
+        index = headers.findIndex(h => h?.toString().trim() === searchValue.trim());
+        if (index !== -1) return index;
+        
+        // Try case-insensitive match
+        index = headers.findIndex(h => h?.toString().toLowerCase().trim() === searchValue.toLowerCase().trim());
+        return index;
+      };
 
-      console.log('Column indices:', {
+      const accountNumberIndex = findColumnIndex(trialBalanceData.account_number_column, headers);
+      const accountNameIndex = findColumnIndex(trialBalanceData.account_name_column, headers);
+      const currentYearIndex = findColumnIndex(trialBalanceData.current_year_column, headers);
+      const previousYearIndex = findColumnIndex(trialBalanceData.previous_year_column, headers);
+      const foreignCurrencyIndex = findColumnIndex(trialBalanceData.foreign_currency_column, headers);
+
+      console.log('Column indices found:', {
         accountNumber: accountNumberIndex,
         accountName: accountNameIndex,
         currentYear: currentYearIndex,
@@ -123,20 +142,47 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
         foreignCurrency: foreignCurrencyIndex
       });
 
-      // Parse data rows
+      if (accountNumberIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1 || previousYearIndex === -1) {
+        console.error('Missing columns:', {
+          accountNumber: accountNumberIndex === -1 ? 'MISSING' : 'FOUND',
+          accountName: accountNameIndex === -1 ? 'MISSING' : 'FOUND', 
+          currentYear: currentYearIndex === -1 ? 'MISSING' : 'FOUND',
+          previousYear: previousYearIndex === -1 ? 'MISSING' : 'FOUND'
+        });
+        throw new Error(`Nicht alle konfigurierten Spalten wurden gefunden. Verfügbare Spalten: ${headers.join(', ')}`);
+      }
+
+      // Parse data rows with better error handling
       const parsedData: TrialBalanceRow[] = dataRows
-        .filter(row => row[accountNumberIndex] && row[accountNameIndex]) // Filter empty rows
-        .map(row => ({
-          accountNumber: String(row[accountNumberIndex] || ''),
-          accountName: String(row[accountNameIndex] || ''),
-          currentYear: parseFloat(String(row[currentYearIndex] || 0)) || 0,
-          previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
-          foreignCurrency: foreignCurrencyIndex >= 0 
-            ? (parseFloat(String(row[foreignCurrencyIndex] || 0)) || undefined)
-            : undefined
-        }))
+        .filter((row, index) => {
+          const hasAccountNumber = row[accountNumberIndex] && String(row[accountNumberIndex]).trim() !== '';
+          const hasAccountName = row[accountNameIndex] && String(row[accountNameIndex]).trim() !== '';
+          if (!hasAccountNumber || !hasAccountName) {
+            console.log(`Skipping row ${index + 2}: missing account data`, {
+              accountNumber: row[accountNumberIndex],
+              accountName: row[accountNameIndex]
+            });
+          }
+          return hasAccountNumber && hasAccountName;
+        })
+        .map((row, index) => {
+          const currentYearValue = row[currentYearIndex];
+          const previousYearValue = row[previousYearIndex];
+          const foreignCurrencyValue = foreignCurrencyIndex >= 0 ? row[foreignCurrencyIndex] : undefined;
+          
+          return {
+            accountNumber: String(row[accountNumberIndex] || '').trim(),
+            accountName: String(row[accountNameIndex] || '').trim(),
+            currentYear: parseFloat(String(currentYearValue || 0)) || 0,
+            previousYear: parseFloat(String(previousYearValue || 0)) || 0,
+            foreignCurrency: foreignCurrencyValue !== undefined && foreignCurrencyValue !== '' 
+              ? (parseFloat(String(foreignCurrencyValue)) || undefined)
+              : undefined
+          };
+        })
         .slice(0, 20); // Limit to first 20 rows for preview
 
+      console.log(`Parsed ${parsedData.length} rows successfully`);
       setPreviewData(parsedData);
     } catch (error: any) {
       console.error('Error parsing Excel file:', error);
