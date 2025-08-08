@@ -6,9 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+
+interface AccountGroup {
+  id: string;
+  name: string;
+  description?: string;
+  assignments: AccountAssignment[];
+  isOpen: boolean;
+}
 
 interface AccountAssignment {
   id: string;
@@ -41,6 +50,7 @@ const Review = () => {
   
   const trialBalanceId = searchParams.get('trial_balance_id') || '';
   
+  const [accountGroups, setAccountGroups] = useState<AccountGroup[]>([]);
   const [assignments, setAssignments] = useState<AccountAssignment[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
@@ -58,13 +68,23 @@ const Review = () => {
           *,
           account_groups (
             id,
-            name
+            name,
+            description
           )
         `)
         .eq('account_groups.trial_balance_id', trialBalanceId)
         .order('account_number');
 
       if (assignmentsError) throw assignmentsError;
+
+      // Load account groups
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('account_groups')
+        .select('*')
+        .eq('trial_balance_id', trialBalanceId)
+        .order('name');
+
+      if (groupsError) throw groupsError;
 
       // Load documents
       const { data: documentsData, error: documentsError } = await supabase
@@ -90,6 +110,16 @@ const Review = () => {
         matched_documents: []
       }));
 
+      // Group assignments by account group
+      const groupedData = (groupsData || []).map(group => ({
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        assignments: processedAssignments.filter(a => a.account_group_id === group.id),
+        isOpen: true // Start with groups open
+      }));
+
+      setAccountGroups(groupedData);
       setAssignments(processedAssignments);
       setDocuments(documentsData || []);
 
@@ -122,7 +152,17 @@ const Review = () => {
       if (error) throw error;
 
       // Update assignments with match results
-      setAssignments(data.matched_assignments || []);
+      const updatedAssignments = data.matched_assignments || [];
+      setAssignments(updatedAssignments);
+      
+      // Update groups with new assignment data
+      setAccountGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          assignments: updatedAssignments.filter((a: AccountAssignment) => a.account_group_id === group.id)
+        }))
+      );
+      
       setProgress(100);
 
       toast({
@@ -140,6 +180,14 @@ const Review = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const toggleGroup = (groupId: string) => {
+    setAccountGroups(prevGroups =>
+      prevGroups.map(group =>
+        group.id === groupId ? { ...group, isOpen: !group.isOpen } : group
+      )
+    );
   };
 
   const getMatchStatusIcon = (status: string) => {
@@ -234,7 +282,7 @@ const Review = () => {
               <div className="flex items-center gap-4">
                 <Button 
                   onClick={startAutoMatch}
-                  disabled={isProcessing || assignments.length === 0}
+                  disabled={isProcessing || accountGroups.length === 0}
                   className="flex items-center gap-2"
                 >
                   <Search className="h-4 w-4" />
@@ -261,66 +309,113 @@ const Review = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {assignments.length === 0 ? (
+                  {accountGroups.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      <p>Keine Konten gefunden</p>
+                      <p>Keine Kontengruppen gefunden</p>
                     </div>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Konto</TableHead>
-                          <TableHead className="text-right">Saldo</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {assignments.map((assignment) => (
-                          <TableRow 
-                            key={assignment.id}
-                            className={`cursor-pointer hover:bg-muted/50 ${
-                              selectedAccount === assignment.id ? 'bg-muted' : ''
-                            }`}
-                            onClick={() => setSelectedAccount(assignment.id)}
+                    <div className="space-y-2">
+                      {accountGroups.map((group) => (
+                        <Card key={group.id} className="border border-border">
+                          <Collapsible
+                            open={group.isOpen}
+                            onOpenChange={() => toggleGroup(group.id)}
                           >
-                            <TableCell>
-                              <div>
-                                <div className="font-medium">{assignment.account_number}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {assignment.account_name}
+                            <CollapsibleTrigger asChild>
+                              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    {group.isOpen ? (
+                                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <div>
+                                      <CardTitle className="text-base font-semibold text-left">
+                                        {group.name}
+                                      </CardTitle>
+                                      {group.description && (
+                                        <CardDescription className="text-left">
+                                          {group.description}
+                                        </CardDescription>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline">
+                                      {group.assignments.length} Konten
+                                    </Badge>
+                                    <Badge variant={
+                                      group.assignments.some(a => a.match_status === 'matched') 
+                                        ? 'default' 
+                                        : 'secondary'
+                                    }>
+                                      {group.assignments.filter(a => a.match_status === 'matched').length} gefunden
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <Badge variant="outline" className="text-xs mt-1">
-                                  {assignment.account_group_name}
-                                </Badge>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="font-medium">
-                                {formatCurrency(assignment.current_year_balance)}
-                              </div>
-                              {assignment.foreign_currency_balance && (
-                                <div className="text-sm text-muted-foreground">
-                                  Fremdwährung: {formatCurrency(assignment.foreign_currency_balance)}
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex flex-col items-center gap-1">
-                                {getMatchStatusIcon(assignment.match_status)}
-                                <span className="text-xs">
-                                  {getMatchStatusText(assignment.match_status)}
-                                </span>
-                                {assignment.confidence_score && assignment.confidence_score > 0 && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {Math.round(assignment.confidence_score * 100)}%
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                              </CardHeader>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <CardContent className="pt-0">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Konto</TableHead>
+                                      <TableHead className="text-right">Saldo</TableHead>
+                                      <TableHead className="text-center">Status</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {group.assignments.map((assignment) => (
+                                      <TableRow 
+                                        key={assignment.id}
+                                        className={`cursor-pointer hover:bg-muted/50 ${
+                                          selectedAccount === assignment.id ? 'bg-muted' : ''
+                                        }`}
+                                        onClick={() => setSelectedAccount(assignment.id)}
+                                      >
+                                        <TableCell>
+                                          <div>
+                                            <div className="font-medium">{assignment.account_number}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                              {assignment.account_name}
+                                            </div>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          <div className="font-medium">
+                                            {formatCurrency(assignment.current_year_balance)}
+                                          </div>
+                                          {assignment.foreign_currency_balance && (
+                                            <div className="text-sm text-muted-foreground">
+                                              Fremdwährung: {formatCurrency(assignment.foreign_currency_balance)}
+                                            </div>
+                                          )}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                          <div className="flex flex-col items-center gap-1">
+                                            {getMatchStatusIcon(assignment.match_status)}
+                                            <span className="text-xs">
+                                              {getMatchStatusText(assignment.match_status)}
+                                            </span>
+                                            {assignment.confidence_score && assignment.confidence_score > 0 && (
+                                              <Badge variant="secondary" className="text-xs">
+                                                {Math.round(assignment.confidence_score * 100)}%
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </CardContent>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </Card>
+                      ))}
+                    </div>
                   )}
                 </div>
               </CardContent>
