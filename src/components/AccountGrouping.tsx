@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -611,88 +611,154 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
           </CardContent>
         </Card>
 
-        {/* Account Groups */}
-        {accountGroups.length > 0 && (
-          <div className="space-y-4">
-            {accountGroups.map((group) => (
-              <div key={group.id} data-group-id={group.id}>
-                <AccountGroupSection
-                  group={group}
-                  hasForeignCurrency={hasForeignCurrency}
-                  formatNumber={formatSwissNumber}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Unified Account Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Konto-Übersicht</CardTitle>
+            <CardDescription>
+              Alle Konten in einer Übersicht. Verwenden Sie Drag & Drop zum Verschieben zwischen Gruppen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
+                          } else {
+                            setSelectedAccounts(new Set());
+                          }
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="text-left">Kontonummer</TableHead>
+                    <TableHead className="text-left">Kontobezeichnung</TableHead>
+                    <TableHead className="text-right">Saldo Laufendes Jahr</TableHead>
+                    <TableHead className="text-right">Saldo Vorjahr</TableHead>
+                    {hasForeignCurrency && (
+                      <TableHead className="text-right">Fremdwährung</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <SortableContext
+                    items={[
+                      ...accountGroups.flatMap(group => group.accounts.map(acc => acc.accountNumber)),
+                      ...unassignedAccounts.map(acc => acc.accountNumber)
+                    ]}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {/* Render Account Groups */}
+                    {accountGroups.map((group) => (
+                      <React.Fragment key={`group-${group.id}`}>
+                        {/* Group Header Row */}
+                        <TableRow className="bg-primary/5 border-t-2 border-primary/20">
+                          <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  <Layers className="h-4 w-4 text-primary" />
+                                  <span className="font-semibold text-primary">{group.name}</span>
+                                  {getStatusBadge(group.status)}
+                                </div>
+                                {group.description && (
+                                  <span className="text-sm text-muted-foreground">- {group.description}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                {group.assigned_member && (
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-4 w-4" />
+                                    {group.assigned_member.name}
+                                  </div>
+                                )}
+                                <span>{group.accounts.length} Konten</span>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Group Accounts */}
+                        {group.accounts.map((account) => (
+                          <DraggableAccountRow
+                            key={account.accountNumber}
+                            account={account}
+                            hasForeignCurrency={hasForeignCurrency}
+                            formatNumber={formatSwissNumber}
+                            showCheckbox={false}
+                          />
+                        ))}
+                        
+                        {/* Group Total Row */}
+                        <TableRow className="bg-muted/30 font-semibold border-b-2">
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell className="text-left font-semibold" colSpan={2}>
+                            Total {group.name}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.previousYear, 0))}
+                          </TableCell>
+                          {hasForeignCurrency && (
+                            <TableCell className="text-right font-mono font-semibold">
+                              {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + (acc.foreignCurrency || 0), 0))}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      </React.Fragment>
+                    ))}
 
-        {/* Unassigned Accounts */}
-        {unassignedAccounts.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Unzugeordnete Konten</CardTitle>
-              <CardDescription>
-                Diese Konten sind noch keiner Gruppierung zugeordnet. Wählen Sie Konten aus, um eine neue Gruppierung zu erstellen oder ziehen Sie sie in eine bestehende Gruppe.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-8">
-                        <Checkbox
-                          checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
-                            } else {
-                              setSelectedAccounts(new Set());
-                            }
-                          }}
-                        />
-                      </TableHead>
-                      <TableHead className="w-8"></TableHead>
-                      <TableHead>Kontonummer</TableHead>
-                      <TableHead>Kontobezeichnung</TableHead>
-                      <TableHead className="text-right">Saldo Laufendes Jahr</TableHead>
-                      <TableHead className="text-right">Saldo Vorjahr</TableHead>
-                      {hasForeignCurrency && (
-                        <TableHead className="text-right">Fremdwährung</TableHead>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <SortableContext
-                      items={unassignedAccounts.map(acc => acc.accountNumber)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {unassignedAccounts.map((account) => (
-                        <DraggableAccountRow
-                          key={account.accountNumber}
-                          account={account}
-                          hasForeignCurrency={hasForeignCurrency}
-                          formatNumber={formatSwissNumber}
-                          showCheckbox={true}
-                          isSelected={selectedAccounts.has(account.accountNumber)}
-                          onSelectionChange={(checked) => {
-                            const newSelection = new Set(selectedAccounts);
-                            if (checked) {
-                              newSelection.add(account.accountNumber);
-                            } else {
-                              newSelection.delete(account.accountNumber);
-                            }
-                            setSelectedAccounts(newSelection);
-                          }}
-                        />
-                      ))}
-                    </SortableContext>
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    {/* Unassigned Accounts Section */}
+                    {unassignedAccounts.length > 0 && (
+                      <React.Fragment>
+                        {/* Unassigned Header Row */}
+                        <TableRow className="bg-muted/20 border-t-2">
+                          <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-muted-foreground">
+                                Unzugeordnete Konten ({unassignedAccounts.length})
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Unassigned Accounts */}
+                        {unassignedAccounts.map((account) => (
+                          <DraggableAccountRow
+                            key={account.accountNumber}
+                            account={account}
+                            hasForeignCurrency={hasForeignCurrency}
+                            formatNumber={formatSwissNumber}
+                            showCheckbox={true}
+                            isSelected={selectedAccounts.has(account.accountNumber)}
+                            onSelectionChange={(checked) => {
+                              const newSelection = new Set(selectedAccounts);
+                              if (checked) {
+                                newSelection.add(account.accountNumber);
+                              } else {
+                                newSelection.delete(account.accountNumber);
+                              }
+                              setSelectedAccounts(newSelection);
+                            }}
+                          />
+                        ))}
+                      </React.Fragment>
+                    )}
+                  </SortableContext>
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">

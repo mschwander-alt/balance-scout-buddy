@@ -68,8 +68,8 @@ export const DraggableAccountRow = ({
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
       </TableCell>
-      <TableCell className="font-mono text-sm">{account.accountNumber}</TableCell>
-      <TableCell>{account.accountName}</TableCell>
+      <TableCell className="text-left font-mono text-sm">{account.accountNumber}</TableCell>
+      <TableCell className="text-left">{account.accountName}</TableCell>
       <TableCell className="text-right font-mono">{formatNumber(account.currentYear)}</TableCell>
       <TableCell className="text-right font-mono">{formatNumber(account.previousYear)}</TableCell>
       {hasForeignCurrency && (
