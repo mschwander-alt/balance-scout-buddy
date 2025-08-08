@@ -761,15 +761,15 @@ const Review = () => {
             {/* Right Side - Document Viewer */}
             <Card>
               <CardHeader>
-                <CardTitle>Gefundene Nachweise</CardTitle>
+                <CardTitle>Dokumentenvorschau</CardTitle>
                 <CardDescription>
                   {selectedAccountForView
-                    ? `Nachweise für Konto ${selectedAccountForView.account_number} - ${selectedAccountForView.account_name}`
+                    ? `${selectedAccountForView.account_number} - ${selectedAccountForView.account_name}`
                     : 'Wählen Sie ein Konto aus der Liste aus'
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-2">
                 {!selectedAccountForView ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -777,104 +777,80 @@ const Review = () => {
                     <p className="text-sm">um die zugehörigen Nachweise anzuzeigen</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Account Summary */}
-                    <div className="p-4 bg-muted/30 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold">{selectedAccountForView.account_number}</h3>
-                        <div className="flex items-center gap-2">
-                          {getMatchStatusIcon(selectedAccountForView.match_status)}
-                          <span className="text-sm">{getMatchStatusText(selectedAccountForView.match_status)}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">{selectedAccountForView.account_name}</p>
-                      <div className="flex justify-between text-sm">
-                        <span>Aktueller Saldo:</span>
-                        <span className="font-medium">{formatCurrency(selectedAccountForView.current_year_balance)}</span>
-                      </div>
-                      {selectedAccountForView.foreign_currency_balance && (
-                        <div className="flex justify-between text-sm">
-                          <span>Fremdwährung:</span>
-                          <span className="font-medium">{formatCurrency(selectedAccountForView.foreign_currency_balance)}</span>
-                        </div>
-                      )}
-                    </div>
-
+                  <div className="space-y-4">
                     {/* Documents */}
                     {selectedAccountForView.matched_documents && selectedAccountForView.matched_documents.length > 0 ? (
                       <div className="space-y-4">
-                        <h4 className="font-medium">Zugeordnete Dokumente:</h4>
                         {selectedAccountForView.matched_documents.map((docId) => {
                           const document = documents.find(d => d.id === docId);
                           if (!document) return null;
                           
                           return (
-                            <Card key={document.id} className="border-2">
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between mb-3">
-                                  <div className="flex-1">
-                                    <h5 className="font-medium">{document.file_name}</h5>
+                            <div key={document.id} className="space-y-4">
+                              {/* Document Header */}
+                              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                                <div className="flex-1">
+                                  <h5 className="font-medium">{document.file_name}</h5>
+                                  <p className="text-sm text-muted-foreground">
+                                    {document.file_type} • {Math.round(document.file_size / 1024)} KB
+                                  </p>
+                                </div>
+                                <Badge variant="outline">
+                                  {document.file_type.includes('pdf') ? 'PDF' : 
+                                   document.file_type.includes('excel') ? 'Excel' : 'Word'}
+                                </Badge>
+                              </div>
+                              
+                              {/* Large Document Preview Area */}
+                              <div className="border rounded-lg overflow-hidden" style={{ height: '70vh' }}>
+                                {previewLoading ? (
+                                  <div className="p-8 text-center h-full flex items-center justify-center">
+                                    <p className="text-sm text-muted-foreground">Lädt Dokument...</p>
+                                  </div>
+                                ) : documentPreview ? (
+                                  document.file_type === 'application/pdf' ? (
+                                    <embed 
+                                      src={documentPreview} 
+                                      type="application/pdf" 
+                                      className="w-full h-full"
+                                    />
+                                  ) : (
+                                    <div className="p-4 text-center h-full flex items-center justify-center flex-col">
+                                      <p className="text-sm text-muted-foreground mb-4">
+                                        Excel-Vorschau wird derzeit nicht unterstützt.
+                                      </p>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => window.open(documentPreview, '_blank')}
+                                      >
+                                        In neuem Tab öffnen
+                                      </Button>
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="p-4 text-center h-full flex items-center justify-center">
                                     <p className="text-sm text-muted-foreground">
-                                      {document.file_type} • {Math.round(document.file_size / 1024)} KB
+                                      Dokument konnte nicht geladen werden
                                     </p>
                                   </div>
-                                  <Badge variant="outline">
-                                    {document.file_type.includes('pdf') ? 'PDF' : 
-                                     document.file_type.includes('excel') ? 'Excel' : 'Word'}
-                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* Comment Section */}
+                              <div className="mt-4 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                  <label className="text-sm font-medium">Kommentare:</label>
                                 </div>
-                                
-                                {/* Document Preview Area - Always visible */}
-                                <div className="mb-4 border rounded-lg overflow-hidden">
-                                  {previewLoading ? (
-                                    <div className="p-8 text-center">
-                                      <p className="text-sm text-muted-foreground">Lädt...</p>
-                                    </div>
-                                  ) : documentPreview ? (
-                                    document.file_type === 'application/pdf' ? (
-                                      <embed 
-                                        src={documentPreview} 
-                                        type="application/pdf" 
-                                        className="w-full h-96"
-                                      />
-                                    ) : (
-                                      <div className="p-4 text-center">
-                                        <p className="text-sm text-muted-foreground mb-2">
-                                          Excel-Vorschau wird derzeit nicht unterstützt.
-                                        </p>
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm"
-                                          onClick={() => window.open(documentPreview, '_blank')}
-                                        >
-                                          In neuem Tab öffnen
-                                        </Button>
-                                      </div>
-                                    )
-                                  ) : (
-                                    <div className="p-4 text-center">
-                                      <p className="text-sm text-muted-foreground">
-                                        Dokument konnte nicht geladen werden
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Comment Section */}
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                                    <label className="text-sm font-medium">Kommentare:</label>
-                                  </div>
-                                  <Textarea
-                                    placeholder="Notizen oder Kommentare zu diesem Dokument..."
-                                    value={accountComments[`${selectedAccountForView.id}_${document.id}`] || ''}
-                                    onChange={(e) => updateAccountComment(`${selectedAccountForView.id}_${document.id}`, e.target.value)}
-                                    className="min-h-[80px]"
-                                  />
-                                </div>
-                              </CardContent>
-                            </Card>
+                                <Textarea
+                                  placeholder="Notizen oder Kommentare zu diesem Dokument..."
+                                  value={accountComments[`${selectedAccountForView.id}_${document.id}`] || ''}
+                                  onChange={(e) => updateAccountComment(`${selectedAccountForView.id}_${document.id}`, e.target.value)}
+                                  className="min-h-[80px]"
+                                />
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
@@ -885,24 +861,6 @@ const Review = () => {
                         <p className="text-sm">Für dieses Konto wurden keine passenden Dokumente gefunden</p>
                       </div>
                     )}
-
-                    {/* General Account Comment */}
-                    <Card>
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                            <label className="text-sm font-medium">Allgemeine Notizen zum Konto:</label>
-                          </div>
-                          <Textarea
-                            placeholder="Allgemeine Bemerkungen oder Notizen zu diesem Konto..."
-                            value={accountComments[selectedAccountForView.id] || ''}
-                            onChange={(e) => updateAccountComment(selectedAccountForView.id, e.target.value)}
-                            className="min-h-[100px]"
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
                   </div>
                 )}
               </CardContent>
