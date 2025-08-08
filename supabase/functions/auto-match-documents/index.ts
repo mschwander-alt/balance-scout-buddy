@@ -27,11 +27,20 @@ interface DocumentInfo {
 }
 
 serve(async (req) => {
-  console.log('Auto-match function called')
+  console.log('Auto-match function called', req.method)
+  
+  // Always add CORS headers to all responses
+  const responseHeaders = {
+    ...corsHeaders,
+    'Content-Type': 'application/json'
+  }
   
   if (req.method === 'OPTIONS') {
     console.log('Handling CORS preflight')
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { 
+      headers: responseHeaders,
+      status: 200 
+    })
   }
 
   try {
@@ -101,7 +110,7 @@ serve(async (req) => {
         total_count: assignments.length
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: responseHeaders,
         status: 200
       }
     )
@@ -109,9 +118,12 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in auto-match-documents:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message || 'Unknown error occurred',
+        stack: error.stack 
+      }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: responseHeaders,
         status: 500
       }
     )
