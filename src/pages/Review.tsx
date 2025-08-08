@@ -169,8 +169,26 @@ const Review: React.FC = () => {
   };
 
   const saveMatchResults = async (updatedAssignments: Assignment[]) => {
-    // Die Match-Ergebnisse werden jetzt direkt in der Datenbank-Funktion gespeichert
-    console.log('Match results saved in database function:', updatedAssignments);
+    try {
+      for (const assignment of updatedAssignments) {
+        const { error } = await supabase
+          .from('account_group_assignments')
+          .update({
+            match_status: assignment.match_status,
+            confidence_score: assignment.confidence_score,
+            matched_documents: assignment.matched_documents
+          })
+          .eq('id', assignment.id);
+        
+        if (error) {
+          console.error('Error updating assignment:', error);
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error('Error saving match results:', error);
+      throw error;
+    }
   };
 
   const handleManualAssign = async (documentId: string, assignmentId: string) => {
@@ -180,19 +198,37 @@ const Review: React.FC = () => {
       
       if (!assignment || !document) return;
 
+      // Update in der Datenbank
+      const updatedMatchedDocuments = assignment.matched_documents 
+        ? [...assignment.matched_documents, documentId]
+        : [documentId];
+
+      const { error } = await supabase
+        .from('account_group_assignments')
+        .update({
+          match_status: 'matched',
+          confidence_score: 1.0, // Manuelle Zuweisung = 100% Vertrauen
+          matched_documents: updatedMatchedDocuments
+        })
+        .eq('id', assignmentId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update lokaler State
       const updatedAssignments = assignments.map(a => {
         if (a.id === assignmentId) {
           return {
             ...a,
             match_status: 'matched' as const,
             confidence_score: 1.0,
-            matched_documents: [...(a.matched_documents || []), documentId]
+            matched_documents: updatedMatchedDocuments
           };
         }
         return a;
       });
 
-      await saveMatchResults(updatedAssignments);
       setAssignments(updatedAssignments);
       
       setAccountGroups(prevGroups => 
@@ -204,6 +240,7 @@ const Review: React.FC = () => {
 
       toast.success('Dokument erfolgreich zugewiesen');
       setSelectedDocumentForAssign(null);
+      setAssignmentForDoc('');
     } catch (error: any) {
       console.error('Error during manual assign:', error);
       toast.error('Manuelle Zuweisung fehlgeschlagen');
