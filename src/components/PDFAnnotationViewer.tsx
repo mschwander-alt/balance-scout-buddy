@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +22,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-// Set worker source for PDF.js
+// Set worker source for PDF.js using CDN
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface DocumentProps {
@@ -249,7 +251,7 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
     loadAnnotations();
   }, [loadDocumentUrl, loadAnnotations]);
 
-  if (loading) {
+  if (loading || !documentUrl) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
@@ -334,9 +336,24 @@ export const PDFAnnotationViewer: React.FC<PDFAnnotationViewerProps> = ({
                 file={documentUrl}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={onDocumentLoadError}
+                options={{
+                  cMapUrl: 'https://unpkg.com/pdfjs-dist@4.0.379/cmaps/',
+                  cMapPacked: true,
+                  standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@4.0.379/standard_fonts/',
+                }}
                 loading={
                   <div className="flex items-center justify-center h-96">
-                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                    <div className="text-center">
+                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <p className="text-sm text-muted-foreground">PDF wird geladen...</p>
+                    </div>
+                  </div>
+                }
+                error={
+                  <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                      <p className="text-sm text-destructive">Fehler beim Laden des PDFs</p>
+                    </div>
                   </div>
                 }
               >
