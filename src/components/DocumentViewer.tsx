@@ -1,15 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
 import * as XLSX from 'xlsx';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { FileText, Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { FileText, Download, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-
-// Set up PDF.js worker - use CDN fallback without import issues
-if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-}
 
 interface DocumentViewerProps {
   document: {
@@ -29,10 +23,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onError 
 }) => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.0);
-  const [rotation, setRotation] = useState<number>(0);
   const [excelData, setExcelData] = useState<any[][]>([]);
   const [excelSheets, setExcelSheets] = useState<string[]>([]);
   const [activeSheet, setActiveSheet] = useState<string>('');
@@ -113,10 +103,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       });
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-  };
-
   const downloadDocument = () => {
     if (!fileUrl) return;
     
@@ -124,6 +110,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     link.href = fileUrl;
     link.download = document.file_name;
     link.click();
+  };
+
+  const openInNewTab = () => {
+    if (!fileUrl) return;
+    window.open(fileUrl, '_blank');
   };
 
   const isPDF = document.file_type === 'application/pdf';
@@ -175,6 +166,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           <Button 
             size="sm" 
             variant="outline" 
+            onClick={openInNewTab}
+            className="flex items-center gap-1"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Öffnen
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline" 
             onClick={downloadDocument}
             className="flex items-center gap-1"
           >
@@ -185,76 +185,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
       {/* Document Content */}
       <div className="flex-1 overflow-auto">
-        {isPDF && fileUrl ? (
-          <div className="flex flex-col h-full">
-            {/* PDF Controls */}
-            <div className="flex items-center justify-between p-2 border-b bg-background">
-              <div className="flex items-center gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
-                >
-                  <ZoomOut className="h-3 w-3" />
-                </Button>
-                <span className="text-sm">{Math.round(scale * 100)}%</span>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setScale(s => Math.min(2.0, s + 0.1))}
-                >
-                  <ZoomIn className="h-3 w-3" />
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setRotation(r => (r + 90) % 360)}
-                >
-                  <RotateCw className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPageNumber(p => Math.max(1, p - 1))}
-                  disabled={pageNumber <= 1}
-                >
-                  ←
-                </Button>
-                <span className="text-sm">
-                  {pageNumber} / {numPages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPageNumber(p => Math.min(numPages, p + 1))}
-                  disabled={pageNumber >= numPages}
-                >
-                  →
-                </Button>
-              </div>
-            </div>
-
-            {/* PDF Viewer */}
-            <div className="flex-1 overflow-auto p-4 bg-gray-100 flex justify-center">
-              <Document
-                file={fileUrl}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={(error) => setError(error.message)}
-                className="shadow-lg"
-              >
-                <Page 
-                  pageNumber={pageNumber}
-                  scale={scale}
-                  rotate={rotation}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                />
-              </Document>
-            </div>
-          </div>
-        ) : isExcel ? (
+        {isExcel ? (
           <div className="flex flex-col h-full">
             {/* Excel Sheet Tabs */}
             {excelSheets.length > 1 && (
@@ -307,6 +238,40 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               )}
             </div>
           </div>
+        ) : isPDF ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center max-w-md mx-auto p-8">
+              <div className="mb-6">
+                <FileText className="h-20 w-20 mx-auto mb-4 text-primary opacity-80" />
+                <h3 className="text-xl font-semibold mb-2">{document.file_name}</h3>
+                <p className="text-muted-foreground mb-6">
+                  PDF-Dokument bereit zur Anzeige
+                </p>
+              </div>
+              <div className="space-y-3">
+                <Button 
+                  onClick={openInNewTab}
+                  className="w-full flex items-center gap-2"
+                  size="lg"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  PDF in neuem Tab öffnen
+                </Button>
+                <Button 
+                  onClick={downloadDocument}
+                  variant="outline"
+                  className="w-full flex items-center gap-2"
+                  size="lg"
+                >
+                  <Download className="h-4 w-4" />
+                  PDF herunterladen
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-4">
+                Das PDF öffnet sich in einem neuen Tab für die beste Darstellung
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
@@ -315,9 +280,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               <p className="text-sm text-muted-foreground mb-4">
                 Dieser Dateityp kann nicht in der Vorschau angezeigt werden.
               </p>
-              <Button onClick={downloadDocument} variant="outline">
-                Herunterladen
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={openInNewTab} className="w-full">
+                  In neuem Tab öffnen
+                </Button>
+                <Button onClick={downloadDocument} variant="outline" className="w-full">
+                  Herunterladen
+                </Button>
+              </div>
             </div>
           </div>
         )}
