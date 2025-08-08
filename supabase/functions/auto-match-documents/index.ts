@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import * as XLSX from 'https://deno.land/x/sheetjs@v0.18.3/xlsx.mjs'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -68,7 +69,7 @@ serve(async (req) => {
             .download(doc.file_path)
 
           if (!downloadError && fileData) {
-            const confidence = await analyzeDocumentForBalance(fileData, targetBalance, assignment.foreign_currency_balance)
+            const confidence = await analyzeDocumentForBalance(fileData, targetBalance, assignment.foreign_currency_balance, doc.file_type, doc.file_name)
             
             if (confidence > 0.5) {
               matchedDocuments.push(doc.id)
@@ -118,16 +119,20 @@ serve(async (req) => {
   }
 })
 
-async function analyzeDocumentForBalance(fileData: Blob, targetBalance: number, foreignBalance?: number): Promise<number> {
+async function analyzeDocumentForBalance(fileData: Blob, targetBalance: number, foreignBalance?: number, fileType?: string, fileName?: string): Promise<number> {
   try {
-    const buffer = await fileData.arrayBuffer()
-    const decoder = new TextDecoder('utf-8', { fatal: false })
-    let text = decoder.decode(buffer)
+    console.log(`Analyzing ${fileName} (${fileType}) for balance ${targetBalance}`)
     
-    // Extract readable text
-    text = text.replace(/[^\x20-\x7E\s\u00C0-\u017F]/g, ' ')
-               .replace(/\s+/g, ' ')
-               .trim()
+    let text = ''
+    
+    // Handle different file types
+    if (fileType?.includes('sheet') || fileType?.includes('excel') || fileName?.toLowerCase().endsWith('.xlsx') || fileName?.toLowerCase().endsWith('.xls')) {
+      console.log('Processing as Excel file')
+      text = await extractTextFromExcel(fileData)
+    } else {
+      console.log('Processing as text/PDF file')
+      text = await extractTextFromGeneral(fileData)
+    }
     
     // Look for the target balance in various Swiss/German formats
     const balanceFormats = [
@@ -175,4 +180,62 @@ async function analyzeDocumentForBalance(fileData: Blob, targetBalance: number, 
   } catch (error) {
     console.error('Error analyzing document for balance:', error)
     return 0
+  }
+}
+
+async function extractTextFromExcel(fileData: Blob): Promise<string> {
+  try {
+    const buffer = await fileData.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    
+    let allText = ''
+    
+    // Process each worksheet
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName]
+      
+      // Convert to JSON to get all cell values
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+        header: 1, 
+        defval: '',
+        raw: false // This ensures numbers are formatted as strings
+      })
+      
+      // Convert all cells to text
+      for (const row of jsonData as any[][]) {
+        for (const cell of row) {
+          if (cell !== null && cell !== undefined && cell !== '') {
+            allText += cell.toString() + ' '
+          }
+        }
+        allText += '\n'
+      }
+    }
+    
+    console.log(`Extracted ${allText.length} characters from Excel file`)
+    return allText
+    
+  } catch (error) {
+    console.error('Error extracting Excel text:', error)
+    return ''
+  }
+}
+
+async function extractTextFromGeneral(fileData: Blob): Promise<string> {
+  try {
+    const buffer = await fileData.arrayBuffer()
+    const decoder = new TextDecoder('utf-8', { fatal: false })
+    let text = decoder.decode(buffer)
+    
+    // Extract readable text
+    text = text.replace(/[^\x20-\x7E\s\u00C0-\u017F]/g, ' ')
+               .replace(/\s+/g, ' ')
+               .trim()
+    
+    console.log(`Extracted ${text.length} characters from general file`)
+    return text
+    
+  } catch (error) {
+    console.error('Error extracting general text:', error)
+    return ''
   }
