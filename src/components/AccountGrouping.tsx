@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Layers, Plus, Save, User, Users, Zap, Sparkles, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
 import {
@@ -612,155 +613,314 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
           </CardContent>
         </Card>
 
-        {/* Unified Account Table */}
+        {/* Tabbed Account Tables */}
         <Card>
           <CardHeader>
             <CardTitle>Konto-Übersicht</CardTitle>
             <CardDescription>
-              Alle Konten in einer Übersicht. Verwenden Sie Drag & Drop zum Verschieben zwischen Gruppen.
+              Alle Konten nach Bilanz und Erfolgsrechnung getrennt. Verwenden Sie Drag & Drop zum Verschieben zwischen Gruppen.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead className="w-8">
-                      <Checkbox
-                        checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
-                          } else {
-                            setSelectedAccounts(new Set());
-                          }
-                        }}
-                      />
-                    </TableHead>
-                    <TableHead className="w-8"></TableHead>
-                    <TableHead className="text-left">Kontonummer</TableHead>
-                    <TableHead className="text-left">Kontobezeichnung</TableHead>
-                    <TableHead className="text-right">Saldo Laufendes Jahr</TableHead>
-                    <TableHead className="text-right">Saldo Vorjahr</TableHead>
-                    {hasForeignCurrency && (
-                      <TableHead className="text-right">Fremdwährung</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <SortableContext
-                    items={[
-                      ...accountGroups.flatMap(group => group.accounts.map(acc => acc.accountNumber)),
-                      ...unassignedAccounts.map(acc => acc.accountNumber)
-                    ]}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {/* Render Account Groups */}
-                    {accountGroups.map((group) => (
-                      <React.Fragment key={`group-${group.id}`}>
-                          {/* Group Header Row */}
-                          <TableRow 
-                            className="bg-primary/5 border-t-2 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
-                            onClick={() => {
-                              const newExpanded = new Set(expandedGroups);
-                              if (expandedGroups.has(group.id)) {
-                                newExpanded.delete(group.id);
-                              } else {
-                                newExpanded.add(group.id);
-                              }
-                              setExpandedGroups(newExpanded);
-                            }}
-                          >
-                            <TableCell></TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {expandedGroups.has(group.id) ? (
-                                  <ChevronDown className="h-4 w-4 text-primary" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-primary" />
-                                )}
-                                <Layers className="h-4 w-4 text-primary" />
-                              </div>
-                            </TableCell>
-                            <TableCell colSpan={2} className="text-left">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-primary">{group.name}</span>
-                                {getStatusBadge(group.status)}
-                                {group.assigned_member && (
-                                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                    <User className="h-4 w-4" />
-                                    {group.assigned_member.name}
-                                  </div>
-                                )}
-                                <span className="text-sm text-muted-foreground">({group.accounts.length} Konten)</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-mono font-semibold">
-                              {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
-                            </TableCell>
-                            <TableCell className="text-right font-mono font-semibold">
-                              {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.previousYear, 0))}
-                            </TableCell>
-                            {hasForeignCurrency && (
-                              <TableCell className="text-right font-mono font-semibold">
-                                {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + (acc.foreignCurrency || 0), 0))}
-                              </TableCell>
-                            )}
-                          </TableRow>
-                         
-                         {/* Group Accounts - Only show when expanded */}
-                         {expandedGroups.has(group.id) && group.accounts.map((account) => (
-                           <DraggableAccountRow
-                             key={account.accountNumber}
-                             account={account}
-                             hasForeignCurrency={hasForeignCurrency}
-                             formatNumber={formatSwissNumber}
-                             showCheckbox={false}
-                           />
-                         ))}
-                      </React.Fragment>
-                    ))}
-
-                    {/* Unassigned Accounts Section */}
-                    {unassignedAccounts.length > 0 && (
-                      <React.Fragment>
-                        {/* Unassigned Header Row */}
-                        <TableRow className="bg-muted/20 border-t-2">
-                          <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-muted-foreground">
-                                Unzugeordnete Konten ({unassignedAccounts.length})
-                              </span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                        
-                        {/* Unassigned Accounts */}
-                        {unassignedAccounts.map((account) => (
-                          <DraggableAccountRow
-                            key={account.accountNumber}
-                            account={account}
-                            hasForeignCurrency={hasForeignCurrency}
-                            formatNumber={formatSwissNumber}
-                            showCheckbox={true}
-                            isSelected={selectedAccounts.has(account.accountNumber)}
-                            onSelectionChange={(checked) => {
-                              const newSelection = new Set(selectedAccounts);
+            <Tabs defaultValue="bilanz" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="bilanz">Bilanz</TabsTrigger>
+                <TabsTrigger value="erfolgsrechnung">Erfolgsrechnung</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="bilanz" className="space-y-4">
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        <TableHead className="w-8">
+                          <Checkbox
+                            checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
+                            onCheckedChange={(checked) => {
                               if (checked) {
-                                newSelection.add(account.accountNumber);
+                                setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
                               } else {
-                                newSelection.delete(account.accountNumber);
+                                setSelectedAccounts(new Set());
                               }
-                              setSelectedAccounts(newSelection);
                             }}
                           />
+                        </TableHead>
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead className="text-left">Kontonummer</TableHead>
+                        <TableHead className="text-left">Kontobezeichnung</TableHead>
+                        <TableHead className="text-right">Saldo Laufendes Jahr</TableHead>
+                        <TableHead className="text-right">Saldo Vorjahr</TableHead>
+                        {hasForeignCurrency && (
+                          <TableHead className="text-right">Fremdwährung</TableHead>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <SortableContext
+                        items={[
+                          ...accountGroups.filter(group => group.description?.includes('Umlaufvermögen') || group.description?.includes('Anlagevermögen') || group.description?.includes('Fremdkapital') || group.description?.includes('Eigenkapital')).flatMap(group => group.accounts.map(acc => acc.accountNumber)),
+                          ...unassignedAccounts.filter(acc => acc.accountNumber.match(/^[12]/)).map(acc => acc.accountNumber)
+                        ]}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {/* Render Balance Sheet Groups */}
+                        {accountGroups
+                          .filter(group => group.description?.includes('Umlaufvermögen') || group.description?.includes('Anlagevermögen') || group.description?.includes('Fremdkapital') || group.description?.includes('Eigenkapital'))
+                          .map((group) => (
+                          <React.Fragment key={`group-${group.id}`}>
+                              {/* Group Header Row */}
+                              <TableRow 
+                                className="bg-primary/5 border-t-2 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedGroups);
+                                  if (expandedGroups.has(group.id)) {
+                                    newExpanded.delete(group.id);
+                                  } else {
+                                    newExpanded.add(group.id);
+                                  }
+                                  setExpandedGroups(newExpanded);
+                                }}
+                              >
+                                <TableCell></TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {expandedGroups.has(group.id) ? (
+                                      <ChevronDown className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-primary" />
+                                    )}
+                                    <Layers className="h-4 w-4 text-primary" />
+                                  </div>
+                                </TableCell>
+                                <TableCell colSpan={2} className="text-left">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-primary">{group.name}</span>
+                                    {getStatusBadge(group.status)}
+                                    {group.assigned_member && (
+                                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                        <User className="h-4 w-4" />
+                                        {group.assigned_member.name}
+                                      </div>
+                                    )}
+                                    <span className="text-sm text-muted-foreground">({group.accounts.length} Konten)</span>
+                                  </div>
+                                  <div className="text-right font-mono font-semibold">
+                                    {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-semibold">
+                                  {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-semibold">
+                                  {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.previousYear, 0))}
+                                </TableCell>
+                                {hasForeignCurrency && (
+                                  <TableCell className="text-right font-mono font-semibold">
+                                    {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + (acc.foreignCurrency || 0), 0))}
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                             
+                             {/* Group Accounts - Only show when expanded */}
+                             {expandedGroups.has(group.id) && group.accounts.map((account) => (
+                               <DraggableAccountRow
+                                 key={account.accountNumber}
+                                 account={account}
+                                 hasForeignCurrency={hasForeignCurrency}
+                                 formatNumber={formatSwissNumber}
+                                 showCheckbox={false}
+                               />
+                             ))}
+                          </React.Fragment>
                         ))}
-                      </React.Fragment>
-                    )}
-                  </SortableContext>
-                </TableBody>
-              </Table>
-            </div>
+
+                        {/* Unassigned Balance Sheet Accounts */}
+                        {unassignedAccounts.filter(acc => acc.accountNumber.match(/^[12]/)).length > 0 && (
+                          <React.Fragment>
+                            {/* Unassigned Header Row */}
+                            <TableRow className="bg-muted/20 border-t-2">
+                              <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-muted-foreground">
+                                    Unzugeordnete Bilanzkonten ({unassignedAccounts.filter(acc => acc.accountNumber.match(/^[12]/)).length})
+                                  </span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Unassigned Accounts */}
+                            {unassignedAccounts.filter(acc => acc.accountNumber.match(/^[12]/)).map((account) => (
+                              <DraggableAccountRow
+                                key={account.accountNumber}
+                                account={account}
+                                hasForeignCurrency={hasForeignCurrency}
+                                formatNumber={formatSwissNumber}
+                                showCheckbox={true}
+                                isSelected={selectedAccounts.has(account.accountNumber)}
+                                onSelectionChange={(checked) => {
+                                  const newSelection = new Set(selectedAccounts);
+                                  if (checked) {
+                                    newSelection.add(account.accountNumber);
+                                  } else {
+                                    newSelection.delete(account.accountNumber);
+                                  }
+                                  setSelectedAccounts(newSelection);
+                                }}
+                              />
+                            ))}
+                          </React.Fragment>
+                        )}
+                      </SortableContext>
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="erfolgsrechnung" className="space-y-4">
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        <TableHead className="w-8">
+                          <Checkbox
+                            checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
+                              } else {
+                                setSelectedAccounts(new Set());
+                              }
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead className="text-left">Kontonummer</TableHead>
+                        <TableHead className="text-left">Kontobezeichnung</TableHead>
+                        <TableHead className="text-right">Saldo Laufendes Jahr</TableHead>
+                        <TableHead className="text-right">Saldo Vorjahr</TableHead>
+                        {hasForeignCurrency && (
+                          <TableHead className="text-right">Fremdwährung</TableHead>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <SortableContext
+                        items={[
+                          ...accountGroups.filter(group => !group.description?.includes('Umlaufvermögen') && !group.description?.includes('Anlagevermögen') && !group.description?.includes('Fremdkapital') && !group.description?.includes('Eigenkapital')).flatMap(group => group.accounts.map(acc => acc.accountNumber)),
+                          ...unassignedAccounts.filter(acc => !acc.accountNumber.match(/^[12]/)).map(acc => acc.accountNumber)
+                        ]}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {/* Render Income Statement Groups */}
+                        {accountGroups
+                          .filter(group => !group.description?.includes('Umlaufvermögen') && !group.description?.includes('Anlagevermögen') && !group.description?.includes('Fremdkapital') && !group.description?.includes('Eigenkapital'))
+                          .map((group) => (
+                          <React.Fragment key={`group-${group.id}`}>
+                              {/* Group Header Row */}
+                              <TableRow 
+                                className="bg-primary/5 border-t-2 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedGroups);
+                                  if (expandedGroups.has(group.id)) {
+                                    newExpanded.delete(group.id);
+                                  } else {
+                                    newExpanded.add(group.id);
+                                  }
+                                  setExpandedGroups(newExpanded);
+                                }}
+                              >
+                                <TableCell></TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {expandedGroups.has(group.id) ? (
+                                      <ChevronDown className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-primary" />
+                                    )}
+                                    <Layers className="h-4 w-4 text-primary" />
+                                  </div>
+                                </TableCell>
+                                <TableCell colSpan={2} className="text-left">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-primary">{group.name}</span>
+                                    {getStatusBadge(group.status)}
+                                    {group.assigned_member && (
+                                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                        <User className="h-4 w-4" />
+                                        {group.assigned_member.name}
+                                      </div>
+                                    )}
+                                    <span className="text-sm text-muted-foreground">({group.accounts.length} Konten)</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-semibold">
+                                  {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.currentYear, 0))}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-semibold">
+                                  {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + acc.previousYear, 0))}
+                                </TableCell>
+                                {hasForeignCurrency && (
+                                  <TableCell className="text-right font-mono font-semibold">
+                                    {formatSwissNumber(group.accounts.reduce((sum, acc) => sum + (acc.foreignCurrency || 0), 0))}
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                             
+                             {/* Group Accounts - Only show when expanded */}
+                             {expandedGroups.has(group.id) && group.accounts.map((account) => (
+                               <DraggableAccountRow
+                                 key={account.accountNumber}
+                                 account={account}
+                                 hasForeignCurrency={hasForeignCurrency}
+                                 formatNumber={formatSwissNumber}
+                                 showCheckbox={false}
+                               />
+                             ))}
+                          </React.Fragment>
+                        ))}
+
+                        {/* Unassigned Income Statement Accounts */}
+                        {unassignedAccounts.filter(acc => !acc.accountNumber.match(/^[12]/)).length > 0 && (
+                          <React.Fragment>
+                            {/* Unassigned Header Row */}
+                            <TableRow className="bg-muted/20 border-t-2">
+                              <TableCell colSpan={hasForeignCurrency ? 7 : 6} className="py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-muted-foreground">
+                                    Unzugeordnete Erfolgsrechnungskonten ({unassignedAccounts.filter(acc => !acc.accountNumber.match(/^[12]/)).length})
+                                  </span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Unassigned Accounts */}
+                            {unassignedAccounts.filter(acc => !acc.accountNumber.match(/^[12]/)).map((account) => (
+                              <DraggableAccountRow
+                                key={account.accountNumber}
+                                account={account}
+                                hasForeignCurrency={hasForeignCurrency}
+                                formatNumber={formatSwissNumber}
+                                showCheckbox={true}
+                                isSelected={selectedAccounts.has(account.accountNumber)}
+                                onSelectionChange={(checked) => {
+                                  const newSelection = new Set(selectedAccounts);
+                                  if (checked) {
+                                    newSelection.add(account.accountNumber);
+                                  } else {
+                                    newSelection.delete(account.accountNumber);
+                                  }
+                                  setSelectedAccounts(newSelection);
+                                }}
+                              />
+                            ))}
+                          </React.Fragment>
+                        )}
+                      </SortableContext>
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 

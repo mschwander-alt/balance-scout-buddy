@@ -193,6 +193,64 @@ const STANDARD_ACCOUNT_GROUPS = [
     subcategory: 'Eigenkapital',
     description: 'Kapital, Reserven, Gewinn/Verlust',
     order: 20
+  },
+
+  // ERFOLGSRECHNUNG - Ertrag
+  {
+    name: 'Betrieblicher Ertrag aus Lieferungen und Leistungen',
+    patterns: [/^3000/, /^3200/, /^3400/, /^3600/, /^3700/, /^3710/, /^3800/, /^3900/, /^3940/, /^3970/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Ertrag',
+    description: 'Produktionserlöse, Handelserlöse, Dienstleistungserlöse',
+    order: 21
+  },
+  {
+    name: 'Aufwand für Material, Handelswaren, Dienstleistungen und Energie',
+    patterns: [/^4000/, /^4200/, /^4400/, /^4500/, /^4600/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Aufwand',
+    description: 'Materialaufwand, Handelswarenaufwand, Energieaufwand',
+    order: 22
+  },
+  {
+    name: 'Personalaufwand',
+    patterns: [/^5000/, /^5700/, /^5800/, /^5900/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Aufwand',
+    description: 'Lohnaufwand, Sozialversicherungsaufwand, übriger Personalaufwand',
+    order: 23
+  },
+  {
+    name: 'Übriger betrieblicher Aufwand, Abschreibungen und Wertberichtigungen sowie Finanzaufwand',
+    patterns: [/^6000/, /^6100/, /^6105/, /^6200/, /^6260/, /^6300/, /^6400/, /^6500/, /^6570/, /^6600/, /^6700/, /^6800/, /^6900/, /^6950/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Aufwand',
+    description: 'Raumaufwand, Unterhaltsaufwand, Fahrzeugaufwand, Versicherungsaufwand, Energie- und Entsorgungsaufwand, Verwaltungsaufwand, Werbeaufwand',
+    order: 24
+  },
+  {
+    name: 'Betriebsfremder, ausserordentlicher, einmaliger oder periodenfremder Aufwand und Ertrag',
+    patterns: [/^7000/, /^7010/, /^7500/, /^7510/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Betriebsfremder Erfolg',
+    description: 'Betriebsfremder Ertrag und Aufwand, Ausserordentlicher, einmaliger oder periodenfremder Ertrag und Aufwand',
+    order: 25
+  },
+  {
+    name: 'Betriebsfremder, ausserordentlicher, einmaliger oder periodenfremder Aufwand und Ertrag',
+    patterns: [/^8000/, /^8100/, /^8500/, /^8510/, /^8900/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Betriebsfremder Aufwand',
+    description: 'Betriebsfremder Aufwand, Betriebsfremder Ertrag, Ausserordentlicher, einmaliger oder periodenfremder Aufwand, Direkte Steuern',
+    order: 26
+  },
+  {
+    name: 'Abschluss',
+    patterns: [/^9000/, /^9200/],
+    category: 'erfolgsrechnung' as const,
+    subcategory: 'Abschluss',
+    description: 'Jahresgewinn oder Jahresverlust',
+    order: 27
   }
 ];
 
