@@ -11,9 +11,31 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Layers, Plus, Save, User, Users, Zap, Sparkles } from 'lucide-react';
+import { Layers, Plus, Save, User, Users, Zap, Sparkles, GripVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import * as XLSX from 'xlsx';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import {
+  CSS,
+} from '@dnd-kit/utilities';
+import { AccountGroupSection } from './AccountGroupSection';
+import { DraggableAccountRow } from './DraggableAccountRow';
 
 interface TeamMember {
   id: string;
@@ -393,232 +415,294 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
   }
 
   const unassignedAccounts = getUnassignedAccounts();
+  const hasForeignCurrency = !!trialBalanceData.foreign_currency_column;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const activeAccountNumber = active.id as string;
+    const overItem = over.id as string;
+
+    // Find source and destination groups
+    let sourceGroup: AccountGroup | null = null;
+    let destinationGroup: AccountGroup | null = null;
+
+    // Check if dropped on a group (group ID) or another account
+    if (overItem.startsWith('group-')) {
+      const groupId = overItem.replace('group-', '');
+      destinationGroup = accountGroups.find(g => g.id === groupId) || null;
+    } else {
+      // Find which group the target account belongs to
+      destinationGroup = accountGroups.find(group => 
+        group.accounts.some(acc => acc.accountNumber === overItem)
+      ) || null;
+    }
+
+    // Find source group
+    sourceGroup = accountGroups.find(group => 
+      group.accounts.some(acc => acc.accountNumber === activeAccountNumber)
+    ) || null;
+
+    if (!destinationGroup || sourceGroup?.id === destinationGroup.id) return;
+
+    // Move account between groups
+    try {
+      // Remove from source group
+      if (sourceGroup) {
+        await supabase
+          .from('account_group_assignments')
+          .delete()
+          .eq('account_group_id', sourceGroup.id)
+          .eq('account_number', activeAccountNumber);
+      }
+
+      // Add to destination group
+      const account = sourceGroup?.accounts.find(acc => acc.accountNumber === activeAccountNumber) ||
+                     unassignedAccounts.find(acc => acc.accountNumber === activeAccountNumber);
+
+      if (account) {
+        await supabase
+          .from('account_group_assignments')
+          .insert({
+            account_group_id: destinationGroup.id,
+            account_number: account.accountNumber,
+            account_name: account.accountName,
+            current_year_balance: account.currentYear,
+            previous_year_balance: account.previousYear,
+            foreign_currency_balance: account.foreignCurrency || null,
+          });
+
+        toast({
+          title: "Konto verschoben",
+          description: `${account.accountNumber} wurde zu "${destinationGroup.name}" verschoben.`,
+        });
+
+        // Reload groups
+        loadAccountGroups();
+      }
+    } catch (error: any) {
+      console.error('Error moving account:', error);
+      toast({
+        title: "Fehler beim Verschieben",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Layers className="h-5 w-5" />
-            Konto-Gruppierungen erstellen
-          </CardTitle>
-          <CardDescription>
-            Gruppieren Sie Konten und ordnen Sie diese Team-Mitgliedern zur Bearbeitung zu
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between items-center">
-            <div className="flex gap-4 text-sm">
-              <span>Gesamt: <strong>{trialBalanceRows.length}</strong> Konten</span>
-              <span>Unzugeordnet: <strong>{unassignedAccounts.length}</strong> Konten</span>
-              <span>Gruppierungen: <strong>{accountGroups.length}</strong></span>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleAutoGrouping}
-                disabled={isAutoGrouping || unassignedAccounts.length === 0}
-              >
-                {isAutoGrouping ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
-                ) : (
-                  <Sparkles className="h-4 w-4 mr-2" />
-                )}
-                Auto-Gruppierung (OR)
-              </Button>
-              <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button disabled={selectedAccounts.size === 0}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Neue Gruppierung ({selectedAccounts.size})
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Neue Gruppierung erstellen</DialogTitle>
-                    <DialogDescription>
-                      Erstellen Sie eine neue Gruppierung mit {selectedAccounts.size} ausgewählten Konten
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateGroup} className="space-y-4">
-                    <div>
-                      <Label htmlFor="groupName">Name der Gruppierung</Label>
-                      <Input
-                        id="groupName"
-                        value={groupFormData.name}
-                        onChange={(e) => setGroupFormData(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="z.B. Kasse und Bank"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="groupDescription">Beschreibung (optional)</Label>
-                      <Textarea
-                        id="groupDescription"
-                        value={groupFormData.description}
-                        onChange={(e) => setGroupFormData(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Zusätzliche Beschreibung der Gruppierung"
-                        rows={3}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="assignedMember">Zugeordnetes Team-Mitglied</Label>
-                      <Select 
-                        value={groupFormData.assigned_member_id} 
-                        onValueChange={(value) => setGroupFormData(prev => ({ ...prev, assigned_member_id: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Team-Mitglied auswählen (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Noch nicht zuordnen</SelectItem>
-                          {teamMembers.map((member) => (
-                            <SelectItem key={member.id} value={member.id}>
-                              {member.name} ({member.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
-                        Abbrechen
-                      </Button>
-                      <Button type="submit">
-                        <Save className="h-4 w-4 mr-2" />
-                        Gruppierung erstellen
-                      </Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Existing Groups */}
-      {accountGroups.length > 0 && (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="w-full max-w-6xl mx-auto space-y-6">
+        {/* Header */}
         <Card>
           <CardHeader>
-            <CardTitle>Bestehende Gruppierungen</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5" />
+              Konto-Gruppierungen erstellen
+            </CardTitle>
+            <CardDescription>
+              Gruppieren Sie Konten und ordnen Sie diese Team-Mitgliedern zur Bearbeitung zu. Verwenden Sie Drag & Drop zum Umordnen.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4">
-              {accountGroups.map((group) => (
-                <div key={group.id} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{group.name}</h4>
-                      {getStatusBadge(group.status)}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {group.assigned_member && (
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          {group.assigned_member.name}
-                        </div>
-                      )}
-                      <span>{group.accounts.length} Konten</span>
-                    </div>
-                  </div>
-                  {group.description && (
-                    <p className="text-sm text-muted-foreground mb-2">{group.description}</p>
+            <div className="flex justify-between items-center">
+              <div className="flex gap-4 text-sm">
+                <span>Gesamt: <strong>{trialBalanceRows.length}</strong> Konten</span>
+                <span>Unzugeordnet: <strong>{unassignedAccounts.length}</strong> Konten</span>
+                <span>Gruppierungen: <strong>{accountGroups.length}</strong></span>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleAutoGrouping}
+                  disabled={isAutoGrouping || unassignedAccounts.length === 0}
+                >
+                  {isAutoGrouping ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
                   )}
-                  <div className="text-sm">
-                    <strong>Konten:</strong> {group.accounts.map(acc => acc.accountNumber).join(', ')}
-                  </div>
-                </div>
-              ))}
+                  Auto-Gruppierung (OR)
+                </Button>
+                <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button disabled={selectedAccounts.size === 0}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Neue Gruppierung ({selectedAccounts.size})
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Neue Gruppierung erstellen</DialogTitle>
+                      <DialogDescription>
+                        Erstellen Sie eine neue Gruppierung mit {selectedAccounts.size} ausgewählten Konten
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateGroup} className="space-y-4">
+                      <div>
+                        <Label htmlFor="groupName">Name der Gruppierung</Label>
+                        <Input
+                          id="groupName"
+                          value={groupFormData.name}
+                          onChange={(e) => setGroupFormData(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="z.B. Kasse und Bank"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="groupDescription">Beschreibung (optional)</Label>
+                        <Textarea
+                          id="groupDescription"
+                          value={groupFormData.description}
+                          onChange={(e) => setGroupFormData(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Zusätzliche Beschreibung der Gruppierung"
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="assignedMember">Zugeordnetes Team-Mitglied</Label>
+                        <Select 
+                          value={groupFormData.assigned_member_id} 
+                          onValueChange={(value) => setGroupFormData(prev => ({ ...prev, assigned_member_id: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Team-Mitglied auswählen (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Noch nicht zuordnen</SelectItem>
+                            {teamMembers.map((member) => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name} ({member.email})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setIsGroupDialogOpen(false)}>
+                          Abbrechen
+                        </Button>
+                        <Button type="submit">
+                          <Save className="h-4 w-4 mr-2" />
+                          Gruppierung erstellen
+                        </Button>
+                      </div>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Unassigned Accounts Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Unzugeordnete Konten ({unassignedAccounts.length})</CardTitle>
-          <CardDescription>
-            Wählen Sie Konten aus, um eine neue Gruppierung zu erstellen
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
-                        } else {
-                          setSelectedAccounts(new Set());
-                        }
-                      }}
-                    />
-                  </TableHead>
-                  <TableHead className="text-left">Kontonummer</TableHead>
-                  <TableHead className="text-left">Kontobezeichnung</TableHead>
-                  <TableHead className="text-right">Saldo {new Date().getFullYear()}</TableHead>
-                  <TableHead className="text-right">Saldo {new Date().getFullYear() - 1}</TableHead>
-                  {trialBalanceData.foreign_currency_column && (
-                    <TableHead className="text-right">Fremdwährung</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {unassignedAccounts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Alle Konten sind bereits gruppiert
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  unassignedAccounts.map((row, index) => (
-                    <TableRow key={index} className="hover:bg-muted/25">
-                      <TableCell>
+        {/* Account Groups */}
+        {accountGroups.length > 0 && (
+          <div className="space-y-4">
+            {accountGroups.map((group) => (
+              <div key={group.id} data-group-id={group.id}>
+                <AccountGroupSection
+                  group={group}
+                  hasForeignCurrency={hasForeignCurrency}
+                  formatNumber={formatSwissNumber}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Unassigned Accounts */}
+        {unassignedAccounts.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Unzugeordnete Konten</CardTitle>
+              <CardDescription>
+                Diese Konten sind noch keiner Gruppierung zugeordnet. Wählen Sie Konten aus, um eine neue Gruppierung zu erstellen oder ziehen Sie sie in eine bestehende Gruppe.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8">
                         <Checkbox
-                          checked={selectedAccounts.has(row.accountNumber)}
+                          checked={selectedAccounts.size === unassignedAccounts.length && unassignedAccounts.length > 0}
                           onCheckedChange={(checked) => {
-                            const newSelected = new Set(selectedAccounts);
                             if (checked) {
-                              newSelected.add(row.accountNumber);
+                              setSelectedAccounts(new Set(unassignedAccounts.map(acc => acc.accountNumber)));
                             } else {
-                              newSelected.delete(row.accountNumber);
+                              setSelectedAccounts(new Set());
                             }
-                            setSelectedAccounts(newSelected);
                           }}
                         />
-                      </TableCell>
-                      <TableCell className="text-left font-mono">{row.accountNumber}</TableCell>
-                      <TableCell className="text-left">{row.accountName}</TableCell>
-                      <TableCell className="text-right font-mono">{formatSwissNumber(row.currentYear)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatSwissNumber(row.previousYear)}</TableCell>
-                      {trialBalanceData.foreign_currency_column && (
-                        <TableCell className="text-right font-mono">
-                          {row.foreignCurrency !== undefined ? formatSwissNumber(row.foreignCurrency) : '-'}
-                        </TableCell>
+                      </TableHead>
+                      <TableHead className="w-8"></TableHead>
+                      <TableHead>Kontonummer</TableHead>
+                      <TableHead>Kontobezeichnung</TableHead>
+                      <TableHead className="text-right">Saldo Laufendes Jahr</TableHead>
+                      <TableHead className="text-right">Saldo Vorjahr</TableHead>
+                      {hasForeignCurrency && (
+                        <TableHead className="text-right">Fremdwährung</TableHead>
                       )}
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    <SortableContext
+                      items={unassignedAccounts.map(acc => acc.accountNumber)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {unassignedAccounts.map((account) => (
+                        <TableRow key={account.accountNumber}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedAccounts.has(account.accountNumber)}
+                              onCheckedChange={(checked) => {
+                                const newSelection = new Set(selectedAccounts);
+                                if (checked) {
+                                  newSelection.add(account.accountNumber);
+                                } else {
+                                  newSelection.delete(account.accountNumber);
+                                }
+                                setSelectedAccounts(newSelection);
+                              }}
+                            />
+                          </TableCell>
+                          <DraggableAccountRow
+                            account={account}
+                            hasForeignCurrency={hasForeignCurrency}
+                            formatNumber={formatSwissNumber}
+                          />
+                        </TableRow>
+                      ))}
+                    </SortableContext>
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Action Buttons */}
-      <div className="flex justify-center gap-4">
-        <Button onClick={onGroupingComplete}>
-          Gruppierung abschließen
-        </Button>
+        {/* Action Buttons */}
+        <div className="flex justify-center gap-4">
+          <Button onClick={onGroupingComplete}>
+            Gruppierung abschließen
+          </Button>
+        </div>
       </div>
-    </div>
+    </DndContext>
   );
 };
 
