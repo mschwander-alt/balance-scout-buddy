@@ -289,10 +289,10 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
       {/* Assignment Management */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Zuordnungen verwalten</CardTitle>
-              <CardDescription>
+          <div className="flex items-start justify-between">
+            <div className="text-left">
+              <CardTitle className="text-left">Zuordnungen verwalten</CardTitle>
+              <CardDescription className="text-left">
                 Ordnen Sie Gruppierungen einzelnen Team-Mitgliedern zu
               </CardDescription>
             </div>
@@ -325,11 +325,11 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                         {getStatusBadge(group.status)}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{group.name}</div>
+                    <TableCell className="text-left">
+                      <div className="text-left">
+                        <div className="font-medium text-left">{group.name}</div>
                         {group.description && (
-                          <div className="text-sm text-muted-foreground">{group.description}</div>
+                          <div className="text-sm text-muted-foreground text-left">{group.description}</div>
                         )}
                       </div>
                     </TableCell>
