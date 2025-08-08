@@ -462,14 +462,14 @@ const Review: React.FC = () => {
                                       <ChevronDown className="h-4 w-4" /> : 
                                       <ChevronRight className="h-4 w-4" />
                                     }
-                                    <div>
-                                      <CardTitle className="text-left">{group.name}</CardTitle>
-                                      {group.description && (
-                                        <CardDescription className="text-left">
-                                          {group.description}
-                                        </CardDescription>
-                                      )}
-                                    </div>
+                                     <div>
+                                       <CardTitle className="text-left text-lg">{group.name}</CardTitle>
+                                       {group.description && (
+                                         <CardDescription className="text-left text-sm">
+                                           {group.description}
+                                         </CardDescription>
+                                       )}
+                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Badge variant="outline">
