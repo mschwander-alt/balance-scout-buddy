@@ -1,9 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+// Konfiguration des PDF.js Workers - verwende lokale Kopie
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.js',
+    import.meta.url
+  ).toString();
+} catch {
+  // Fallback für ältere Browser
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js';
+}
 
 interface DocumentViewerProps {
   document: {
@@ -22,8 +34,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onLoad, 
   onError 
 }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pageNum, setPageNum] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [scale, setScale] = useState<number>(1.0);
+  const [rotation, setRotation] = useState<number>(0);
   const [excelData, setExcelData] = useState<any[][]>([]);
   const [excelSheets, setExcelSheets] = useState<string[]>([]);
   const [activeSheet, setActiveSheet] = useState<string>('');
@@ -34,11 +51,19 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     loadDocument();
   }, [document]);
 
+  useEffect(() => {
+    if (pdfDoc && canvasRef.current) {
+      renderPage();
+    }
+  }, [pdfDoc, pageNum, scale, rotation]);
+
   const loadDocument = async () => {
     setLoading(true);
     setError(null);
     
     try {
+      console.log('Loading document:', document.file_name);
+      
       // Get signed URL for document
       const { data, error: urlError } = await supabase.storage
         .from('account-evidence')
@@ -47,12 +72,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (urlError) throw urlError;
       
       if (data?.signedUrl) {
+        console.log('Got signed URL:', data.signedUrl);
         setFileUrl(data.signedUrl);
         
         // Handle different file types
         if (document.file_type === 'application/pdf') {
-          // PDF will be displayed via iframe
-          onLoad?.();
+          await loadPdf(data.signedUrl);
         } else if (document.file_type.includes('spreadsheet') || 
                    document.file_type.includes('excel') ||
                    document.file_name.endsWith('.xlsx') ||
@@ -68,6 +93,60 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       onError?.(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPdf = async (url: string) => {
+    try {
+      console.log('Loading PDF from URL:', url);
+      
+      const loadingTask = pdfjsLib.getDocument({
+        url: url,
+        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/cmaps/',
+        cMapPacked: true,
+      });
+      
+      const pdf = await loadingTask.promise;
+      console.log('PDF loaded successfully, pages:', pdf.numPages);
+      
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setPageNum(1);
+    } catch (err) {
+      console.error('Error loading PDF:', err);
+      throw new Error('PDF konnte nicht geladen werden');
+    }
+  };
+
+  const renderPage = async () => {
+    if (!pdfDoc || !canvasRef.current) return;
+
+    try {
+      console.log('Rendering page:', pageNum);
+      
+      const page = await pdfDoc.getPage(pageNum);
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      // Calculate scale to fit container
+      const containerWidth = canvas.parentElement?.clientWidth || 800;
+      const viewport = page.getViewport({ scale: 1, rotation });
+      const scaleFactor = Math.min((containerWidth - 40) / viewport.width, scale);
+      
+      const scaledViewport = page.getViewport({ scale: scaleFactor, rotation });
+
+      canvas.height = scaledViewport.height;
+      canvas.width = scaledViewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: scaledViewport,
+      };
+
+      await page.render(renderContext).promise;
+      console.log('Page rendered successfully');
+    } catch (err) {
+      console.error('Error rendering page:', err);
     }
   };
 
@@ -174,26 +253,66 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       </div>
 
       {/* Document Content */}
-      <div className="flex-1 overflow-hidden">
-        {isPDF && fileUrl ? (
-          <object
-            data={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-            type="application/pdf"
-            className="w-full h-full"
-          >
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-60" />
-                <h3 className="text-lg font-medium mb-2">PDF kann nicht angezeigt werden</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Ihr Browser unterstützt keine PDF-Anzeige oder das PDF ist beschädigt.
-                </p>
-                <Button onClick={downloadDocument} variant="outline">
-                  PDF herunterladen
+      <div className="flex-1 overflow-auto">
+        {isPDF && pdfDoc ? (
+          <div className="flex flex-col h-full">
+            {/* PDF Controls */}
+            <div className="flex items-center justify-between p-2 border-b bg-background">
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
+                >
+                  <ZoomOut className="h-3 w-3" />
+                </Button>
+                <span className="text-sm min-w-[50px] text-center">{Math.round(scale * 100)}%</span>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setScale(s => Math.min(3.0, s + 0.1))}
+                >
+                  <ZoomIn className="h-3 w-3" />
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setRotation(r => (r + 90) % 360)}
+                >
+                  <RotateCw className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPageNum(p => Math.max(1, p - 1))}
+                  disabled={pageNum <= 1}
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <span className="text-sm min-w-[60px] text-center">
+                  {pageNum} / {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPageNum(p => Math.min(totalPages, p + 1))}
+                  disabled={pageNum >= totalPages}
+                >
+                  <ChevronRight className="h-3 w-3" />
                 </Button>
               </div>
             </div>
-          </object>
+
+            {/* PDF Canvas */}
+            <div className="flex-1 overflow-auto p-4 bg-gray-50 flex justify-center">
+              <canvas 
+                ref={canvasRef}
+                className="shadow-lg bg-white border max-w-full h-auto"
+              />
+            </div>
+          </div>
         ) : isExcel ? (
           <div className="flex flex-col h-full">
             {/* Excel Sheet Tabs */}
