@@ -9,9 +9,10 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Search, FileText, ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface AccountGroup {
   id: string;
@@ -63,6 +64,8 @@ const Review = () => {
   const [unmatchedDocuments, setUnmatchedDocuments] = useState<any[]>([]);
   const [selectedDocumentForAssign, setSelectedDocumentForAssign] = useState<string | null>(null);
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const saveMatchResults = async (matchedAssignments: AccountAssignment[]) => {
     try {
@@ -265,6 +268,29 @@ const Review = () => {
     return documents.filter(doc => !matchedDocIds.has(doc.id));
   };
 
+  const previewDocument = async (document: Document) => {
+    setPreviewLoading(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(document.file_path);
+      
+      if (error) throw error;
+      
+      const url = URL.createObjectURL(data);
+      setDocumentPreview(url);
+    } catch (error) {
+      console.error('Error previewing document:', error);
+      toast({
+        title: "Fehler",
+        description: "Dokumentvorschau konnte nicht geladen werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleManualAssign = async (documentId: string, assignmentId: string) => {
     try {
       // Find the assignment and document
@@ -453,35 +479,89 @@ const Review = () => {
                             Wählen Sie ein Dokument und das entsprechende Konto aus.
                           </p>
                           
-                          <div className="space-y-3">
-                            {getUnmatchedDocuments().map((document) => (
-                              <div key={document.id} className="border rounded-lg p-4">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <h4 className="font-medium">{document.file_name}</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                      {document.file_type} • {Math.round(document.file_size / 1024)} KB
-                                    </p>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2">
-                                    <Select 
-                                      value={selectedDocumentForAssign === document.id ? assignmentForDoc : ""}
-                                      onValueChange={(value) => {
-                                        setSelectedDocumentForAssign(document.id);
-                                        setAssignmentForDoc(value);
-                                      }}
-                                    >
-                                      <SelectTrigger className="w-64">
-                                        <SelectValue placeholder="Konto auswählen..." />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {assignments.map((assignment) => (
-                                          <SelectItem key={assignment.id} value={assignment.id}>
-                                            {assignment.account_number} - {assignment.account_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
+                           <div className="space-y-3">
+                             {getUnmatchedDocuments().map((document) => (
+                               <div key={document.id} className="border rounded-lg p-4">
+                                 <div className="flex items-center justify-between">
+                                   <div className="flex items-center gap-3">
+                                     <div>
+                                       <h4 className="font-medium">{document.file_name}</h4>
+                                       <p className="text-sm text-muted-foreground">
+                                         {document.file_type} • {Math.round(document.file_size / 1024)} KB
+                                       </p>
+                                     </div>
+                                     
+                                     <Popover>
+                                       <PopoverTrigger asChild>
+                                         <Button 
+                                           variant="outline" 
+                                           size="sm"
+                                           onClick={() => previewDocument(document)}
+                                           disabled={previewLoading}
+                                         >
+                                           <Eye className="h-4 w-4" />
+                                           Vorschau
+                                         </Button>
+                                       </PopoverTrigger>
+                                       <PopoverContent className="w-96 max-h-80 p-0" side="left">
+                                         {documentPreview ? (
+                                           document.file_type === 'application/pdf' ? (
+                                             <embed 
+                                               src={documentPreview} 
+                                               type="application/pdf" 
+                                               className="w-full h-80"
+                                             />
+                                           ) : (
+                                             <div className="p-4">
+                                               <p className="text-sm text-muted-foreground">
+                                                 Excel-Vorschau wird derzeit nicht unterstützt.
+                                               </p>
+                                               <Button 
+                                                 variant="outline" 
+                                                 size="sm" 
+                                                 className="mt-2"
+                                                 onClick={() => window.open(documentPreview, '_blank')}
+                                               >
+                                                 In neuem Tab öffnen
+                                               </Button>
+                                             </div>
+                                           )
+                                         ) : (
+                                           <div className="p-4 text-center">
+                                             <p className="text-sm text-muted-foreground">
+                                               {previewLoading ? 'Lädt...' : 'Keine Vorschau verfügbar'}
+                                             </p>
+                                           </div>
+                                         )}
+                                       </PopoverContent>
+                                     </Popover>
+                                   </div>
+                                   
+                                   <div className="flex items-center gap-2">
+                                     <Select 
+                                       value={selectedDocumentForAssign === document.id ? assignmentForDoc : ""}
+                                       onValueChange={(value) => {
+                                         setSelectedDocumentForAssign(document.id);
+                                         setAssignmentForDoc(value);
+                                       }}
+                                     >
+                                       <SelectTrigger className="w-64">
+                                         <SelectValue placeholder="Konto auswählen..." />
+                                       </SelectTrigger>
+                                       <SelectContent>
+                                         {assignments
+                                           .filter((assignment, index, self) => 
+                                             index === self.findIndex(a => 
+                                               a.account_number === assignment.account_number && 
+                                               a.account_name === assignment.account_name
+                                             )
+                                           )
+                                           .map((assignment) => (
+                                             <SelectItem key={assignment.id} value={assignment.id}>
+                                               {assignment.account_number} - {assignment.account_name}
+                                             </SelectItem>
+                                           ))}
+                                       </SelectContent>
                                     </Select>
                                     
                                     <Button 
