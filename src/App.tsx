@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import DocumentUpload from "./pages/DocumentUpload";
+import Review from "./pages/Review";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,11 +22,16 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/documents" element={
-              <ProtectedRoute>
-                <DocumentUpload />
-              </ProtectedRoute>
-            } />
+          <Route path="/documents" element={
+            <ProtectedRoute>
+              <DocumentUpload />
+            </ProtectedRoute>
+          } />
+          <Route path="/review" element={
+            <ProtectedRoute>
+              <Review />
+            </ProtectedRoute>
+          } />
             <Route path="/" element={
               <ProtectedRoute>
                 <Index />

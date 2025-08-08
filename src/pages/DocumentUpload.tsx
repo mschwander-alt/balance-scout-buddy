@@ -458,8 +458,8 @@ const DocumentUpload = () => {
             <Button variant="outline" onClick={() => navigate('/')}>
               Zurück zur Gruppierung
             </Button>
-            <Button onClick={() => navigate('/')}>
-              Weiter zum Dashboard
+            <Button onClick={() => navigate(`/review?trial_balance_id=${trialBalanceId}`)}>
+              Weiter zur Prüfung
             </Button>
           </div>
         </div>
