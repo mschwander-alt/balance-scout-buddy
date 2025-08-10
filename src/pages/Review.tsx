@@ -782,6 +782,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                             <TableCell className="text-center py-2">
                                               <div className="flex items-center justify-center">
                                                 {getMatchStatusIcon(assignment.match_status || 'pending')}
+                                                {assignment.match_status === 'matched' && assignment.confidence_score === 0.8 && (
+                                                  <span className="text-xs text-muted-foreground ml-1">auto</span>
+                                                )}
                                               </div>
                                             </TableCell>
                                             <TableCell className="text-center py-2">
@@ -873,6 +876,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                             <TableCell className="text-center py-2">
                                               <div className="flex items-center justify-center">
                                                 {getMatchStatusIcon(assignment.match_status || 'pending')}
+                                                {assignment.match_status === 'matched' && assignment.confidence_score === 0.8 && (
+                                                  <span className="text-xs text-muted-foreground ml-1">auto</span>
+                                                )}
                                               </div>
                                             </TableCell>
                                             <TableCell className="text-center py-2">
