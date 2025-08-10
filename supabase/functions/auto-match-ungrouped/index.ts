@@ -132,26 +132,81 @@ serve(async (req) => {
     const headers = jsonData[0] as string[];
     const dataRows = jsonData.slice(1);
 
-    // Find column indices
-    const accountNumberIndex = headers.findIndex(h => h === trialBalance.account_number_column);
-    const accountNameIndex = headers.findIndex(h => h === trialBalance.account_name_column);
-    const currentYearIndex = headers.findIndex(h => h === trialBalance.current_year_column);
-    const previousYearIndex = headers.findIndex(h => h === trialBalance.previous_year_column);
+    console.log(`Headers found: ${JSON.stringify(headers)}`);
+    console.log(`Column mapping - Account Number: ${trialBalance.account_number_column}, Account Name: ${trialBalance.account_name_column}, Current Year: ${trialBalance.current_year_column}`);
 
-    if (accountNumberIndex === -1 || accountNameIndex === -1) {
-      throw new Error('Required columns not found in trial balance');
+    // Find column indices - more flexible matching
+    let accountNumberIndex = -1;
+    let accountNameIndex = -1;
+    let currentYearIndex = -1;
+    let previousYearIndex = -1;
+
+    // Try exact match first, then partial match
+    for (let i = 0; i < headers.length; i++) {
+      const header = String(headers[i] || '').trim();
+      
+      if (trialBalance.account_number_column && header === trialBalance.account_number_column) {
+        accountNumberIndex = i;
+      } else if (trialBalance.account_name_column && header === trialBalance.account_name_column) {
+        accountNameIndex = i;
+      } else if (trialBalance.current_year_column && header === trialBalance.current_year_column) {
+        currentYearIndex = i;
+      } else if (trialBalance.previous_year_column && header === trialBalance.previous_year_column) {
+        previousYearIndex = i;
+      }
     }
 
-    const parsedAccounts: TrialBalanceRow[] = dataRows
-      .filter(row => row[accountNumberIndex] && row[accountNameIndex])
-      .map(row => ({
-        accountNumber: String(row[accountNumberIndex] || '').trim(),
-        accountName: String(row[accountNameIndex] || '').trim(),
-        currentYear: parseFloat(String(row[currentYearIndex] || 0)) || 0,
-        previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
-      }));
+    console.log(`Column indices - Number: ${accountNumberIndex}, Name: ${accountNameIndex}, Current: ${currentYearIndex}, Previous: ${previousYearIndex}`);
 
-    console.log(`Found ${parsedAccounts.length} accounts in trial balance`);
+    if (accountNumberIndex === -1 || accountNameIndex === -1) {
+      console.log('Required columns not found - trying fallback detection');
+      // Fallback: try to find columns by common patterns
+      for (let i = 0; i < headers.length; i++) {
+        const header = String(headers[i] || '').toLowerCase().trim();
+        if (accountNumberIndex === -1 && (header.includes('konto') || header.includes('account') || header.includes('nummer'))) {
+          accountNumberIndex = i;
+          console.log(`Found account number column at index ${i}: ${headers[i]}`);
+        }
+        if (accountNameIndex === -1 && (header.includes('bezeichnung') || header.includes('name') || header.includes('text'))) {
+          accountNameIndex = i;
+          console.log(`Found account name column at index ${i}: ${headers[i]}`);
+        }
+      }
+    }
+
+    if (accountNumberIndex === -1 || accountNameIndex === -1) {
+      throw new Error(`Required columns not found. Account Number Index: ${accountNumberIndex}, Account Name Index: ${accountNameIndex}`);
+    }
+
+    const parsedAccounts: TrialBalanceRow[] = [];
+    let skippedRows = 0;
+    
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const accountNumber = String(row[accountNumberIndex] || '').trim();
+      const accountName = String(row[accountNameIndex] || '').trim();
+      
+      // Skip empty rows or rows without essential data
+      if (!accountNumber || !accountName || accountNumber === '0' || accountName.toLowerCase() === 'total') {
+        skippedRows++;
+        if (skippedRows <= 5) { // Only log first few skipped rows to avoid spam
+          console.log(`Skipping row ${i + 2}: missing account data - Number: "${accountNumber}", Name: "${accountName}"`);
+        }
+        continue;
+      }
+      
+      const currentYear = currentYearIndex >= 0 ? (parseFloat(String(row[currentYearIndex] || 0)) || 0) : 0;
+      const previousYear = previousYearIndex >= 0 ? (parseFloat(String(row[previousYearIndex] || 0)) || 0) : 0;
+      
+      parsedAccounts.push({
+        accountNumber,
+        accountName,
+        currentYear,
+        previousYear,
+      });
+    }
+
+    console.log(`Found ${parsedAccounts.length} accounts in trial balance, skipped ${skippedRows} rows`);
 
     // Clear existing temp matches for this trial balance
     await supabase
