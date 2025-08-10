@@ -77,20 +77,6 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with export options */}
-      {assignmentId && trialBalanceId && accountName && accountNumber && (
-        <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-          <h5 className="font-medium text-sm">{document.file_name}</h5>
-          <PDFCommentExporter
-            document={document}
-            assignmentId={assignmentId}
-            trialBalanceId={trialBalanceId}
-            accountName={accountName}
-            accountNumber={accountNumber}
-          />
-        </div>
-      )}
-      
       {/* PDF Viewer */}
       <div className="flex-1">
         <iframe

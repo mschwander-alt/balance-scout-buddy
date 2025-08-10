@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
 import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 import { ExcelViewer } from '@/components/ExcelViewer';
+import { PDFCommentExporter } from '@/components/PDFCommentExporter';
 
 interface Assignment {
   id: string;
@@ -1258,12 +1259,25 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
                               className="min-h-[100px] resize-none bg-background border-input"
                             />
-                            {loadedComments[selectedAccountData.id] && (
-                              <p className="text-xs text-muted-foreground">
-                                ✓ Kommentar gespeichert
-                              </p>
-                            )}
-                           </div>
+                             {loadedComments[selectedAccountData.id] && (
+                               <p className="text-xs text-muted-foreground">
+                                 ✓ Kommentar gespeichert
+                               </p>
+                             )}
+                             
+                             {/* Export Buttons */}
+                             {selectedDocuments.length > 0 && (
+                               <div className="pt-4 border-t">
+                                 <PDFCommentExporter
+                                   document={selectedDocuments[0]}
+                                   assignmentId={selectedAccountData.id}
+                                   trialBalanceId={trialBalanceId}
+                                   accountName={selectedAccountData.account_name}
+                                   accountNumber={selectedAccountData.account_number}
+                                 />
+                               </div>
+                             )}
+                            </div>
                          </div>
                       </div>
                    ) : (
