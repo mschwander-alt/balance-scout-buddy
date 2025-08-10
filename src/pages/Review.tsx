@@ -159,9 +159,11 @@ const Review: React.FC = () => {
 
       if (error) throw error;
       setDocumentPreview(data.signedUrl);
+      return data.signedUrl;
     } catch (error: any) {
       console.error('Error getting document preview:', error);
       toast.error('Fehler beim Laden der Dokumentvorschau');
+      return '';
     } finally {
       setPreviewLoading(false);
     }
@@ -726,15 +728,11 @@ const Review: React.FC = () => {
                     <div className="flex flex-col h-full gap-4">
                       <div className="flex-1 min-h-0 border rounded-lg">
                         {selectedDocuments.map((doc) => (
-                          <div key={doc.id} className="h-full">
-                            <AnnotatedPDFViewer 
+                           <PDFDocumentLoader 
                               document={doc}
                               assignmentId={selectedAccountData.id}
                               trialBalanceId={trialBalanceId!}
-                              onLoad={() => {}}
-                              onError={(error) => console.error('Document viewer error:', error)}
                             />
-                          </div>
                         ))}
                       </div>
                       
