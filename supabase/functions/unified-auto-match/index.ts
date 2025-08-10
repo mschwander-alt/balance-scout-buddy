@@ -106,42 +106,55 @@ async function extractTextFromExcel(supabase: any, filePath: string): Promise<st
   }
 }
 
-// Generate saldo patterns for matching (based on your Python code)
+// Generate saldo patterns for matching (improved precision)
 function generateSaldoPatterns(saldo: number): string[] {
   const patterns: string[] = [];
+  const absSaldo = Math.abs(saldo);
   
+  // Skip very small amounts that are prone to false matches
+  if (absSaldo <= 10) {
+    // For small amounts, only use very specific patterns
+    patterns.push(saldo.toFixed(2));  // Exact: 1.00
+    
+    // Swiss format only for small amounts (more specific)
+    const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    patterns.push(swissFormat);
+    
+    // German format only for small amounts 
+    const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    patterns.push(germanFormat);
+    
+    return patterns.filter(p => p && p !== '0.00' && p !== '-0.00');
+  }
+  
+  // For larger amounts, use more comprehensive patterns
   // Basic formats
-  patterns.push(saldo.toFixed(2));                                    // 1234.56
-  patterns.push((-saldo).toFixed(2));                                 // -1234.56
+  patterns.push(saldo.toFixed(2));                                    // 233.50
+  patterns.push((-saldo).toFixed(2));                                 // -233.50
   
   // Swiss format with apostrophe
   const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  patterns.push(swissFormat);                                         // 1'234.56
-  patterns.push((-saldo).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); // -1'234.56
+  patterns.push(swissFormat);                                         // 233.50 or 1'233.50
+  patterns.push((-saldo).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   
   // German format (thousands with dot, decimal with comma)
   const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  patterns.push(germanFormat);                                        // 1.234,56
-  patterns.push((-saldo).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); // -1.234,56
+  patterns.push(germanFormat);                                        // 233,50 or 1.233,50
+  patterns.push((-saldo).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   
-  // Without thousands separator
-  const noThousands = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '');
-  patterns.push(noThousands);                                         // 1234.56
-  
-  // With space as thousands separator
+  // Space as thousands separator
   const spaceFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  patterns.push(spaceFormat);                                         // 1 234.56
+  patterns.push(spaceFormat);                                         // 1 233.50
+  patterns.push(spaceFormat.replace('.', ','));                       // 1 233,50
   
-  // With various Unicode spaces (non-breaking space, etc.)
+  // With various Unicode spaces
   const nbspFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
-  patterns.push(nbspFormat);                                          // 1 234.56 (with non-breaking space)
+  patterns.push(nbspFormat);                                          
+  patterns.push(nbspFormat.replace('.', ','));
   
   const thinSpaceFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
-  patterns.push(thinSpaceFormat);                                     // 1 234.56 (with thin space)
-  
-  // Combination: thin space + comma decimal
-  const thinSpaceCommaFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F').replace('.', ',');
-  patterns.push(thinSpaceCommaFormat);                                // 1 234,56 (thin space + comma)
+  patterns.push(thinSpaceFormat);                                     
+  patterns.push(thinSpaceFormat.replace('.', ','));
   
   // Remove duplicates and filter out invalid patterns
   return [...new Set(patterns)].filter(p => p && p !== '0.00' && p !== '-0.00');
