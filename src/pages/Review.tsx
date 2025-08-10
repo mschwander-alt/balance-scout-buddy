@@ -1009,40 +1009,55 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                          </CardTitle>
                        </div>
                        
-                       <div className="flex items-center gap-2 xl:gap-4 bg-muted/30 rounded-lg px-3 xl:px-4 py-2 border text-xs xl:text-sm overflow-x-auto">
-                         <div className="text-center whitespace-nowrap">
-                           <div className="text-xs text-muted-foreground">Lfd. Jahr</div>
-                           <div className="font-medium">
-                             {formatCurrency(selectedAccountData.current_year_balance)}
-                           </div>
-                         </div>
-                         
-                         <div className="text-center whitespace-nowrap">
-                           <div className="text-xs text-muted-foreground">Vorjahr</div>
-                           <div className="font-medium">
-                             {formatCurrency(selectedAccountData.previous_year_balance)}
-                           </div>
-                         </div>
-                         
-                         <div className="text-center whitespace-nowrap">
-                           <div className="text-xs text-muted-foreground">Abwg.</div>
-                           <div className="font-medium">
-                             {formatCurrency(selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance)}
-                           </div>
-                         </div>
-                         
-                         {selectedAccountData.previous_year_balance !== 0 && (
-                           <div className="text-center whitespace-nowrap">
-                             <div className="text-xs text-muted-foreground">%</div>
-                             <div className={`font-medium ${
-                               ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
-                                 ? 'text-green-600' 
-                                 : 'text-red-600'
-                             }`}>
-                               {((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100).toFixed(1)}%
-                             </div>
-                           </div>
-                         )}
+                       <div className="flex items-center gap-1 xl:gap-3 bg-muted/30 rounded-lg px-2 xl:px-4 py-2 border overflow-hidden max-w-full xl:max-w-[600px]">
+                         {(() => {
+                           const currentYearStr = formatCurrency(selectedAccountData.current_year_balance);
+                           const previousYearStr = formatCurrency(selectedAccountData.previous_year_balance);
+                           const deviationStr = formatCurrency(selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance);
+                           
+                           // Determine text size based on longest number
+                           const maxLength = Math.max(currentYearStr.length, previousYearStr.length, deviationStr.length);
+                           const textSizeClass = maxLength > 12 ? 'text-xs' : maxLength > 8 ? 'text-xs xl:text-sm' : 'text-sm';
+                           const gapClass = maxLength > 12 ? 'gap-1' : 'gap-1 xl:gap-3';
+                           
+                           return (
+                             <>
+                               <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
+                                 <div className="text-xs text-muted-foreground">Lfd. Jahr</div>
+                                 <div className={`font-medium ${textSizeClass} truncate`}>
+                                   {currentYearStr}
+                                 </div>
+                               </div>
+                               
+                               <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
+                                 <div className="text-xs text-muted-foreground">Vorjahr</div>
+                                 <div className={`font-medium ${textSizeClass} truncate`}>
+                                   {previousYearStr}
+                                 </div>
+                               </div>
+                               
+                               <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
+                                 <div className="text-xs text-muted-foreground">Abwg.</div>
+                                 <div className={`font-medium ${textSizeClass} truncate`}>
+                                   {deviationStr}
+                                 </div>
+                               </div>
+                               
+                               {selectedAccountData.previous_year_balance !== 0 && (
+                                 <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
+                                   <div className="text-xs text-muted-foreground">%</div>
+                                   <div className={`font-medium ${textSizeClass} truncate ${
+                                     ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
+                                       ? 'text-green-600' 
+                                       : 'text-red-600'
+                                   }`}>
+                                     {((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100).toFixed(1)}%
+                                   </div>
+                                 </div>
+                               )}
+                             </>
+                           );
+                         })()}
                        </div>
                      </div>
                   ) : (
