@@ -1001,50 +1001,50 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     </TooltipContent>
                   </Tooltip>
                   <div className="border-l border-border h-6"></div>
-                  {selectedAccountData ? (
-                    <div className="flex items-center justify-between w-full">
-                      <div className="min-w-0 flex-shrink">
-                        <CardTitle className="text-sm font-medium truncate">
-                          {selectedAccountData.account_number} - {selectedAccountData.account_name}
-                        </CardTitle>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 bg-muted/30 rounded-lg px-4 py-2 border">
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Lfd. Jahr</div>
-                          <div className="font-medium text-sm">
-                            {formatCurrency(selectedAccountData.current_year_balance)}
-                          </div>
-                        </div>
-                        
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Vorjahr</div>
-                          <div className="font-medium text-sm">
-                            {formatCurrency(selectedAccountData.previous_year_balance)}
-                          </div>
-                        </div>
-                        
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Abwg.</div>
-                          <div className="font-medium text-sm">
-                            {formatCurrency(selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance)}
-                          </div>
-                        </div>
-                        
-                        {selectedAccountData.previous_year_balance !== 0 && (
-                          <div className="text-center">
-                            <div className="text-xs text-muted-foreground">%</div>
-                            <div className={`font-medium text-sm ${
-                              ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
-                                ? 'text-green-600' 
-                                : 'text-red-600'
-                            }`}>
-                              {((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100).toFixed(1)}%
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                   {selectedAccountData ? (
+                     <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between w-full gap-3">
+                       <div className="min-w-0 flex-shrink">
+                         <CardTitle className="text-sm font-medium truncate">
+                           {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                         </CardTitle>
+                       </div>
+                       
+                       <div className="flex items-center gap-2 xl:gap-4 bg-muted/30 rounded-lg px-3 xl:px-4 py-2 border text-xs xl:text-sm overflow-x-auto">
+                         <div className="text-center whitespace-nowrap">
+                           <div className="text-xs text-muted-foreground">Lfd. Jahr</div>
+                           <div className="font-medium">
+                             {formatCurrency(selectedAccountData.current_year_balance)}
+                           </div>
+                         </div>
+                         
+                         <div className="text-center whitespace-nowrap">
+                           <div className="text-xs text-muted-foreground">Vorjahr</div>
+                           <div className="font-medium">
+                             {formatCurrency(selectedAccountData.previous_year_balance)}
+                           </div>
+                         </div>
+                         
+                         <div className="text-center whitespace-nowrap">
+                           <div className="text-xs text-muted-foreground">Abwg.</div>
+                           <div className="font-medium">
+                             {formatCurrency(selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance)}
+                           </div>
+                         </div>
+                         
+                         {selectedAccountData.previous_year_balance !== 0 && (
+                           <div className="text-center whitespace-nowrap">
+                             <div className="text-xs text-muted-foreground">%</div>
+                             <div className={`font-medium ${
+                               ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
+                                 ? 'text-green-600' 
+                                 : 'text-red-600'
+                             }`}>
+                               {((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100).toFixed(1)}%
+                             </div>
+                           </div>
+                         )}
+                       </div>
+                     </div>
                   ) : (
                     <div>
                       <CardTitle className="text-lg">Nachweise</CardTitle>
