@@ -1145,7 +1145,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                              </div>
                             <Textarea
                               placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
-                              value={accountComments[selectedAccountData.id] || ''}
+                              value={accountComments[selectedAccountData.id] || (
+                                selectedAccountData.match_status === 'matched' && selectedAccountData.confidence_score === 0.8
+                                  ? "Nachweis konnte mit der Saldobilanz abgestimmt werden"
+                                  : ""
+                              )}
                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
                               className="min-h-[100px] resize-none bg-background border-input"
                             />
