@@ -700,7 +700,7 @@ const Review: React.FC = () => {
                           <Collapsible key={group.id} open={group.isOpen} onOpenChange={() => toggleGroup(group.id)}>
                             <Card>
                               <CollapsibleTrigger asChild>
-                                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-2">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       {group.isOpen ? 
@@ -708,12 +708,7 @@ const Review: React.FC = () => {
                                         <ChevronRight className="h-4 w-4" />
                                       }
                                        <div>
-                                         <CardTitle className="text-left text-lg">{group.name}</CardTitle>
-                                         {group.description && (
-                                           <CardDescription className="text-left text-sm">
-                                             {group.description}
-                                           </CardDescription>
-                                         )}
+                                         <CardTitle className="text-left text-base">{group.name}</CardTitle>
                                        </div>
                                     </div>
                                      <div className="flex items-center gap-2">
@@ -798,7 +793,7 @@ const Review: React.FC = () => {
                           <Collapsible key={group.id} open={group.isOpen} onOpenChange={() => toggleGroup(group.id)}>
                             <Card>
                               <CollapsibleTrigger asChild>
-                                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-2">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       {group.isOpen ? 
@@ -806,12 +801,7 @@ const Review: React.FC = () => {
                                         <ChevronRight className="h-4 w-4" />
                                       }
                                        <div>
-                                         <CardTitle className="text-left text-lg">{group.name}</CardTitle>
-                                         {group.description && (
-                                           <CardDescription className="text-left text-sm">
-                                             {group.description}
-                                           </CardDescription>
-                                         )}
+                                         <CardTitle className="text-left text-base">{group.name}</CardTitle>
                                        </div>
                                     </div>
                                      <div className="flex items-center gap-2">
