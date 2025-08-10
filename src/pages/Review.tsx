@@ -948,27 +948,23 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                         ))}
                       </div>
                        
-                       {/* Completed Button */}
-                       {selectedAccountData && (
-                         <div className="flex justify-end pt-3 border-t">
-                           <Button 
-                             variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
-                             size="sm"
-                             onClick={() => handleMarkCompleted(selectedAccountData.id)}
-                             className="flex items-center gap-2"
-                           >
-                             <CheckCircle className="h-4 w-4" />
-                             {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
-                           </Button>
-                         </div>
-                       )}
-
                        {/* Kommentarfeld */}
                        <div className="border-t pt-4 h-[160px] flex-shrink-0">
                          <div className="space-y-3">
-                           <label className="text-sm font-medium text-foreground block">
-                             Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
-                           </label>
+                           <div className="flex items-center justify-between">
+                             <label className="text-sm font-medium text-foreground">
+                               Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                             </label>
+                             <Button 
+                               variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                               size="sm"
+                               onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                               className="flex items-center gap-2"
+                             >
+                               <CheckCircle className="h-4 w-4" />
+                               {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                             </Button>
+                           </div>
                            <Textarea
                              placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
                              value={accountComments[selectedAccountData.id] || ''}
