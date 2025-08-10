@@ -15,47 +15,84 @@ interface TrialBalanceRow {
   previousYear: number;
 }
 
-// Helper function to get common accounting terms for better matching
-function getAccountTypeTerms(accountName: string): string[] {
-  const name = accountName.toLowerCase();
-  const terms: string[] = [];
-  
-  // Cash and bank accounts
-  if (name.includes('cash') || name.includes('bank') || name.includes('kasse')) {
-    terms.push('bank', 'cash', 'kasse', 'geld');
+// Helper function to extract numbers from Excel files
+async function extractNumbersFromExcel(supabase: any, filePath: string): Promise<number[]> {
+  try {
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('account-evidence')
+      .download(filePath);
+
+    if (downloadError) {
+      console.log(`Could not download Excel file ${filePath}:`, downloadError);
+      return [];
+    }
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const numbers: number[] = [];
+
+    // Parse all sheets
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      
+      for (const row of jsonData) {
+        for (const cell of row) {
+          if (cell != null) {
+            const numValue = parseFloat(String(cell).replace(/[^\d.-]/g, ''));
+            if (!isNaN(numValue) && numValue !== 0) {
+              numbers.push(Math.abs(numValue));
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`Found ${numbers.length} numeric values in ${filePath}`);
+    return numbers;
+  } catch (error) {
+    console.log(`Error parsing Excel file ${filePath}:`, error);
+    return [];
   }
-  
-  // Receivables
-  if (name.includes('receivable') || name.includes('debitor') || name.includes('forderung')) {
-    terms.push('receivable', 'debitor', 'forderung', 'kunde');
+}
+
+// Helper function to extract numbers from PDF files using simple text extraction
+async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<number[]> {
+  try {
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('account-evidence')
+      .download(filePath);
+
+    if (downloadError) {
+      console.log(`Could not download PDF file ${filePath}:`, downloadError);
+      return [];
+    }
+
+    // Simple text extraction approach - convert to string and extract numbers
+    const arrayBuffer = await fileData.arrayBuffer();
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const text = textDecoder.decode(arrayBuffer);
+    
+    const numbers: number[] = [];
+    
+    // Extract numbers using regex - look for decimal numbers
+    const numberMatches = text.match(/\d+[.,]\d+|\d+/g);
+    
+    if (numberMatches) {
+      for (const match of numberMatches) {
+        const numValue = parseFloat(match.replace(',', '.'));
+        if (!isNaN(numValue) && numValue !== 0) {
+          numbers.push(Math.abs(numValue));
+        }
+      }
+    }
+
+    console.log(`Found ${numbers.length} numeric values in PDF ${filePath}`);
+    return numbers;
+  } catch (error) {
+    console.log(`Error parsing PDF file ${filePath}:`, error);
+    return [];
   }
-  
-  // Payables
-  if (name.includes('payable') || name.includes('kreditor') || name.includes('verbindlichkeit')) {
-    terms.push('payable', 'kreditor', 'verbindlichkeit', 'lieferant');
-  }
-  
-  // Inventory
-  if (name.includes('inventory') || name.includes('stock') || name.includes('vorrat')) {
-    terms.push('inventory', 'stock', 'vorrat', 'lager');
-  }
-  
-  // Fixed assets
-  if (name.includes('asset') || name.includes('anlage') || name.includes('equipment')) {
-    terms.push('asset', 'anlage', 'equipment', 'maschine');
-  }
-  
-  // Revenue
-  if (name.includes('revenue') || name.includes('sales') || name.includes('umsatz')) {
-    terms.push('revenue', 'sales', 'umsatz', 'erlös');
-  }
-  
-  // Expenses
-  if (name.includes('expense') || name.includes('cost') || name.includes('aufwand')) {
-    terms.push('expense', 'cost', 'aufwand', 'kosten');
-  }
-  
-  return terms;
 }
 
 serve(async (req) => {
@@ -168,81 +205,61 @@ serve(async (req) => {
 
     console.log(`Available documents: ${documents?.length || 0}`);
 
+    // Pre-parse all evidence documents to extract numeric values
+    console.log("Pre-parsing all evidence documents...");
+    const documentNumbers: { [key: string]: number[] } = {};
+
+    for (const doc of documents) {
+      const fileName = doc.file_name.toLowerCase();
+      
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        console.log(`Parsing Excel file: ${doc.file_name}`);
+        documentNumbers[doc.id] = await extractNumbersFromExcel(supabase, doc.file_path);
+      } else if (fileName.endsWith('.pdf')) {
+        console.log(`Parsing PDF file: ${doc.file_name}`);
+        documentNumbers[doc.id] = await extractNumbersFromPDF(supabase, doc.file_path);
+      }
+    }
+
     let matchedCount = 0;
     const tempMatches = [];
 
-    // Create temp matches for each account
+    // Create temp matches for each account based on balance matching
     for (const account of parsedAccounts) {
       const matchedDocuments: string[] = [];
-      let maxConfidence = 0;
       
-      // Enhanced matching logic for better document detection
+      // Skip accounts with zero balance
+      if (account.currentYear === 0) {
+        tempMatches.push({
+          trial_balance_id: trial_balance_id,
+          account_number: account.accountNumber,
+          account_name: account.accountName,
+          current_year_balance: account.currentYear,
+          previous_year_balance: account.previousYear,
+          match_status: 'pending',
+          confidence_score: null,
+          matched_documents: []
+        });
+        continue;
+      }
+
+      const accountBalance = Math.abs(account.currentYear);
+      
+      // Search for this balance in each document
       for (const doc of documents) {
-        const fileName = doc.file_name.toUpperCase();
-        const accountNum = account.accountNumber.toString().trim();
-        const accountName = account.accountName.toUpperCase().trim();
+        const docNumbers = documentNumbers[doc.id] || [];
         
-        let confidence = 0;
+        // Check if the account balance exists in this document
+        const balanceFound = docNumbers.some(num => Math.abs(num - accountBalance) < 0.01);
         
-        // Exact account number match (highest confidence)
-        if (fileName.includes(accountNum)) {
-          confidence = Math.max(confidence, 0.9);
-        }
-        
-        // Account name word matching
-        const accountWords = accountName.split(/\s+/).filter(word => word.length > 2);
-        let nameMatches = 0;
-        for (const word of accountWords) {
-          if (fileName.includes(word)) {
-            nameMatches++;
-          }
-        }
-        if (accountWords.length > 0) {
-          const nameMatchRatio = nameMatches / accountWords.length;
-          if (nameMatchRatio > 0.5) {
-            confidence = Math.max(confidence, 0.7 * nameMatchRatio);
-          }
-        }
-        
-        // Partial account number matching for similar patterns
-        if (accountNum.length >= 3) {
-          const accountPrefix = accountNum.substring(0, 3);
-          if (fileName.includes(accountPrefix)) {
-            confidence = Math.max(confidence, 0.5);
-          }
-        }
-        
-        // Account number with common separators
-        const patterns = [
-          accountNum.replace(/(\d)(\d{2})/, '$1-$2'),  // 1000 -> 1-00
-          accountNum.replace(/(\d{2})(\d{2})/, '$1-$2'), // 1000 -> 10-00
-          accountNum.replace(/(\d)/, '$1.'),            // Add dots
-          accountNum.replace(/(\d)/, '$1_'),            // Add underscores
-        ];
-        
-        for (const pattern of patterns) {
-          if (fileName.includes(pattern.toUpperCase())) {
-            confidence = Math.max(confidence, 0.8);
-          }
-        }
-        
-        // Check for common accounting terms that might relate to account types
-        const commonTerms = getAccountTypeTerms(account.accountName);
-        for (const term of commonTerms) {
-          if (fileName.includes(term.toUpperCase())) {
-            confidence = Math.max(confidence, 0.6);
-          }
-        }
-        
-        // Only include documents with sufficient confidence
-        if (confidence >= 0.5) {
+        if (balanceFound) {
           matchedDocuments.push(doc.id);
-          maxConfidence = Math.max(maxConfidence, confidence);
+          console.log(`✓ MATCH: Balance ${accountBalance} found in ${doc.file_name}`);
         }
       }
 
       const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
-      const confidenceScore = matchedDocuments.length > 0 ? Math.round(maxConfidence * 100) / 100 : null;
+      const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null; // 100% confidence for exact balance matches
 
       if (matchedDocuments.length > 0) {
         matchedCount++;
