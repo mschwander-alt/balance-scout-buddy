@@ -76,6 +76,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [selectedDocumentForMultiAssign, setSelectedDocumentForMultiAssign] = useState<Document | null>(null);
   const [selectedAccountsForAssign, setSelectedAccountsForAssign] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [documentToReassign, setDocumentToReassign] = useState<Document | null>(null);
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -378,6 +380,61 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     } catch (error: any) {
       console.error('Error during multi assign:', error);
       toast.error('Mehrfachzuweisung fehlgeschlagen');
+    }
+  };
+
+  // Funktion zum Entfernen und Neu-Zuweisen von Dokumenten
+  const handleReassignDocument = async (removeFromCurrent: boolean = true) => {
+    if (!documentToReassign || !selectedAccountData) return;
+
+    try {
+      // Entferne von aktuellem Konto falls gewünscht
+      if (removeFromCurrent) {
+        const updatedMatchedDocuments = selectedAccountData.matched_documents?.filter(
+          docId => docId !== documentToReassign.id
+        ) || [];
+
+        await supabase
+          .from('account_group_assignments')
+          .update({
+            matched_documents: updatedMatchedDocuments.length > 0 ? updatedMatchedDocuments : null,
+            match_status: updatedMatchedDocuments.length > 0 ? 'matched' : 'pending'
+          })
+          .eq('id', selectedAccountData.id);
+      }
+
+      // Weise neuen Konten zu falls welche ausgewählt
+      for (const assignmentId of selectedAccountsForAssign) {
+        const assignment = assignments.find(a => a.id === assignmentId);
+        if (!assignment) continue;
+
+        const updatedMatchedDocuments = assignment.matched_documents 
+          ? [...assignment.matched_documents, documentToReassign.id]
+          : [documentToReassign.id];
+
+        await supabase
+          .from('account_group_assignments')
+          .update({
+            match_status: 'matched',
+            confidence_score: 1.0,
+            matched_documents: updatedMatchedDocuments
+          })
+          .eq('id', assignmentId);
+      }
+
+      // Aktualisiere lokalen State
+      await loadData();
+      
+      const action = removeFromCurrent && selectedAccountsForAssign.size > 0 ? 'neu zugewiesen' :
+                    removeFromCurrent ? 'entfernt' : 'zusätzlich zugewiesen';
+      
+      toast.success(`Nachweis erfolgreich ${action}`);
+      setShowReassignModal(false);
+      setDocumentToReassign(null);
+      setSelectedAccountsForAssign(new Set());
+    } catch (error: any) {
+      console.error('Error during reassign:', error);
+      toast.error('Neu-Zuweisung fehlgeschlagen');
     }
   };
 
@@ -1084,15 +1141,35 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="flex flex-col h-full">
-                      {/* Always show tabs for consistency */}
-                      <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
-                        <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
-                          {selectedDocuments.map((doc) => (
-                            <TabsTrigger key={doc.id} value={doc.id} className="text-xs px-2 truncate">
-                              {doc.file_name.length > 20 ? `${doc.file_name.substring(0, 20)}...` : doc.file_name}
-                            </TabsTrigger>
-                          ))}
-                        </TabsList>
+                       {/* Document tabs with reassign buttons */}
+                       <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
+                         <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                           <TabsList className="grid flex-1 mr-2" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
+                             {selectedDocuments.map((doc) => (
+                               <TabsTrigger key={doc.id} value={doc.id} className="text-xs px-2 truncate">
+                                 {doc.file_name.length > 20 ? `${doc.file_name.substring(0, 20)}...` : doc.file_name}
+                               </TabsTrigger>
+                             ))}
+                           </TabsList>
+                           <div className="flex items-center gap-1">
+                             {selectedDocuments.map((doc) => (
+                               <Button
+                                 key={`reassign-${doc.id}`}
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={() => {
+                                   setDocumentToReassign(doc);
+                                   setShowReassignModal(true);
+                                 }}
+                                 className="flex items-center gap-1 text-xs px-2 py-1 h-8"
+                                 title={`${doc.file_name} neu zuweisen oder entfernen`}
+                               >
+                                 <Link className="h-3 w-3" />
+                                 Neu zuweisen
+                               </Button>
+                             ))}
+                           </div>
+                         </div>
                         
                         {selectedDocuments.map((doc) => (
                           <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
@@ -1211,6 +1288,136 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
            </div>
          </div>
        </main>
+
+        {/* Reassign-Dialog */}
+        <Dialog open={showReassignModal} onOpenChange={setShowReassignModal}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Nachweis neu zuweisen</DialogTitle>
+              <div className="mt-3">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Nachweis: <strong>{documentToReassign?.file_name}</strong>
+                </p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Konto suchen..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="overflow-y-auto flex-1">
+              <p className="text-sm text-muted-foreground mb-4">
+                Wählen Sie die Konten aus, denen dieser Nachweis zugewiesen werden soll:
+              </p>
+              
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Konto</TableHead>
+                      <TableHead className="text-right">Lfd. Jahr</TableHead>
+                      <TableHead className="text-right">Vorjahr</TableHead>
+                      <TableHead className="text-right">Abweichung</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignments
+                      .filter(assignment => {
+                        const matchesSearch = searchQuery === '' || 
+                          assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+                        
+                        return matchesSearch && assignment.id !== selectedAccountData?.id;
+                      })
+                      .map(assignment => (
+                        <TableRow 
+                          key={assignment.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => {
+                            const newSelection = new Set(selectedAccountsForAssign);
+                            if (newSelection.has(assignment.id)) {
+                              newSelection.delete(assignment.id);
+                            } else {
+                              newSelection.add(assignment.id);
+                            }
+                            setSelectedAccountsForAssign(newSelection);
+                          }}
+                        >
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedAccountsForAssign.has(assignment.id)}
+                              onChange={() => {}} // Handled by parent onClick
+                              className="rounded"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium text-sm">
+                                {assignment.account_number} - {assignment.account_name}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(assignment.current_year_balance)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(assignment.previous_year_balance)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={
+                              (assignment.current_year_balance - assignment.previous_year_balance) >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }>
+                              {formatCurrency(assignment.current_year_balance - assignment.previous_year_balance)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowReassignModal(false);
+                  setDocumentToReassign(null);
+                  setSelectedAccountsForAssign(new Set());
+                  setSearchQuery('');
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={() => handleReassignDocument(true)}
+              >
+                Nur entfernen
+              </Button>
+              <Button 
+                onClick={() => handleReassignDocument(false)}
+                disabled={selectedAccountsForAssign.size === 0}
+              >
+                Zusätzlich zuweisen ({selectedAccountsForAssign.size})
+              </Button>
+              <Button 
+                onClick={() => handleReassignDocument(true)}
+                disabled={selectedAccountsForAssign.size === 0}
+              >
+                Entfernen & neu zuweisen ({selectedAccountsForAssign.size})
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Mehrfachzuweisungs-Dialog */}
         <Dialog open={showMultiAssignModal} onOpenChange={setShowMultiAssignModal}>
