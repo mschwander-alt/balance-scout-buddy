@@ -1525,8 +1525,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
         {/* Reassign-Dialog */}
         <Dialog open={showReassignModal} onOpenChange={setShowReassignModal}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Nachweis neu zuweisen</DialogTitle>
               <div className="mt-3">
                 <p className="text-sm text-muted-foreground mb-3">
@@ -1544,14 +1544,16 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 </div>
               </div>
             </DialogHeader>
-            <div className="overflow-y-auto flex-1">
-              <p className="text-sm text-muted-foreground mb-4">
+            
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <p className="text-sm text-muted-foreground mb-4 flex-shrink-0">
                 Wählen Sie die Konten aus, denen dieser Nachweis zugewiesen werden soll:
               </p>
               
-              <div className="border rounded-lg overflow-hidden">
+              <div className="flex-1 overflow-y-auto border rounded-lg">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
                       <TableHead>Konto</TableHead>
@@ -1619,7 +1621,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 </Table>
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-4">
+            
+            {/* Fixed footer with buttons */}
+            <div className="flex justify-end gap-3 pt-4 flex-shrink-0 border-t bg-background">
               <Button 
                 variant="outline" 
                 onClick={() => {
@@ -1644,8 +1648,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
         {/* Mehrfachzuweisungs-Dialog */}
         <Dialog open={showMultiAssignModal} onOpenChange={setShowMultiAssignModal}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Nachweis weiteren Konten zuweisen</DialogTitle>
               <div className="mt-3">
                 <div className="relative">
@@ -1660,14 +1664,16 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 </div>
               </div>
             </DialogHeader>
-            <div className="overflow-y-auto flex-1">
-              <p className="text-sm text-muted-foreground mb-4">
+            
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <p className="text-sm text-muted-foreground mb-4 flex-shrink-0">
                 Wählen Sie die Konten aus, denen dieser Nachweis zusätzlich zugewiesen werden soll:
               </p>
               
-              <div className="border rounded-lg overflow-hidden">
+              <div className="flex-1 overflow-y-auto border rounded-lg">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
                       <TableHead className="w-12"></TableHead>
                       <TableHead>Konto</TableHead>
@@ -1737,7 +1743,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 </Table>
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-4">
+            
+            {/* Fixed footer with buttons */}
+            <div className="flex justify-end gap-3 pt-4 flex-shrink-0 border-t bg-background">
               <Button 
                 variant="outline" 
                 onClick={() => {
