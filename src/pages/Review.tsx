@@ -66,8 +66,9 @@ const Review: React.FC = () => {
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
+const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
   const [loadedComments, setLoadedComments] = useState<{[key: string]: boolean}>({});
+  const [completedAccounts, setCompletedAccounts] = useState<Set<string>>(new Set());
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -388,6 +389,19 @@ const Review: React.FC = () => {
     
     // Auto-save nach 1 Sekunde
     debouncedSaveComment(assignmentId, value);
+  };
+
+  const handleMarkCompleted = (assignmentId: string) => {
+    setCompletedAccounts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(assignmentId)) {
+        newSet.delete(assignmentId);
+      } else {
+        newSet.add(assignmentId);
+      }
+      return newSet;
+    });
+    toast.success(completedAccounts.has(assignmentId) ? 'Als unvollständig markiert' : 'Als vollständig markiert');
   };
 
   const toggleGroup = (groupId: string) => {
@@ -734,13 +748,14 @@ const Review: React.FC = () => {
                               <CollapsibleContent>
                                 <CardContent className="pt-0">
                                   <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Konto</TableHead>
-                                        <TableHead className="text-right">Saldo</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
+                                     <TableHeader>
+                                       <TableRow>
+                                         <TableHead>Konto</TableHead>
+                                         <TableHead className="text-right">Saldo</TableHead>
+                                         <TableHead className="text-center">Nachweise</TableHead>
+                                         <TableHead className="text-center">Status</TableHead>
+                                       </TableRow>
+                                     </TableHeader>
                                     <TableBody>
                                       {group.assignments.map((assignment) => (
                                          <TableRow 
@@ -764,19 +779,24 @@ const Review: React.FC = () => {
                                            <TableCell className="text-right py-2">
                                              {formatCurrency(assignment.current_year_balance)}
                                            </TableCell>
-                                           <TableCell className="text-center py-2">
-                                             <div className="flex items-center justify-center gap-2">
-                                               {getMatchStatusIcon(assignment.match_status || 'pending')}
-                                               <span className="text-sm">
-                                                 {getMatchStatusText(assignment.match_status || 'pending')}
-                                                 {assignment.match_status === 'matched' && assignment.confidence_score && (
-                                                   <span className="text-xs text-muted-foreground ml-1">
-                                                     {Math.round(assignment.confidence_score * 100)}%
-                                                   </span>
-                                                 )}
-                                               </span>
-                                             </div>
-                                           </TableCell>
+                                            <TableCell className="text-center py-2">
+                                              <div className="flex items-center justify-center gap-2">
+                                                {getMatchStatusIcon(assignment.match_status || 'pending')}
+                                                <span className="text-sm">
+                                                  {getMatchStatusText(assignment.match_status || 'pending')}
+                                                  {assignment.match_status === 'matched' && assignment.confidence_score && (
+                                                    <span className="text-xs text-muted-foreground ml-1">
+                                                      {Math.round(assignment.confidence_score * 100)}%
+                                                    </span>
+                                                  )}
+                                                </span>
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="text-center py-2">
+                                              {completedAccounts.has(assignment.id) && (
+                                                <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
+                                              )}
+                                            </TableCell>
                                          </TableRow>
                                       ))}
                                     </TableBody>
@@ -827,13 +847,14 @@ const Review: React.FC = () => {
                               <CollapsibleContent>
                                 <CardContent className="pt-0">
                                   <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Konto</TableHead>
-                                        <TableHead className="text-right">Saldo</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
+                                     <TableHeader>
+                                       <TableRow>
+                                         <TableHead>Konto</TableHead>
+                                         <TableHead className="text-right">Saldo</TableHead>
+                                         <TableHead className="text-center">Nachweise</TableHead>
+                                         <TableHead className="text-center">Status</TableHead>
+                                       </TableRow>
+                                     </TableHeader>
                                     <TableBody>
                                       {group.assignments.map((assignment) => (
                                          <TableRow 
@@ -857,19 +878,24 @@ const Review: React.FC = () => {
                                            <TableCell className="text-right py-2">
                                              {formatCurrency(assignment.current_year_balance)}
                                            </TableCell>
-                                           <TableCell className="text-center py-2">
-                                             <div className="flex items-center justify-center gap-2">
-                                               {getMatchStatusIcon(assignment.match_status || 'pending')}
-                                               <span className="text-sm">
-                                                 {getMatchStatusText(assignment.match_status || 'pending')}
-                                                 {assignment.match_status === 'matched' && assignment.confidence_score && (
-                                                   <span className="text-xs text-muted-foreground ml-1">
-                                                     {Math.round(assignment.confidence_score * 100)}%
-                                                   </span>
-                                                 )}
-                                               </span>
-                                             </div>
-                                           </TableCell>
+                                            <TableCell className="text-center py-2">
+                                              <div className="flex items-center justify-center gap-2">
+                                                {getMatchStatusIcon(assignment.match_status || 'pending')}
+                                                <span className="text-sm">
+                                                  {getMatchStatusText(assignment.match_status || 'pending')}
+                                                  {assignment.match_status === 'matched' && assignment.confidence_score && (
+                                                    <span className="text-xs text-muted-foreground ml-1">
+                                                      {Math.round(assignment.confidence_score * 100)}%
+                                                    </span>
+                                                  )}
+                                                </span>
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="text-center py-2">
+                                              {completedAccounts.has(assignment.id) && (
+                                                <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
+                                              )}
+                                            </TableCell>
                                          </TableRow>
                                       ))}
                                     </TableBody>
@@ -899,7 +925,7 @@ const Review: React.FC = () => {
                     {sidebarCollapsed ? 'Saldobilanz anzeigen' : 'Saldobilanz ausblenden'}
                   </Button>
                   <div className="border-l border-border h-6"></div>
-                  <div>
+                  <div className="flex-1">
                     <CardTitle className="text-lg">Gefundene Nachweise</CardTitle>
                     <CardDescription className="text-sm">
                       {selectedAccountData ? 
@@ -908,6 +934,17 @@ const Review: React.FC = () => {
                       }
                     </CardDescription>
                   </div>
+                  {selectedAccountData && (
+                    <Button 
+                      variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="h-[calc(100vh-12rem)] overflow-hidden py-3 flex flex-col">
