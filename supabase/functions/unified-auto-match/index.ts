@@ -23,49 +23,9 @@ interface AccountMatch {
   previous_year_balance?: number;
 }
 
-// Helper function to extract numbers from Excel files
-async function extractNumbersFromExcel(supabase: any, filePath: string): Promise<number[]> {
-  try {
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('account-evidence')
-      .download(filePath);
 
-    if (downloadError) {
-      console.log(`Could not download Excel file ${filePath}:`, downloadError);
-      return [];
-    }
-
-    const arrayBuffer = await fileData.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-    const numbers: number[] = [];
-
-    // Parse all sheets
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-      
-      for (const row of jsonData) {
-        for (const cell of row) {
-          if (cell != null) {
-            const numValue = parseFloat(String(cell).replace(/[^\d.-]/g, ''));
-            if (!isNaN(numValue) && numValue !== 0) {
-              numbers.push(Math.abs(numValue));
-            }
-          }
-        }
-      }
-    }
-
-    console.log(`Found ${numbers.length} numeric values in Excel ${filePath}`);
-    return [...new Set(numbers)].sort((a, b) => a - b);
-  } catch (error) {
-    console.log(`Error parsing Excel file ${filePath}:`, error);
-    return [];
-  }
-}
-
-// Helper function to extract numbers from PDF files
-async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<number[]> {
+// Helper function to extract text from PDF files
+async function extractTextFromPDF(supabase: any, filePath: string): Promise<string> {
   try {
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('account-evidence')
@@ -73,13 +33,10 @@ async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<n
 
     if (downloadError) {
       console.log(`Could not download PDF file ${filePath}:`, downloadError);
-      return [];
+      return '';
     }
 
     const arrayBuffer = await fileData.arrayBuffer();
-    const numbers: number[] = [];
-    
-    // Simple binary search for number patterns in PDF
     const uint8Array = new Uint8Array(arrayBuffer);
     let extractedText = '';
     
@@ -90,69 +47,98 @@ async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<n
       if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13) {
         extractedText += String.fromCharCode(byte);
       } else {
-        // Add space to separate potential numbers
+        // Add space to separate potential text segments
         extractedText += ' ';
       }
     }
     
     console.log(`Extracted ${extractedText.length} characters from PDF ${filePath}`);
-    
-    // More aggressive number extraction patterns for Swiss/German formatting
-    const patterns = [
-      // Swiss formatting with apostrophe: 1'234.56, 1'234,56
-      /\d{1,3}(?:'\d{3})*(?:[.,]\d{1,2})?/g,
-      // Space separated thousands: 1 234.56, 1 234,56  
-      /\d{1,3}(?:\s\d{3})*(?:[.,]\d{1,2})?/g,
-      // Simple decimals: 123.45, 123,45
-      /\d+[.,]\d{1,2}/g,
-      // Whole numbers (min 2 digits to avoid single digits)
-      /\b\d{2,}\b/g
-    ];
-    
-    for (const pattern of patterns) {
-      let match;
-      pattern.lastIndex = 0; // Reset regex
-      
-      while ((match = pattern.exec(extractedText)) !== null) {
-        const matchStr = match[0];
-        
-        // Clean the number: remove apostrophes and spaces, normalize decimal separator
-        let cleanNumber = matchStr
-          .replace(/[''\s]/g, '')  // Remove apostrophes and spaces
-          .replace(',', '.');       // Convert comma to dot for decimal
-        
-        const numValue = parseFloat(cleanNumber);
-        
-        // Filter reasonable numbers (exclude years, page numbers, etc.)
-        if (!isNaN(numValue) && numValue >= 0.01 && numValue < 10000000) {
-          // Skip obvious non-financial numbers
-          const isYear = numValue >= 1900 && numValue <= 2100;
-          const isSmallInt = numValue < 10 && Number.isInteger(numValue);
-          
-          if (!isYear && !isSmallInt) {
-            numbers.push(Math.abs(numValue));
-          }
-        }
-      }
-    }
-    
-    // Remove duplicates and round to 2 decimal places
-    const uniqueNumbers = [...new Set(numbers.map(n => Math.round(n * 100) / 100))];
-    
-    console.log(`Extracted ${uniqueNumbers.length} unique numbers from PDF ${filePath}`);
-    
-    // Log first few numbers for debugging
-    if (uniqueNumbers.length > 0) {
-      const samples = uniqueNumbers.slice(0, 5).join(', ');
-      console.log(`Sample numbers: ${samples}${uniqueNumbers.length > 5 ? '...' : ''}`);
-    }
-    
-    return uniqueNumbers.sort((a, b) => a - b);
+    return extractedText;
     
   } catch (error) {
-    console.log(`Error parsing PDF file ${filePath}:`, error);
-    return [];
+    console.log(`Error extracting text from PDF file ${filePath}:`, error);
+    return '';
   }
+}
+
+// Helper function to extract text from Excel files
+async function extractTextFromExcel(supabase: any, filePath: string): Promise<string> {
+  try {
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('account-evidence')
+      .download(filePath);
+
+    if (downloadError) {
+      console.log(`Could not download Excel file ${filePath}:`, downloadError);
+      return '';
+    }
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    let allText = '';
+
+    // Parse all sheets and convert to text
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+      
+      for (const row of jsonData) {
+        for (const cell of row) {
+          if (cell != null && cell !== '') {
+            allText += String(cell) + ' ';
+          }
+        }
+        allText += '\n';
+      }
+    }
+
+    console.log(`Extracted ${allText.length} characters from Excel ${filePath}`);
+    return allText;
+  } catch (error) {
+    console.log(`Error extracting text from Excel file ${filePath}:`, error);
+    return '';
+  }
+}
+
+// Generate saldo patterns for matching (based on your Python code)
+function generateSaldoPatterns(saldo: number): string[] {
+  const patterns: string[] = [];
+  
+  // Basic formats
+  patterns.push(saldo.toFixed(2));                                    // 1234.56
+  patterns.push((-saldo).toFixed(2));                                 // -1234.56
+  
+  // Swiss format with apostrophe
+  const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  patterns.push(swissFormat);                                         // 1'234.56
+  patterns.push((-saldo).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); // -1'234.56
+  
+  // German format (thousands with dot, decimal with comma)
+  const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  patterns.push(germanFormat);                                        // 1.234,56
+  patterns.push((-saldo).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); // -1.234,56
+  
+  // Without thousands separator
+  const noThousands = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '');
+  patterns.push(noThousands);                                         // 1234.56
+  
+  // With space as thousands separator
+  const spaceFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  patterns.push(spaceFormat);                                         // 1 234.56
+  
+  // With various Unicode spaces (non-breaking space, etc.)
+  const nbspFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
+  patterns.push(nbspFormat);                                          // 1 234.56 (with non-breaking space)
+  
+  const thinSpaceFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
+  patterns.push(thinSpaceFormat);                                     // 1 234.56 (with thin space)
+  
+  // Combination: thin space + comma decimal
+  const thinSpaceCommaFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F').replace('.', ',');
+  patterns.push(thinSpaceCommaFormat);                                // 1 234,56 (thin space + comma)
+  
+  // Remove duplicates and filter out invalid patterns
+  return [...new Set(patterns)].filter(p => p && p !== '0.00' && p !== '-0.00');
 }
 
 serve(async (req) => {
@@ -290,25 +276,25 @@ serve(async (req) => {
 
     console.log(`Available documents: ${documents?.length || 0}`);
 
-    // Pre-parse all evidence documents to extract numeric values
-    console.log("Pre-parsing all evidence documents...");
-    const documentNumbers: { [key: string]: number[] } = {};
+    // Pre-extract text from all evidence documents
+    console.log("Pre-extracting text from all evidence documents...");
+    const documentTexts: { [key: string]: string } = {};
 
     for (const doc of documents) {
       const fileName = doc.file_name.toLowerCase();
       
       if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-        console.log(`Parsing Excel file: ${doc.file_name}`);
-        documentNumbers[doc.id] = await extractNumbersFromExcel(supabase, doc.file_path);
+        console.log(`Extracting text from Excel file: ${doc.file_name}`);
+        documentTexts[doc.id] = await extractTextFromExcel(supabase, doc.file_path);
       } else if (fileName.endsWith('.pdf')) {
-        console.log(`Parsing PDF file: ${doc.file_name}`);
-        documentNumbers[doc.id] = await extractNumbersFromPDF(supabase, doc.file_path);
+        console.log(`Extracting text from PDF file: ${doc.file_name}`);
+        documentTexts[doc.id] = await extractTextFromPDF(supabase, doc.file_path);
       }
     }
 
     let matchedCount = 0;
 
-    // Process matches for each account
+    // Process matches for each account using pattern-based matching
     for (const account of accountsToMatch) {
       const matchedDocuments: string[] = [];
       
@@ -328,18 +314,23 @@ serve(async (req) => {
         continue;
       }
 
-      const accountBalance = Math.abs(account.current_year_balance);
+      // Generate saldo patterns for this account
+      const saldoPatterns = generateSaldoPatterns(account.current_year_balance);
+      console.log(`Generated ${saldoPatterns.length} patterns for account ${account.account_number} (${account.current_year_balance})`);
       
-      // Search for this balance in each document
+      // Search for saldo patterns in each document
       for (const doc of documents) {
-        const docNumbers = documentNumbers[doc.id] || [];
+        const docText = documentTexts[doc.id] || '';
+        let patternFound = false;
         
-        // Check if the account balance exists in this document
-        const balanceFound = docNumbers.some(num => Math.abs(num - accountBalance) < 0.01);
-        
-        if (balanceFound) {
-          matchedDocuments.push(doc.id);
-          console.log(`✓ MATCH: Balance ${accountBalance} found in ${doc.file_name} for account ${account.account_number}`);
+        // Check each saldo pattern
+        for (const pattern of saldoPatterns) {
+          if (docText.includes(pattern)) {
+            matchedDocuments.push(doc.id);
+            console.log(`✓ MATCH: Pattern "${pattern}" found in ${doc.file_name} for account ${account.account_number}`);
+            patternFound = true;
+            break; // Found a match, no need to check other patterns for this document
+          }
         }
       }
 
