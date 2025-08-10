@@ -24,6 +24,7 @@ interface AccountGroup {
   assigned_member?: TeamMember;
   status: 'pending' | 'in_progress' | 'completed' | 'reviewed';
   account_count: number;
+  is_temp?: boolean; // For temp account matches
 }
 
 interface AssignmentManagerProps {
@@ -46,7 +47,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
   const loadData = async () => {
     try {
-      // Load groups with assignment info
+      // First, check if we have account groups
       const { data: groupsData, error: groupsError } = await supabase
         .from('account_groups')
         .select(`
@@ -59,15 +60,44 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
       if (groupsError) throw groupsError;
 
-      const groups: AccountGroup[] = (groupsData || []).map(group => ({
-        id: group.id,
-        name: group.name,
-        description: group.description,
-        assigned_member_id: group.assigned_member_id,
-        assigned_member: group.assigned_member,
-        status: group.status as AccountGroup['status'],
-        account_count: group.account_group_assignments?.length || 0
-      }));
+      let groups: AccountGroup[] = [];
+
+      if (groupsData && groupsData.length > 0) {
+        // We have account groups, use them
+        groups = groupsData.map(group => ({
+          id: group.id,
+          name: group.name,
+          description: group.description,
+          assigned_member_id: group.assigned_member_id,
+          assigned_member: group.assigned_member,
+          status: group.status as AccountGroup['status'],
+          account_count: group.account_group_assignments?.length || 0,
+          is_temp: false
+        }));
+      } else {
+        // No account groups, check for temp matches
+        const { data: tempMatchesData, error: tempError } = await supabase
+          .from('temp_account_matches')
+          .select('*')
+          .eq('trial_balance_id', trialBalanceId)
+          .order('account_number', { ascending: true });
+
+        if (tempError) throw tempError;
+
+        if (tempMatchesData && tempMatchesData.length > 0) {
+          // Create virtual groups from temp matches
+          groups = tempMatchesData.map(match => ({
+            id: match.id,
+            name: `${match.account_number} - ${match.account_name}`,
+            description: `Saldo: ${match.current_year_balance?.toLocaleString() || 0}`,
+            assigned_member_id: null,
+            assigned_member: null,
+            status: 'pending' as const,
+            account_count: 1,
+            is_temp: true
+          }));
+        }
+      }
 
       setAccountGroups(groups);
 
@@ -103,16 +133,32 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
   const saveAssignment = async (groupId: string) => {
     const memberId = pendingAssignments[groupId];
-    // memberId is already processed in handleAssignmentChange
+    const group = accountGroups.find(g => g.id === groupId);
     
     try {
-      const { error } = await supabase
-        .from('account_groups')
-        .update({
-          assigned_member_id: memberId || null,
-          status: memberId ? 'pending' : 'pending'
-        })
-        .eq('id', groupId);
+      let error;
+      
+      if (group?.is_temp) {
+        // Update temp_account_matches table
+        const { error: tempError } = await supabase
+          .from('temp_account_matches')
+          .update({
+            assigned_member_id: memberId || null,
+            match_status: memberId ? 'assigned' : 'pending'
+          })
+          .eq('id', groupId);
+        error = tempError;
+      } else {
+        // Update account_groups table
+        const { error: groupError } = await supabase
+          .from('account_groups')
+          .update({
+            assigned_member_id: memberId || null,
+            status: memberId ? 'pending' : 'pending'
+          })
+          .eq('id', groupId);
+        error = groupError;
+      }
 
       if (error) throw error;
 
@@ -147,14 +193,27 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
     try {
       for (const [groupId, memberId] of updates) {
-        // memberId is already processed (empty string for unassigned)
-        await supabase
-          .from('account_groups')
-          .update({
-            assigned_member_id: memberId || null,
-            status: memberId ? 'pending' : 'pending'
-          })
-          .eq('id', groupId);
+        const group = accountGroups.find(g => g.id === groupId);
+        
+        if (group?.is_temp) {
+          // Update temp_account_matches table
+          await supabase
+            .from('temp_account_matches')
+            .update({
+              assigned_member_id: memberId || null,
+              match_status: memberId ? 'assigned' : 'pending'
+            })
+            .eq('id', groupId);
+        } else {
+          // Update account_groups table
+          await supabase
+            .from('account_groups')
+            .update({
+              assigned_member_id: memberId || null,
+              status: memberId ? 'pending' : 'pending'
+            })
+            .eq('id', groupId);
+        }
       }
 
       toast({
