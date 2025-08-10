@@ -1009,44 +1009,54 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                          </CardTitle>
                        </div>
                        
-                       <div className="flex items-center gap-1 xl:gap-3 bg-muted/30 rounded-lg px-2 xl:px-4 py-2 border overflow-hidden max-w-full xl:max-w-[600px]">
+                       <div className="flex items-center gap-1 bg-muted/30 rounded-lg px-2 py-2 border overflow-hidden max-w-[500px] min-w-0">
                          {(() => {
                            const currentYearStr = formatCurrency(selectedAccountData.current_year_balance);
                            const previousYearStr = formatCurrency(selectedAccountData.previous_year_balance);
                            const deviationStr = formatCurrency(selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance);
                            
-                           // Determine text size based on longest number
+                           // More aggressive text size scaling based on total character count
+                           const totalLength = currentYearStr.length + previousYearStr.length + deviationStr.length;
                            const maxLength = Math.max(currentYearStr.length, previousYearStr.length, deviationStr.length);
-                           const textSizeClass = maxLength > 12 ? 'text-xs' : maxLength > 8 ? 'text-xs xl:text-sm' : 'text-sm';
-                           const gapClass = maxLength > 12 ? 'gap-1' : 'gap-1 xl:gap-3';
+                           
+                           let textSizeClass = 'text-xs';
+                           if (totalLength > 50 || maxLength > 15) {
+                             textSizeClass = 'text-xs scale-75 origin-center';
+                           } else if (totalLength > 35 || maxLength > 12) {
+                             textSizeClass = 'text-xs scale-90 origin-center';
+                           } else if (maxLength > 10) {
+                             textSizeClass = 'text-xs';
+                           } else {
+                             textSizeClass = 'text-sm';
+                           }
                            
                            return (
                              <>
-                               <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
-                                 <div className="text-xs text-muted-foreground">Lfd. Jahr</div>
-                                 <div className={`font-medium ${textSizeClass} truncate`}>
+                               <div className="text-center min-w-0 flex-1">
+                                 <div className="text-xs text-muted-foreground mb-1">Lfd. Jahr</div>
+                                 <div className={`font-medium ${textSizeClass} leading-tight`} title={currentYearStr}>
                                    {currentYearStr}
                                  </div>
                                </div>
                                
-                               <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
-                                 <div className="text-xs text-muted-foreground">Vorjahr</div>
-                                 <div className={`font-medium ${textSizeClass} truncate`}>
+                               <div className="text-center min-w-0 flex-1">
+                                 <div className="text-xs text-muted-foreground mb-1">Vorjahr</div>
+                                 <div className={`font-medium ${textSizeClass} leading-tight`} title={previousYearStr}>
                                    {previousYearStr}
                                  </div>
                                </div>
                                
-                               <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
-                                 <div className="text-xs text-muted-foreground">Abwg.</div>
-                                 <div className={`font-medium ${textSizeClass} truncate`}>
+                               <div className="text-center min-w-0 flex-1">
+                                 <div className="text-xs text-muted-foreground mb-1">Abwg.</div>
+                                 <div className={`font-medium ${textSizeClass} leading-tight`} title={deviationStr}>
                                    {deviationStr}
                                  </div>
                                </div>
                                
                                {selectedAccountData.previous_year_balance !== 0 && (
-                                 <div className="text-center whitespace-nowrap min-w-0 flex-shrink">
-                                   <div className="text-xs text-muted-foreground">%</div>
-                                   <div className={`font-medium ${textSizeClass} truncate ${
+                                 <div className="text-center min-w-0 flex-1">
+                                   <div className="text-xs text-muted-foreground mb-1">%</div>
+                                   <div className={`font-medium ${textSizeClass} leading-tight ${
                                      ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
                                        ? 'text-green-600' 
                                        : 'text-red-600'
