@@ -15,6 +15,49 @@ interface TrialBalanceRow {
   previousYear: number;
 }
 
+// Helper function to get common accounting terms for better matching
+function getAccountTypeTerms(accountName: string): string[] {
+  const name = accountName.toLowerCase();
+  const terms: string[] = [];
+  
+  // Cash and bank accounts
+  if (name.includes('cash') || name.includes('bank') || name.includes('kasse')) {
+    terms.push('bank', 'cash', 'kasse', 'geld');
+  }
+  
+  // Receivables
+  if (name.includes('receivable') || name.includes('debitor') || name.includes('forderung')) {
+    terms.push('receivable', 'debitor', 'forderung', 'kunde');
+  }
+  
+  // Payables
+  if (name.includes('payable') || name.includes('kreditor') || name.includes('verbindlichkeit')) {
+    terms.push('payable', 'kreditor', 'verbindlichkeit', 'lieferant');
+  }
+  
+  // Inventory
+  if (name.includes('inventory') || name.includes('stock') || name.includes('vorrat')) {
+    terms.push('inventory', 'stock', 'vorrat', 'lager');
+  }
+  
+  // Fixed assets
+  if (name.includes('asset') || name.includes('anlage') || name.includes('equipment')) {
+    terms.push('asset', 'anlage', 'equipment', 'maschine');
+  }
+  
+  // Revenue
+  if (name.includes('revenue') || name.includes('sales') || name.includes('umsatz')) {
+    terms.push('revenue', 'sales', 'umsatz', 'erlös');
+  }
+  
+  // Expenses
+  if (name.includes('expense') || name.includes('cost') || name.includes('aufwand')) {
+    terms.push('expense', 'cost', 'aufwand', 'kosten');
+  }
+  
+  return terms;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -107,6 +150,8 @@ serve(async (req) => {
         previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
       }));
 
+    console.log(`Found ${parsedAccounts.length} accounts in trial balance`);
+
     // Clear existing temp matches for this trial balance
     await supabase
       .from('temp_account_matches')
@@ -121,26 +166,83 @@ serve(async (req) => {
 
     if (documentsError) throw documentsError;
 
+    console.log(`Available documents: ${documents?.length || 0}`);
+
     let matchedCount = 0;
     const tempMatches = [];
 
     // Create temp matches for each account
     for (const account of parsedAccounts) {
       const matchedDocuments: string[] = [];
+      let maxConfidence = 0;
       
-      // Simple matching logic - check if document filename contains account number or name
+      // Enhanced matching logic for better document detection
       for (const doc of documents) {
         const fileName = doc.file_name.toUpperCase();
-        const accountNum = account.accountNumber.toString();
-        const accountName = account.accountName.toUpperCase();
+        const accountNum = account.accountNumber.toString().trim();
+        const accountName = account.accountName.toUpperCase().trim();
         
-        if (fileName.includes(accountNum) || fileName.includes(accountName)) {
+        let confidence = 0;
+        
+        // Exact account number match (highest confidence)
+        if (fileName.includes(accountNum)) {
+          confidence = Math.max(confidence, 0.9);
+        }
+        
+        // Account name word matching
+        const accountWords = accountName.split(/\s+/).filter(word => word.length > 2);
+        let nameMatches = 0;
+        for (const word of accountWords) {
+          if (fileName.includes(word)) {
+            nameMatches++;
+          }
+        }
+        if (accountWords.length > 0) {
+          const nameMatchRatio = nameMatches / accountWords.length;
+          if (nameMatchRatio > 0.5) {
+            confidence = Math.max(confidence, 0.7 * nameMatchRatio);
+          }
+        }
+        
+        // Partial account number matching for similar patterns
+        if (accountNum.length >= 3) {
+          const accountPrefix = accountNum.substring(0, 3);
+          if (fileName.includes(accountPrefix)) {
+            confidence = Math.max(confidence, 0.5);
+          }
+        }
+        
+        // Account number with common separators
+        const patterns = [
+          accountNum.replace(/(\d)(\d{2})/, '$1-$2'),  // 1000 -> 1-00
+          accountNum.replace(/(\d{2})(\d{2})/, '$1-$2'), // 1000 -> 10-00
+          accountNum.replace(/(\d)/, '$1.'),            // Add dots
+          accountNum.replace(/(\d)/, '$1_'),            // Add underscores
+        ];
+        
+        for (const pattern of patterns) {
+          if (fileName.includes(pattern.toUpperCase())) {
+            confidence = Math.max(confidence, 0.8);
+          }
+        }
+        
+        // Check for common accounting terms that might relate to account types
+        const commonTerms = getAccountTypeTerms(account.accountName);
+        for (const term of commonTerms) {
+          if (fileName.includes(term.toUpperCase())) {
+            confidence = Math.max(confidence, 0.6);
+          }
+        }
+        
+        // Only include documents with sufficient confidence
+        if (confidence >= 0.5) {
           matchedDocuments.push(doc.id);
+          maxConfidence = Math.max(maxConfidence, confidence);
         }
       }
 
       const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
-      const confidenceScore = matchedDocuments.length > 0 ? 0.8 : null;
+      const confidenceScore = matchedDocuments.length > 0 ? Math.round(maxConfidence * 100) / 100 : null;
 
       if (matchedDocuments.length > 0) {
         matchedCount++;
@@ -166,6 +268,7 @@ serve(async (req) => {
     if (insertError) throw insertError;
 
     console.log(`Created ${tempMatches.length} temp matches, ${matchedCount} matched`);
+    console.log(`Sample accounts processed:`, parsedAccounts.slice(0, 3));
 
     const result = {
       total_assignments: tempMatches.length,
