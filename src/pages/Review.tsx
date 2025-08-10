@@ -930,13 +930,31 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="flex flex-col h-full gap-4">
-                      <div className="flex-1 min-h-0 border rounded-lg">
-                        {selectedDocuments.map((doc) => (
-                          <div key={doc.id} className="h-full">
-                            <SimplePDFViewer document={doc} />
-                          </div>
-                        ))}
-                      </div>
+                       {selectedDocuments.length === 1 ? (
+                         // Single document - no tabs needed
+                         <div className="flex-1 min-h-0 border rounded-lg">
+                           <SimplePDFViewer document={selectedDocuments[0]} />
+                         </div>
+                       ) : (
+                         // Multiple documents - show tabs
+                         <Tabs defaultValue={selectedDocuments[0]?.id} className="flex-1 flex flex-col min-h-0">
+                           <TabsList className="grid w-full mb-3" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
+                             {selectedDocuments.map((doc, index) => (
+                               <TabsTrigger key={doc.id} value={doc.id} className="text-xs px-2">
+                                 Dokument {index + 1}
+                               </TabsTrigger>
+                             ))}
+                           </TabsList>
+                           
+                           {selectedDocuments.map((doc) => (
+                             <TabsContent key={doc.id} value={doc.id} className="flex-1 min-h-0 mt-0">
+                               <div className="flex-1 min-h-0 border rounded-lg">
+                                 <SimplePDFViewer document={doc} />
+                               </div>
+                             </TabsContent>
+                           ))}
+                         </Tabs>
+                       )}
                        
                        {/* Kommentarfeld */}
                        <div className="border-t pt-4 h-[160px] flex-shrink-0">
