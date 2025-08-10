@@ -536,6 +536,10 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     if (!selectedDocumentForMultiAssign || selectedAccountsForAssign.size === 0) return;
 
     try {
+      // Bestimme die richtige Tabelle basierend auf der Gruppierung
+      const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
+      const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
+
       for (const assignmentId of selectedAccountsForAssign) {
         const assignment = assignments.find(a => a.id === assignmentId);
         if (!assignment) continue;
@@ -545,7 +549,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           : [selectedDocumentForMultiAssign.id];
 
         await supabase
-          .from('account_group_assignments')
+          .from(tableName)
           .update({
             match_status: 'matched',
             confidence_score: 1.0,
@@ -554,33 +558,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           .eq('id', assignmentId);
       }
 
-      // Update lokaler State
-      const updatedAssignments = assignments.map(a => {
-        if (selectedAccountsForAssign.has(a.id)) {
-          const updatedMatchedDocuments = a.matched_documents 
-            ? [...a.matched_documents, selectedDocumentForMultiAssign.id]
-            : [selectedDocumentForMultiAssign.id];
-          
-          return {
-            ...a,
-            match_status: 'matched' as const,
-            confidence_score: 1.0,
-            matched_documents: updatedMatchedDocuments
-          };
-        }
-        return a;
-      });
-
-      setAssignments(updatedAssignments);
+      // Aktualisiere lokalen State
+      await loadData();
       
-      setAccountGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          assignments: updatedAssignments.filter(a => a.account_group_id === group.id)
-        }))
-      );
-
-      toast.success(`Nachweis erfolgreich ${selectedAccountsForAssign.size} Konten zugewiesen`);
+      toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konten zugewiesen`);
+      setSearchQuery('');
       setShowMultiAssignModal(false);
       setSelectedDocumentForMultiAssign(null);
       setSelectedAccountsForAssign(new Set());
@@ -595,13 +577,17 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     if (!documentToReassign || !selectedAccountData || selectedAccountsForAssign.size === 0) return;
 
     try {
+      // Bestimme die richtige Tabelle basierend auf der Gruppierung
+      const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
+      const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
+
       // Entferne von aktuellem Konto
       const updatedMatchedDocuments = selectedAccountData.matched_documents?.filter(
         docId => docId !== documentToReassign.id
       ) || [];
 
       await supabase
-        .from('account_group_assignments')
+        .from(tableName)
         .update({
           matched_documents: updatedMatchedDocuments.length > 0 ? updatedMatchedDocuments : null,
           match_status: updatedMatchedDocuments.length > 0 ? 'matched' : 'pending'
@@ -618,7 +604,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           : [documentToReassign.id];
 
         await supabase
-          .from('account_group_assignments')
+          .from(tableName)
           .update({
             match_status: 'matched',
             confidence_score: 1.0,
