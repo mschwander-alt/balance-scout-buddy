@@ -1,0 +1,194 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface TrialBalanceRow {
+  accountNumber: string;
+  accountName: string;
+  currentYear: number;
+  previousYear: number;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { trial_balance_id } = await req.json();
+    
+    if (!trial_balance_id) {
+      throw new Error('trial_balance_id is required');
+    }
+
+    console.log(`Processing ungrouped accounts for trial_balance_id: ${trial_balance_id}`);
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check if groups exist
+    const { data: groups, error: groupsError } = await supabase
+      .from('account_groups')
+      .select('id')
+      .eq('trial_balance_id', trial_balance_id)
+      .limit(1);
+
+    if (groupsError) throw groupsError;
+
+    if (groups && groups.length > 0) {
+      // Groups exist, use regular matching function
+      const { data: functionResult, error: functionError } = await supabase
+        .rpc('auto_match_documents_function', { trial_balance_id_param: trial_balance_id });
+      
+      if (functionError) throw functionError;
+      
+      return new Response(JSON.stringify(functionResult), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // No groups exist - process ungrouped trial balance
+    
+    // Get trial balance metadata
+    const { data: trialBalance, error: tbError } = await supabase
+      .from('trial_balances')
+      .select('*')
+      .eq('id', trial_balance_id)
+      .single();
+
+    if (tbError || !trialBalance) {
+      throw new Error('Trial balance not found');
+    }
+
+    // Download and parse Excel file
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('trial-balances')
+      .download(trialBalance.file_path);
+
+    if (downloadError) throw downloadError;
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+    if (jsonData.length < 2) {
+      throw new Error('No data found in trial balance file');
+    }
+
+    const headers = jsonData[0] as string[];
+    const dataRows = jsonData.slice(1);
+
+    // Find column indices
+    const accountNumberIndex = headers.findIndex(h => h === trialBalance.account_number_column);
+    const accountNameIndex = headers.findIndex(h => h === trialBalance.account_name_column);
+    const currentYearIndex = headers.findIndex(h => h === trialBalance.current_year_column);
+    const previousYearIndex = headers.findIndex(h => h === trialBalance.previous_year_column);
+
+    if (accountNumberIndex === -1 || accountNameIndex === -1) {
+      throw new Error('Required columns not found in trial balance');
+    }
+
+    const parsedAccounts: TrialBalanceRow[] = dataRows
+      .filter(row => row[accountNumberIndex] && row[accountNameIndex])
+      .map(row => ({
+        accountNumber: String(row[accountNumberIndex] || '').trim(),
+        accountName: String(row[accountNameIndex] || '').trim(),
+        currentYear: parseFloat(String(row[currentYearIndex] || 0)) || 0,
+        previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
+      }));
+
+    // Clear existing temp matches for this trial balance
+    await supabase
+      .from('temp_account_matches')
+      .delete()
+      .eq('trial_balance_id', trial_balance_id);
+
+    // Get documents for this trial balance
+    const { data: documents, error: documentsError } = await supabase
+      .from('account_evidence')
+      .select('*')
+      .eq('trial_balance_id', trial_balance_id);
+
+    if (documentsError) throw documentsError;
+
+    let matchedCount = 0;
+    const tempMatches = [];
+
+    // Create temp matches for each account
+    for (const account of parsedAccounts) {
+      const matchedDocuments: string[] = [];
+      
+      // Simple matching logic - check if document filename contains account number or name
+      for (const doc of documents) {
+        const fileName = doc.file_name.toUpperCase();
+        const accountNum = account.accountNumber.toString();
+        const accountName = account.accountName.toUpperCase();
+        
+        if (fileName.includes(accountNum) || fileName.includes(accountName)) {
+          matchedDocuments.push(doc.id);
+        }
+      }
+
+      const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
+      const confidenceScore = matchedDocuments.length > 0 ? 0.8 : null;
+
+      if (matchedDocuments.length > 0) {
+        matchedCount++;
+      }
+
+      tempMatches.push({
+        trial_balance_id: trial_balance_id,
+        account_number: account.accountNumber,
+        account_name: account.accountName,
+        current_year_balance: account.currentYear,
+        previous_year_balance: account.previousYear,
+        match_status: matchStatus,
+        confidence_score: confidenceScore,
+        matched_documents: matchedDocuments
+      });
+    }
+
+    // Insert temp matches
+    const { error: insertError } = await supabase
+      .from('temp_account_matches')
+      .insert(tempMatches);
+
+    if (insertError) throw insertError;
+
+    console.log(`Created ${tempMatches.length} temp matches, ${matchedCount} matched`);
+
+    const result = {
+      total_assignments: tempMatches.length,
+      matched_count: matchedCount,
+      success: true,
+      has_groups: false
+    };
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in auto-match-ungrouped function:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error.message 
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500 
+      }
+    );
+  }
+});

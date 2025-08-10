@@ -213,8 +213,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         setAccountGroups(sortedGroups);
         setAssignments(allAssignments);
       } else {
-        // No groups exist - load trial balance directly
-        await loadTrialBalanceDirectly();
+        // No groups exist - load from temp_account_matches or create from trial balance
+        await loadTemporaryMatches();
       }
       
       setAccountComments(commentMap);
@@ -224,6 +224,52 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       toast.error('Fehler beim Laden der Daten');
     }
   }, [trialBalanceId, user]);
+
+  const loadTemporaryMatches = async () => {
+    try {
+      // First try to load existing temp matches
+      const { data: tempMatches, error: tempError } = await supabase
+        .from('temp_account_matches')
+        .select('*')
+        .eq('trial_balance_id', trialBalanceId!);
+
+      if (tempError) throw tempError;
+
+      if (tempMatches && tempMatches.length > 0) {
+        // Use existing temp matches
+        const tempAssignments: Assignment[] = tempMatches.map(match => ({
+          id: match.id,
+          account_group_id: 'no-group',
+          account_number: match.account_number,
+          account_name: match.account_name,
+          current_year_balance: match.current_year_balance || 0,
+          previous_year_balance: match.previous_year_balance || 0,
+          match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+          confidence_score: match.confidence_score || undefined,
+          matched_documents: match.matched_documents || undefined
+        }));
+
+        const virtualGroup: AccountGroup = {
+          id: 'no-group',
+          trial_balance_id: trialBalanceId!,
+          name: 'Alle Konten',
+          description: 'Ungroupierte Saldobilanz',
+          assignments: tempAssignments,
+          isOpen: true
+        };
+
+        setAccountGroups([virtualGroup]);
+        setAssignments(tempAssignments);
+      } else {
+        // No temp matches exist, load trial balance directly (fallback)
+        await loadTrialBalanceDirectly();
+      }
+    } catch (error) {
+      console.error('Error loading temporary matches:', error);
+      // Fallback to direct trial balance loading
+      await loadTrialBalanceDirectly();
+    }
+  };
 
   const loadTrialBalanceDirectly = async () => {
     try {
@@ -332,7 +378,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     setProgress(0);
 
     try {
-      const { data, error } = await supabase.functions.invoke('auto-match-documents', {
+      const { data, error } = await supabase.functions.invoke('auto-match-ungrouped', {
         body: { trial_balance_id: trialBalanceId }
       });
 

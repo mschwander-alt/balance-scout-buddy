@@ -295,6 +295,48 @@ export type Database = {
         }
         Relationships: []
       }
+      temp_account_matches: {
+        Row: {
+          account_name: string
+          account_number: string
+          confidence_score: number | null
+          created_at: string
+          current_year_balance: number | null
+          id: string
+          match_status: string | null
+          matched_documents: string[] | null
+          previous_year_balance: number | null
+          trial_balance_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          confidence_score?: number | null
+          created_at?: string
+          current_year_balance?: number | null
+          id?: string
+          match_status?: string | null
+          matched_documents?: string[] | null
+          previous_year_balance?: number | null
+          trial_balance_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          confidence_score?: number | null
+          created_at?: string
+          current_year_balance?: number | null
+          id?: string
+          match_status?: string | null
+          matched_documents?: string[] | null
+          previous_year_balance?: number | null
+          trial_balance_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trial_balances: {
         Row: {
           account_name_column: string | null
