@@ -333,61 +333,69 @@ serve(async (req) => {
       }
     };
 
-    // Create temp matches for each account - BALANCE MATCHING FOR EXCEL AND PDF FILES
+    // SIMPLE BALANCE MATCHING: Search for exact current year balance in all evidence files
     for (const account of parsedAccounts) {
-      console.log(`Processing account: ${account.accountNumber} - ${account.accountName} (Balance: ${account.currentYear})`);
+      console.log(`Searching for balance ${account.currentYear} for account ${account.accountNumber}`);
       
       const matchedDocuments: string[] = [];
-      let maxConfidence = 0;
       
-      // Process both Excel and PDF documents for balance matching
+      // Skip accounts with zero balance
+      if (account.currentYear === 0) {
+        console.log(`Skipping account ${account.accountNumber} - zero balance`);
+        tempMatches.push({
+          trial_balance_id: trial_balance_id,
+          account_number: account.accountNumber,
+          account_name: account.accountName,
+          current_year_balance: account.currentYear,
+          previous_year_balance: account.previousYear,
+          match_status: 'pending',
+          confidence_score: null,
+          matched_documents: []
+        });
+        continue;
+      }
+      
+      // Search through ALL evidence files for this balance
       for (const doc of documents) {
         const isExcel = doc.file_name.toLowerCase().includes('.xls');
         const isPDF = doc.file_name.toLowerCase().includes('.pdf');
         
         if (!isExcel && !isPDF) {
-          continue; // Skip other file types
+          continue;
         }
-        
-        let confidence = 0;
         
         console.log(`Checking ${doc.file_name} for balance ${account.currentYear}`);
         
-        // Parse document based on type and check for exact balance matches
         let documentValues: number[] = [];
         
-        if (isExcel) {
-          documentValues = await parseExcelForValues(doc);
-        } else if (isPDF) {
-          documentValues = await parsePDFForValues(doc);
-        }
-        let balanceMatched = false;
-        
-        // Check if current year balance is found in document
-        for (const docValue of documentValues) {
-          if (isBalanceMatch(docValue, account.currentYear)) {
-            confidence = 0.95; // High confidence for exact balance match
-            balanceMatched = true;
-            console.log(`✓ BALANCE MATCH: ${docValue} ≈ ${account.currentYear} in ${doc.file_name}`);
-            break;
+        try {
+          if (isExcel) {
+            documentValues = await parseExcelForValues(doc);
+          } else if (isPDF) {
+            documentValues = await parsePDFForValues(doc);
           }
-        }
-        
-        // Only create matches for documents that contain the exact balance
-        if (balanceMatched && confidence >= 0.95) {
-          matchedDocuments.push(doc.id);
-          maxConfidence = Math.max(maxConfidence, confidence);
+          
+          // Check if the exact balance is found in this document
+          const balanceFound = documentValues.some(value => isBalanceMatch(value, account.currentYear));
+          
+          if (balanceFound) {
+            matchedDocuments.push(doc.id);
+            console.log(`✓ MATCH: Balance ${account.currentYear} found in ${doc.file_name}`);
+          }
+        } catch (error) {
+          console.log(`Error processing ${doc.file_name}:`, error.message);
         }
       }
 
+      // Create the temp match record
       const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
-      const confidenceScore = matchedDocuments.length > 0 ? Math.round(maxConfidence * 100) / 100 : null;
+      const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null; // 100% confidence for exact matches
 
       if (matchedDocuments.length > 0) {
         matchedCount++;
-        console.log(`✓ Account ${account.accountNumber} matched with ${matchedDocuments.length} documents`);
+        console.log(`✓ Account ${account.accountNumber} (${account.currentYear}) matched with ${matchedDocuments.length} documents`);
       } else {
-        console.log(`✗ Account ${account.accountNumber} (${account.currentYear}) - no balance matches found`);
+        console.log(`✗ Account ${account.accountNumber} (${account.currentYear}) - no matches found`);
       }
 
       tempMatches.push({
