@@ -1399,22 +1399,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 Abbrechen
               </Button>
               <Button 
-                variant="destructive"
-                onClick={() => handleReassignDocument(true)}
-              >
-                Nur entfernen
-              </Button>
-              <Button 
-                onClick={() => handleReassignDocument(false)}
+                onClick={handleReassignDocument}
                 disabled={selectedAccountsForAssign.size === 0}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                Zusätzlich zuweisen ({selectedAccountsForAssign.size})
-              </Button>
-              <Button 
-                onClick={() => handleReassignDocument(true)}
-                disabled={selectedAccountsForAssign.size === 0}
-              >
-                Entfernen & neu zuweisen ({selectedAccountsForAssign.size})
+                Zu {selectedAccountsForAssign.size} Konto{selectedAccountsForAssign.size > 1 ? 'en' : ''} verschieben
               </Button>
             </div>
           </DialogContent>
