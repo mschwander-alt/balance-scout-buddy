@@ -1147,7 +1147,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                               placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
                               value={accountComments[selectedAccountData.id] || (
                                 selectedAccountData.match_status === 'matched' && selectedAccountData.confidence_score === 0.8
-                                  ? "Nachweis konnte mit der Saldobilanz abgestimmt werden"
+                                  ? "Nachweis konnte mit der Saldobilanz abgestimmt werden; es ergaben sich keine Differenzen."
                                   : ""
                               )}
                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
