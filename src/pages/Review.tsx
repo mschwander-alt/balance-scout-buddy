@@ -1098,7 +1098,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           <div className="space-y-3">
                              <div className="flex items-center justify-between">
                                <label className="text-sm font-medium text-foreground">
-                                 Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                                 Kommentare
                                </label>
                                <div className="flex items-center gap-2">
                                  {(() => {
