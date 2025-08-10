@@ -23,51 +23,7 @@ interface AccountMatch {
   previous_year_balance?: number;
 }
 
-
-// Helper function to extract text from PDF files (robust binary approach)
-async function extractTextFromPDF(supabase: any, filePath: string): Promise<string> {
-  try {
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('account-evidence')
-      .download(filePath);
-
-    if (downloadError) {
-      console.log(`Could not download PDF file ${filePath}:`, downloadError);
-      return '';
-    }
-
-    const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let extractedText = '';
-    
-    // Enhanced binary-to-text conversion with better pattern recognition
-    for (let i = 0; i < uint8Array.length; i++) {
-      const byte = uint8Array[i];
-      // ASCII printable characters + common European chars + line breaks
-      if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13 || byte === 9) {
-        extractedText += String.fromCharCode(byte);
-      } else {
-        // Add space to separate potential text segments
-        extractedText += ' ';
-      }
-    }
-    
-    // Clean up the extracted text
-    extractedText = extractedText
-      .replace(/\s+/g, ' ')           // Normalize whitespace
-      .replace(/\s+/g, ' ')           // Remove multiple spaces
-      .trim();
-    
-    console.log(`Extracted ${extractedText.length} characters from PDF ${filePath}`);
-    return extractedText;
-    
-  } catch (error) {
-    console.log(`Error extracting text from PDF file ${filePath}:`, error);
-    return '';
-  }
-}
-
-// Helper function to extract text from Excel files
+// Simple text extraction from Excel files
 async function extractTextFromExcel(supabase: any, filePath: string): Promise<string> {
   try {
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -83,7 +39,6 @@ async function extractTextFromExcel(supabase: any, filePath: string): Promise<st
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     let allText = '';
 
-    // Parse all sheets and convert to text
     for (const sheetName of workbook.SheetNames) {
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
@@ -106,67 +61,87 @@ async function extractTextFromExcel(supabase: any, filePath: string): Promise<st
   }
 }
 
-// Generate saldo patterns for matching (improved precision)
+// Simple text extraction from PDF files
+async function extractTextFromPDF(supabase: any, filePath: string): Promise<string> {
+  try {
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('account-evidence')
+      .download(filePath);
+
+    if (downloadError) {
+      console.log(`Could not download PDF file ${filePath}:`, downloadError);
+      return '';
+    }
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let extractedText = '';
+    
+    // Simple binary-to-text conversion
+    for (let i = 0; i < uint8Array.length; i++) {
+      const byte = uint8Array[i];
+      if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13 || byte === 9) {
+        extractedText += String.fromCharCode(byte);
+      } else {
+        extractedText += ' ';
+      }
+    }
+    
+    // Clean up the extracted text
+    extractedText = extractedText.replace(/\s+/g, ' ').trim();
+    
+    console.log(`Extracted ${extractedText.length} characters from PDF ${filePath}`);
+    return extractedText;
+    
+  } catch (error) {
+    console.log(`Error extracting text from PDF file ${filePath}:`, error);
+    return '';
+  }
+}
+
+// Generate basic saldo patterns
 function generateSaldoPatterns(saldo: number): string[] {
   const patterns: string[] = [];
   const absSaldo = Math.abs(saldo);
   
-  // Skip very small amounts that are prone to false matches
+  // For very small amounts, be more restrictive
   if (absSaldo <= 10) {
-    // For small amounts, only use very specific patterns
-    patterns.push(saldo.toFixed(2));  // Exact: 1.00
-    
-    // Swiss format only for small amounts (more specific)
-    const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    patterns.push(swissFormat);
-    
-    // German format only for small amounts 
-    const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    patterns.push(germanFormat);
-    
-    return patterns.filter(p => p && p !== '0.00' && p !== '-0.00');
+    patterns.push(saldo.toFixed(2));
+    if (saldo > 0) patterns.push(saldo.toFixed(1));
+    return patterns;
   }
   
-  // For larger amounts, use more comprehensive patterns
-  // Basic formats
-  patterns.push(saldo.toFixed(2));                                    // 233.50
-  patterns.push((-saldo).toFixed(2));                                 // -233.50
+  // Basic patterns
+  patterns.push(saldo.toFixed(2));
+  patterns.push((-saldo).toFixed(2));
   
-  // Swiss format with apostrophe
-  const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  patterns.push(swissFormat);                                         // 233.50 or 1'233.50
-  patterns.push((-saldo).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  // Swiss format
+  try {
+    const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    patterns.push(swissFormat);
+  } catch (e) {
+    // Fallback if locale not available
+    patterns.push(saldo.toFixed(2));
+  }
   
-  // German format (thousands with dot, decimal with comma)
-  const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  patterns.push(germanFormat);                                        // 233,50 or 1.233,50
-  patterns.push((-saldo).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  // German format
+  try {
+    const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    patterns.push(germanFormat);
+  } catch (e) {
+    // Fallback
+    patterns.push(saldo.toFixed(2).replace('.', ','));
+  }
   
-  // Space as thousands separator
-  const spaceFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  patterns.push(spaceFormat);                                         // 1 233.50
-  patterns.push(spaceFormat.replace('.', ','));                       // 1 233,50
-  
-  // With various Unicode spaces
-  const nbspFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
-  patterns.push(nbspFormat);                                          
-  patterns.push(nbspFormat.replace('.', ','));
-  
-  const thinSpaceFormat = saldo.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
-  patterns.push(thinSpaceFormat);                                     
-  patterns.push(thinSpaceFormat.replace('.', ','));
-  
-  // Remove duplicates and filter out invalid patterns
   return [...new Set(patterns)].filter(p => p && p !== '0.00' && p !== '-0.00');
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  console.log('Unified auto-match function started');
+  console.log('Starting unified auto-match function');
 
   try {
     const { trial_balance_id } = await req.json();
@@ -175,7 +150,7 @@ serve(async (req) => {
       throw new Error('trial_balance_id is required');
     }
 
-    console.log(`Processing unified matching for trial_balance_id: ${trial_balance_id}`);
+    console.log(`Processing matching for trial_balance_id: ${trial_balance_id}`);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -186,8 +161,8 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if groups exist
-    const { data: groups, error: groupsError } = await supabase
+    // Check if we have account groups
+    const { data: existingGroups, error: groupsError } = await supabase
       .from('account_groups')
       .select('id')
       .eq('trial_balance_id', trial_balance_id)
@@ -195,13 +170,14 @@ serve(async (req) => {
 
     if (groupsError) throw groupsError;
 
-    const hasGroups = groups && groups.length > 0;
+    const hasGroups = existingGroups && existingGroups.length > 0;
+    console.log(`Has groups: ${hasGroups}`);
+
     let accountsToMatch: AccountMatch[] = [];
 
     if (hasGroups) {
-      // Get grouped accounts
-      console.log('Processing grouped accounts');
-      const { data: assignments, error: assignmentsError } = await supabase
+      // Load grouped accounts
+      const { data: groupedAccounts, error: assignmentsError } = await supabase
         .from('account_group_assignments')
         .select(`
           id,
@@ -215,18 +191,17 @@ serve(async (req) => {
 
       if (assignmentsError) throw assignmentsError;
 
-      accountsToMatch = assignments.map(a => ({
+      accountsToMatch = (groupedAccounts || []).map(a => ({
         id: a.id,
         account_number: a.account_number,
         account_name: a.account_name,
         current_year_balance: a.current_year_balance,
         previous_year_balance: a.previous_year_balance
       }));
+
+      console.log(`Loaded ${accountsToMatch.length} grouped accounts`);
     } else {
-      // Get ungrouped accounts from trial balance
-      console.log('Processing ungrouped accounts');
-      
-      // Get trial balance metadata
+      // Load trial balance directly
       const { data: trialBalance, error: tbError } = await supabase
         .from('trial_balances')
         .select('*')
@@ -257,7 +232,6 @@ serve(async (req) => {
       const headers = jsonData[0] as string[];
       const dataRows = jsonData.slice(1);
 
-      // Find column indices
       const accountNumberIndex = headers.findIndex(h => h === trialBalance.account_number_column);
       const accountNameIndex = headers.findIndex(h => h === trialBalance.account_name_column);
       const currentYearIndex = headers.findIndex(h => h === trialBalance.current_year_column);
@@ -283,16 +257,16 @@ serve(async (req) => {
         previous_year_balance: a.previousYear
       }));
 
-      // Clear existing temp matches for ungrouped accounts
+      // Clear existing temp matches
       await supabase
         .from('temp_account_matches')
         .delete()
         .eq('trial_balance_id', trial_balance_id);
+
+      console.log(`Loaded ${accountsToMatch.length} accounts from trial balance`);
     }
 
-    console.log(`Found ${accountsToMatch.length} accounts to match`);
-
-    // Get documents for this trial balance
+    // Get documents
     const { data: documents, error: documentsError } = await supabase
       .from('account_evidence')
       .select('*')
@@ -300,34 +274,15 @@ serve(async (req) => {
 
     if (documentsError) throw documentsError;
 
-    console.log(`Available documents: ${documents?.length || 0}`);
-
-    // Pre-extract text from all evidence documents
-    console.log("Pre-extracting text from all evidence documents...");
-    const documentTexts: { [key: string]: string } = {};
-
-    for (const doc of documents) {
-      const fileName = doc.file_name.toLowerCase();
-      
-      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-        console.log(`Extracting text from Excel file: ${doc.file_name}`);
-        documentTexts[doc.id] = await extractTextFromExcel(supabase, doc.file_path);
-      } else if (fileName.endsWith('.pdf')) {
-        console.log(`Extracting text from PDF file: ${doc.file_name}`);
-        documentTexts[doc.id] = await extractTextFromPDF(supabase, doc.file_path);
-      }
-    }
+    console.log(`Found ${documents?.length || 0} documents`);
 
     let matchedCount = 0;
 
-    // Process matches for each account using pattern-based matching
+    // Process each account
     for (const account of accountsToMatch) {
-      const matchedDocuments: string[] = [];
-      
-      // Skip accounts with zero balance
+      // Skip zero balance accounts
       if (account.current_year_balance === 0) {
-        if (hasGroups) {
-          // Update grouped assignment
+        if (hasGroups && account.id) {
           await supabase
             .from('account_group_assignments')
             .update({
@@ -340,23 +295,33 @@ serve(async (req) => {
         continue;
       }
 
-      // Generate saldo patterns for this account
-      const saldoPatterns = generateSaldoPatterns(account.current_year_balance);
-      console.log(`Generated ${saldoPatterns.length} patterns for account ${account.account_number} (${account.current_year_balance})`);
-      
-      // Search for saldo patterns in each document
-      for (const doc of documents) {
-        const docText = documentTexts[doc.id] || '';
-        let patternFound = false;
-        
-        // Check each saldo pattern
-        for (const pattern of saldoPatterns) {
-          if (docText.includes(pattern)) {
-            matchedDocuments.push(doc.id);
-            console.log(`✓ MATCH: Pattern "${pattern}" found in ${doc.file_name} for account ${account.account_number}`);
-            patternFound = true;
-            break; // Found a match, no need to check other patterns for this document
+      const patterns = generateSaldoPatterns(account.current_year_balance);
+      const matchedDocuments: string[] = [];
+
+      console.log(`Checking account ${account.account_number} (${account.current_year_balance}) with ${patterns.length} patterns`);
+
+      // Check each document
+      for (const doc of documents || []) {
+        const fileName = doc.file_name.toLowerCase();
+        let docText = '';
+
+        try {
+          if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+            docText = await extractTextFromExcel(supabase, doc.file_path);
+          } else if (fileName.endsWith('.pdf')) {
+            docText = await extractTextFromPDF(supabase, doc.file_path);
           }
+
+          // Check patterns in document text
+          for (const pattern of patterns) {
+            if (docText.includes(pattern)) {
+              matchedDocuments.push(doc.id);
+              console.log(`✓ MATCH: Pattern "${pattern}" found in ${doc.file_name} for account ${account.account_number}`);
+              break;
+            }
+          }
+        } catch (error) {
+          console.log(`Error processing document ${doc.file_name}:`, error);
         }
       }
 
@@ -367,30 +332,33 @@ serve(async (req) => {
         matchedCount++;
       }
 
-      if (hasGroups) {
-        // Update grouped assignment
-        await supabase
-          .from('account_group_assignments')
-          .update({
-            match_status: matchStatus,
-            confidence_score: confidenceScore,
-            matched_documents: matchedDocuments
-          })
-          .eq('id', account.id);
-      } else {
-        // Create temp match for ungrouped account
-        await supabase
-          .from('temp_account_matches')
-          .insert({
-            trial_balance_id: trial_balance_id,
-            account_number: account.account_number,
-            account_name: account.account_name,
-            current_year_balance: account.current_year_balance,
-            previous_year_balance: account.previous_year_balance,
-            match_status: matchStatus,
-            confidence_score: confidenceScore,
-            matched_documents: matchedDocuments
-          });
+      // Save results
+      try {
+        if (hasGroups && account.id) {
+          await supabase
+            .from('account_group_assignments')
+            .update({
+              match_status: matchStatus,
+              confidence_score: confidenceScore,
+              matched_documents: matchedDocuments
+            })
+            .eq('id', account.id);
+        } else {
+          await supabase
+            .from('temp_account_matches')
+            .insert({
+              trial_balance_id: trial_balance_id,
+              account_number: account.account_number,
+              account_name: account.account_name,
+              current_year_balance: account.current_year_balance,
+              previous_year_balance: account.previous_year_balance,
+              match_status: matchStatus,
+              confidence_score: confidenceScore,
+              matched_documents: matchedDocuments
+            });
+        }
+      } catch (error) {
+        console.log(`Error saving results for account ${account.account_number}:`, error);
       }
     }
 
