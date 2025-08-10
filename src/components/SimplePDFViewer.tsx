@@ -65,23 +65,13 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({ document }) =>
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Document Header */}
-      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-        <h4 className="font-medium text-sm">{document.file_name}</h4>
-        <span className="text-xs text-muted-foreground">
-          {(document.file_size / 1024 / 1024).toFixed(1)} MB
-        </span>
-      </div>
-      
-      {/* PDF Viewer */}
-      <div className="flex-1 overflow-hidden">
-        <iframe
-          src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
-          className="w-full h-full border-0"
-          title={document.file_name}
-        />
-      </div>
+    <div className="h-full">
+      {/* PDF Viewer - now takes full height */}
+      <iframe
+        src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
+        className="w-full h-full border-0"
+        title={document.file_name}
+      />
     </div>
   );
 };
