@@ -1226,8 +1226,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                        className="flex items-center gap-2"
                                        disabled={selectedDocuments.length === 0}
                                      >
-                                       <Send className="h-4 w-4" />
-                                       Konten {additionalAccountsCount > 0 && `(${additionalAccountsCount})`}
+                                        <Link className="h-4 w-4" />
+                                        Konten {additionalAccountsCount > 0 && `(${additionalAccountsCount})`}
                                      </Button>
                                    );
                                  })()}
