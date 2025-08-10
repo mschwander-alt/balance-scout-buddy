@@ -1172,7 +1172,13 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
                             <div className="h-full border rounded-lg overflow-hidden">
                               {doc.file_type === 'application/pdf' ? (
-                                <SimplePDFViewer document={doc} />
+                                <SimplePDFViewer 
+                                  document={doc} 
+                                  assignmentId={selectedAccountData.id}
+                                  trialBalanceId={trialBalanceId}
+                                  accountName={selectedAccountData.account_name}
+                                  accountNumber={selectedAccountData.account_number}
+                                />
                               ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
                                    doc.file_type === 'application/vnd.ms-excel' ? (
                                 <ExcelViewer document={doc} />

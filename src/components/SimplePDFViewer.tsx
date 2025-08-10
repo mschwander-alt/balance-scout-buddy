@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PDFCommentExporter } from './PDFCommentExporter';
 
 interface Document {
   id: string;
@@ -12,9 +13,19 @@ interface Document {
 
 interface SimplePDFViewerProps {
   document: Document;
+  assignmentId?: string;
+  trialBalanceId?: string;
+  accountName?: string;
+  accountNumber?: string;
 }
 
-export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({ document }) => {
+export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({ 
+  document, 
+  assignmentId, 
+  trialBalanceId, 
+  accountName, 
+  accountNumber 
+}) => {
   const [documentUrl, setDocumentUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,13 +76,29 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({ document }) =>
   }
 
   return (
-    <div className="h-full">
-      {/* PDF Viewer - now takes full height */}
-      <iframe
-        src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
-        className="w-full h-full border-0"
-        title={document.file_name}
-      />
+    <div className="h-full flex flex-col">
+      {/* Header with export options */}
+      {assignmentId && trialBalanceId && accountName && accountNumber && (
+        <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+          <h5 className="font-medium text-sm">{document.file_name}</h5>
+          <PDFCommentExporter
+            document={document}
+            assignmentId={assignmentId}
+            trialBalanceId={trialBalanceId}
+            accountName={accountName}
+            accountNumber={accountNumber}
+          />
+        </div>
+      )}
+      
+      {/* PDF Viewer */}
+      <div className="flex-1">
+        <iframe
+          src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
+          className="w-full h-full border-0"
+          title={document.file_name}
+        />
+      </div>
     </div>
   );
 };
