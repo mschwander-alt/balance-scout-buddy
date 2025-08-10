@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
-import { AnnotatedPDFViewer } from '@/components/AnnotatedPDFViewer';
+import { PDFDocumentLoader } from '@/components/PDFDocumentLoader';
 
 interface Assignment {
   id: string;
