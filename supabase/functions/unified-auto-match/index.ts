@@ -79,98 +79,76 @@ async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<n
     const arrayBuffer = await fileData.arrayBuffer();
     const numbers: number[] = [];
     
-    // Convert PDF binary to text with better extraction
+    // Simple binary search for number patterns in PDF
     const uint8Array = new Uint8Array(arrayBuffer);
-    let text = '';
+    let extractedText = '';
     
-    // Look for PDF text streams and extract content
-    const pdfString = new TextDecoder('latin1').decode(uint8Array);
-    
-    // Extract text from PDF streams (look for content between "stream" and "endstream")
-    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/gi;
-    let streamMatch;
-    
-    while ((streamMatch = streamRegex.exec(pdfString)) !== null) {
-      const streamContent = streamMatch[1];
-      
-      // Try to extract readable text from the stream
-      for (let i = 0; i < streamContent.length; i++) {
-        const char = streamContent.charCodeAt(i);
-        if ((char >= 32 && char <= 126) || char === 10 || char === 13) {
-          text += streamContent[i];
-        } else if (char === 0 || char === 9) {
-          text += ' ';
-        }
+    // Convert to string and look for readable ASCII characters
+    for (let i = 0; i < uint8Array.length; i++) {
+      const byte = uint8Array[i];
+      // ASCII printable characters (32-126) plus some common chars
+      if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13) {
+        extractedText += String.fromCharCode(byte);
+      } else {
+        // Add space to separate potential numbers
+        extractedText += ' ';
       }
     }
     
-    // Also extract from the general PDF structure (outside streams)
-    const generalText = pdfString.replace(/stream[\s\S]*?endstream/gi, '');
-    for (let i = 0; i < generalText.length; i++) {
-      const char = generalText.charCodeAt(i);
-      if ((char >= 32 && char <= 126) || char === 10 || char === 13) {
-        text += generalText[i];
-      } else if (char === 0 || char === 9) {
-        text += ' ';
-      }
-    }
+    console.log(`Extracted ${extractedText.length} characters from PDF ${filePath}`);
     
-    console.log(`Extracted text length: ${text.length} characters from ${filePath}`);
-    
-    // Comprehensive number extraction with Swiss formatting
-    const numberPatterns = [
-      // Swiss number formats with apostrophe
-      /\b\d{1,3}(?:'\d{3})*\.\d{2}\b/g,        // 1'000.50
-      /\b\d{1,3}(?:'\d{3})*,\d{2}\b/g,         // 1'000,50
-      /\b\d{1,3}(?:'\d{3})*\b/g,               // 1'000
-      
-      // Standard European formats
-      /\b\d{1,3}(?:\s\d{3})*[.,]\d{2}\b/g,     // 1 000.50, 1 000,50
-      /\b\d{1,3}(?:\s\d{3})*\b/g,              // 1 000
-      
-      // Simple decimal numbers
-      /\b\d+\.\d{2}\b/g,                       // 123.45
-      /\b\d+,\d{2}\b/g,                        // 123,45
-      /\b\d+\.\d+\b/g,                         // 123.4567
-      /\b\d+,\d+\b/g,                          // 123,4567
-      
-      // Whole numbers (but filter out dates and years)
-      /\b(?!(?:19|20)\d{2}\b)\d{2,}\b/g        // At least 2 digits, but not years like 1999, 2024
+    // More aggressive number extraction patterns for Swiss/German formatting
+    const patterns = [
+      // Swiss formatting with apostrophe: 1'234.56, 1'234,56
+      /\d{1,3}(?:'\d{3})*(?:[.,]\d{1,2})?/g,
+      // Space separated thousands: 1 234.56, 1 234,56  
+      /\d{1,3}(?:\s\d{3})*(?:[.,]\d{1,2})?/g,
+      // Simple decimals: 123.45, 123,45
+      /\d+[.,]\d{1,2}/g,
+      // Whole numbers (min 2 digits to avoid single digits)
+      /\b\d{2,}\b/g
     ];
     
-    for (const pattern of numberPatterns) {
-      const matches = text.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          // Clean and normalize the number
-          let cleanNum = match
-            .replace(/[''\s]/g, '')           // Remove apostrophes and spaces
-            .replace(',', '.');               // Normalize decimal separator to dot
+    for (const pattern of patterns) {
+      let match;
+      pattern.lastIndex = 0; // Reset regex
+      
+      while ((match = pattern.exec(extractedText)) !== null) {
+        const matchStr = match[0];
+        
+        // Clean the number: remove apostrophes and spaces, normalize decimal separator
+        let cleanNumber = matchStr
+          .replace(/[''\s]/g, '')  // Remove apostrophes and spaces
+          .replace(',', '.');       // Convert comma to dot for decimal
+        
+        const numValue = parseFloat(cleanNumber);
+        
+        // Filter reasonable numbers (exclude years, page numbers, etc.)
+        if (!isNaN(numValue) && numValue >= 0.01 && numValue < 10000000) {
+          // Skip obvious non-financial numbers
+          const isYear = numValue >= 1900 && numValue <= 2100;
+          const isSmallInt = numValue < 10 && Number.isInteger(numValue);
           
-          const numValue = parseFloat(cleanNum);
-          
-          // Filter valid numbers (exclude very small decimals, dates, etc.)
-          if (!isNaN(numValue) && numValue >= 0.01 && numValue < 999999999) {
-            // Skip common non-financial numbers
-            if (numValue < 1800 || numValue > 2100) { // Skip years
-              numbers.push(Math.abs(numValue));
-            }
+          if (!isYear && !isSmallInt) {
+            numbers.push(Math.abs(numValue));
           }
         }
       }
     }
     
-    // Remove duplicates and sort
-    const uniqueNumbers = [...new Set(numbers.map(n => Math.round(n * 100) / 100))].sort((a, b) => a - b);
-    console.log(`Found ${uniqueNumbers.length} unique numeric values in PDF ${filePath}`);
+    // Remove duplicates and round to 2 decimal places
+    const uniqueNumbers = [...new Set(numbers.map(n => Math.round(n * 100) / 100))];
     
-    // Log some examples for debugging
+    console.log(`Extracted ${uniqueNumbers.length} unique numbers from PDF ${filePath}`);
+    
+    // Log first few numbers for debugging
     if (uniqueNumbers.length > 0) {
-      const examples = uniqueNumbers.slice(0, 10).join(', ');
-      console.log(`Examples: ${examples}${uniqueNumbers.length > 10 ? '...' : ''}`);
+      const samples = uniqueNumbers.slice(0, 5).join(', ');
+      console.log(`Sample numbers: ${samples}${uniqueNumbers.length > 5 ? '...' : ''}`);
     }
     
-    return uniqueNumbers;
+    return uniqueNumbers.sort((a, b) => a - b);
+    
   } catch (error) {
     console.log(`Error parsing PDF file ${filePath}:`, error);
     return [];
