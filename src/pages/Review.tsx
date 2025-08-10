@@ -32,6 +32,7 @@ interface AccountGroup {
   trial_balance_id: string;
   name: string;
   description?: string;
+  assigned_member_id?: string;
   assignments: Assignment[];
   isOpen: boolean;
 }
@@ -53,6 +54,7 @@ const Review: React.FC = () => {
   const [accountGroups, setAccountGroups] = useState<AccountGroup[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{[key: string]: {name: string, email: string}}>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
@@ -101,6 +103,14 @@ const Review: React.FC = () => {
 
       if (documentsError) throw documentsError;
 
+      // Lade Team Members
+      const { data: teamMembersData, error: teamMembersError } = await supabase
+        .from('team_members')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (teamMembersError) throw teamMembersError;
+
       // Lade gespeicherte Kommentare
       const { data: commentsData, error: commentsError } = await supabase
         .from('account_comments')
@@ -130,8 +140,18 @@ const Review: React.FC = () => {
         loadedMap[comment.assignment_id] = true;
       });
 
+      // Erstelle Team Member Mapping
+      const teamMemberMap: {[key: string]: {name: string, email: string}} = {};
+      teamMembersData?.forEach(member => {
+        teamMemberMap[member.id] = {
+          name: member.name,
+          email: member.email
+        };
+      });
+
       setAssignments(allAssignments);
       setDocuments(documentsResponse || []);
+      setTeamMembers(teamMemberMap);
       
       // Sortiere Account Groups nach created_at (Reihenfolge der Gruppierung)
       const sortedGroups = groupsData
@@ -410,6 +430,24 @@ const Review: React.FC = () => {
     return group.assignments.reduce((sum, assignment) => sum + assignment.current_year_balance, 0);
   };
 
+  const getInitialsFromEmail = (email: string) => {
+    // Extrahiere den Teil vor dem @ und teile bei Punkt oder Unterstrich
+    const namePart = email.split('@')[0];
+    const nameParts = namePart.split(/[._]/);
+    
+    if (nameParts.length >= 2) {
+      return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+    } else if (nameParts.length === 1 && nameParts[0].length >= 2) {
+      return nameParts[0].substring(0, 2).toUpperCase();
+    }
+    return 'N/A';
+  };
+
+  const getTeamMemberInitials = (memberId?: string) => {
+    if (!memberId || !teamMembers[memberId]) return null;
+    return getInitialsFromEmail(teamMembers[memberId].email);
+  };
+
   const selectedAccountData = selectedAccount 
     ? assignments.find(a => a.id === selectedAccount)
     : null;
@@ -644,6 +682,11 @@ const Review: React.FC = () => {
                                      </div>
                                   </div>
                                    <div className="flex items-center gap-2">
+                                     {getTeamMemberInitials(group.assigned_member_id) && (
+                                       <Badge variant="default" className="bg-blue-500 text-white text-xs px-2 py-1">
+                                         {getTeamMemberInitials(group.assigned_member_id)}
+                                       </Badge>
+                                     )}
                                      <Badge variant="outline">
                                        {formatCurrency(calculateGroupSum(group))}
                                      </Badge>
