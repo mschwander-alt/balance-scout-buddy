@@ -75,6 +75,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [showMultiAssignModal, setShowMultiAssignModal] = useState(false);
   const [selectedDocumentForMultiAssign, setSelectedDocumentForMultiAssign] = useState<Document | null>(null);
   const [selectedAccountsForAssign, setSelectedAccountsForAssign] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -1152,50 +1153,97 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
         {/* Mehrfachzuweisungs-Dialog */}
         <Dialog open={showMultiAssignModal} onOpenChange={setShowMultiAssignModal}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl max-h-[80vh]">
             <DialogHeader>
               <DialogTitle>Nachweis weiteren Konten zuweisen</DialogTitle>
+              <div className="mt-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Konto suchen..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
             </DialogHeader>
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              <p className="text-sm text-muted-foreground">
+            <div className="overflow-y-auto flex-1">
+              <p className="text-sm text-muted-foreground mb-4">
                 Wählen Sie die Konten aus, denen dieser Nachweis zusätzlich zugewiesen werden soll:
               </p>
-              <div className="space-y-2">
-                {assignments
-                  .filter(assignment => 
-                    !assignment.matched_documents?.includes(selectedDocumentForMultiAssign?.id || '') &&
-                    assignment.id !== selectedAccountData?.id
-                  )
-                  .map(assignment => (
-                    <div 
-                      key={assignment.id} 
-                      className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                      onClick={() => {
-                        const newSelection = new Set(selectedAccountsForAssign);
-                        if (newSelection.has(assignment.id)) {
-                          newSelection.delete(assignment.id);
-                        } else {
-                          newSelection.add(assignment.id);
-                        }
-                        setSelectedAccountsForAssign(newSelection);
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedAccountsForAssign.has(assignment.id)}
-                        onChange={() => {}} // Handled by parent onClick
-                        className="rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">
-                          {assignment.account_number} - {assignment.account_name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Saldo: {formatCurrency(assignment.current_year_balance)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Konto</TableHead>
+                      <TableHead className="text-right">Lfd. Jahr</TableHead>
+                      <TableHead className="text-right">Vorjahr</TableHead>
+                      <TableHead className="text-right">Abweichung</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignments
+                      .filter(assignment => {
+                        const matchesSearch = searchQuery === '' || 
+                          assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+                        
+                        return matchesSearch &&
+                          !assignment.matched_documents?.includes(selectedDocumentForMultiAssign?.id || '') &&
+                          assignment.id !== selectedAccountData?.id;
+                      })
+                      .map(assignment => (
+                        <TableRow 
+                          key={assignment.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => {
+                            const newSelection = new Set(selectedAccountsForAssign);
+                            if (newSelection.has(assignment.id)) {
+                              newSelection.delete(assignment.id);
+                            } else {
+                              newSelection.add(assignment.id);
+                            }
+                            setSelectedAccountsForAssign(newSelection);
+                          }}
+                        >
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedAccountsForAssign.has(assignment.id)}
+                              onChange={() => {}} // Handled by parent onClick
+                              className="rounded"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium text-sm">
+                                {assignment.account_number} - {assignment.account_name}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(assignment.current_year_balance)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(assignment.previous_year_balance)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={
+                              (assignment.current_year_balance - assignment.previous_year_balance) >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }>
+                              {formatCurrency(assignment.current_year_balance - assignment.previous_year_balance)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-4">
@@ -1205,6 +1253,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                   setShowMultiAssignModal(false);
                   setSelectedDocumentForMultiAssign(null);
                   setSelectedAccountsForAssign(new Set());
+                  setSearchQuery('');
                 }}
               >
                 Abbrechen
