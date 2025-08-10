@@ -1032,8 +1032,13 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">
+          <Button variant="outline" onClick={() => window.location.href = '/'}>
+            Zurück zum Dashboard
+          </Button>
           <Button onClick={onGroupingComplete}>
-            Gruppierung abschließen
+            {accountGroups.length > 0 
+              ? "Weiter zur Dokumentenprüfung" 
+              : "Ohne Gruppierungen fortfahren"}
           </Button>
         </div>
       </div>
