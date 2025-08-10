@@ -247,7 +247,15 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
           confidence_score: match.confidence_score || undefined,
           matched_documents: match.matched_documents || undefined
-        }));
+        })).sort((a, b) => {
+          // Sortiere nach Kontonummer numerisch aufsteigend
+          const aNum = parseInt(a.account_number);
+          const bNum = parseInt(b.account_number);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum;
+          }
+          return a.account_number.localeCompare(b.account_number);
+        });
 
         const virtualGroup: AccountGroup = {
           id: 'no-group',
@@ -299,7 +307,15 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
             confidence_score: match.confidence_score || undefined,
             matched_documents: match.matched_documents || undefined
-          }));
+          })).sort((a, b) => {
+            // Sortiere nach Kontonummer numerisch aufsteigend
+            const aNum = parseInt(a.account_number);
+            const bNum = parseInt(b.account_number);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+              return aNum - bNum;
+            }
+            return a.account_number.localeCompare(b.account_number);
+          });
 
           const virtualGroup: AccountGroup = {
             id: 'no-group',
@@ -385,7 +401,15 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         match_status: 'pending' as const,
         confidence_score: undefined,
         matched_documents: undefined
-      }));
+      })).sort((a, b) => {
+        // Sortiere nach Kontonummer numerisch aufsteigend
+        const aNum = parseInt(a.account_number);
+        const bNum = parseInt(b.account_number);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return aNum - bNum;
+        }
+        return a.account_number.localeCompare(b.account_number);
+      });
 
       // Create a virtual group for ungrouped accounts
       const virtualGroup: AccountGroup = {
@@ -871,8 +895,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         </div>
       </header>
 
-      <main className="container mx-auto px-2 py-3">
-        <div className="space-y-4">
+      <main className="container mx-auto px-2 py-3 max-w-full overflow-hidden">
+        <div className="space-y-4 max-w-full">
           <div className="flex items-center justify-between py-2">
             <div>
               <h2 className="text-2xl font-bold text-foreground">
@@ -1254,9 +1278,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               </CardContent>
             </Card>
 
-            <Card className="flex-1 min-w-0 relative">
-              <CardHeader className="py-3">
-                <div className="flex items-center gap-3">
+            <Card className="flex-1 min-w-0 relative overflow-hidden">
+              <CardHeader className="py-3 flex-shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -1351,7 +1375,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col py-3" style={{height: 'calc(100vh - 12rem)'}}>
+              <CardContent className="flex flex-col py-3 overflow-hidden" style={{height: 'calc(100vh - 12rem)'}}>
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="flex flex-col h-full">
@@ -1464,39 +1488,42 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                    <CheckCircle className="h-4 w-4" />
                                    {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
                                  </Button>
-                               </div>
-                             </div>
-                            <Textarea
-                              placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
-                              value={accountComments[selectedAccountData.id] || (
-                                selectedAccountData.match_status === 'matched' && selectedAccountData.confidence_score === 0.8
-                                  ? "Nachweis konnte mit der Saldobilanz abgestimmt werden; es ergaben sich keine Differenzen."
-                                  : ""
-                              )}
-                              onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
-                              className="min-h-[100px] resize-none bg-background border-input"
-                            />
-                             {loadedComments[selectedAccountData.id] && (
-                               <p className="text-xs text-muted-foreground">
-                                 ✓ Kommentar gespeichert
-                               </p>
-                             )}
+                                </div>
+                              </div>
                              
-                             {/* Export Buttons */}
-                             {selectedDocuments.length > 0 && (
-                               <div className="pt-4 border-t">
-                                 <PDFCommentExporter
-                                   document={selectedDocuments[0]}
-                                   assignmentId={selectedAccountData.id}
-                                   trialBalanceId={trialBalanceId}
-                                   accountName={selectedAccountData.account_name}
-                                   accountNumber={selectedAccountData.account_number}
-                                 />
-                               </div>
-                             )}
-                            </div>
-                         </div>
-                      </div>
+                             {/* Kommentarfeld in einem festen Container */}
+                             <div className="flex-shrink-0 border-t pt-4 space-y-2">
+                             <Textarea
+                               placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
+                               value={accountComments[selectedAccountData.id] || (
+                                 selectedAccountData.match_status === 'matched' && selectedAccountData.confidence_score === 0.8
+                                   ? "Nachweis konnte mit der Saldobilanz abgestimmt werden; es ergaben sich keine Differenzen."
+                                   : ""
+                               )}
+                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                               className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                             />
+                              {loadedComments[selectedAccountData.id] && (
+                                <p className="text-xs text-muted-foreground">
+                                  ✓ Kommentar gespeichert
+                                </p>
+                              )}
+                              
+                              {/* Export Buttons */}
+                              {selectedDocuments.length > 0 && (
+                                <div className="pt-4 border-t">
+                                  <PDFCommentExporter
+                                    document={selectedDocuments[0]}
+                                    assignmentId={selectedAccountData.id}
+                                    trialBalanceId={trialBalanceId}
+                                    accountName={selectedAccountData.account_name}
+                                    accountNumber={selectedAccountData.account_number}
+                                  />
+                                </div>
+                              )}
+                             </div>
+                          </div>
+                       </div>
                    ) : (
                      <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
                        <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
