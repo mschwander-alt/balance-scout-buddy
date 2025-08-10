@@ -166,6 +166,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  console.log('Unified auto-match function started');
+
   try {
     const { trial_balance_id } = await req.json();
     
@@ -175,8 +177,13 @@ serve(async (req) => {
 
     console.log(`Processing unified matching for trial_balance_id: ${trial_balance_id}`);
     
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration missing');
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Check if groups exist
