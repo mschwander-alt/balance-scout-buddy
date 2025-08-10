@@ -512,12 +512,37 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   };
 
   const handleMarkCompleted = (assignmentId: string) => {
+    const isCurrentlyCompleted = completedAccounts.has(assignmentId);
+    
     setCompletedAccounts(prev => {
       const newSet = new Set(prev);
       if (newSet.has(assignmentId)) {
         newSet.delete(assignmentId);
       } else {
         newSet.add(assignmentId);
+        
+        // Add completion text to comment when marking as complete
+        if (user) {
+          const currentComment = accountComments[assignmentId] || "";
+          const userInitials = user.email?.split('@')[0].substring(0, 2).toUpperCase() || "XX";
+          const currentDate = new Date().toLocaleDateString('de-DE');
+          const completionText = `completed by ${userInitials}, ${currentDate}`;
+          
+          // Only add if not already present
+          if (!currentComment.includes(completionText)) {
+            const newComment = currentComment.trim() 
+              ? `${currentComment}\n\n${completionText}`
+              : completionText;
+            
+            setAccountComments(prev => ({
+              ...prev,
+              [assignmentId]: newComment
+            }));
+            
+            // Save the updated comment
+            debouncedSaveComment(assignmentId, newComment);
+          }
+        }
         
         // Mark all manually assigned accounts as completed too
         const selectedAssignment = assignments.find(a => a.id === assignmentId);
@@ -535,7 +560,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       }
       return newSet;
     });
-    toast.success(completedAccounts.has(assignmentId) ? 'Als unvollständig markiert' : 'Als vollständig markiert');
+    toast.success(isCurrentlyCompleted ? 'Als unvollständig markiert' : 'Als vollständig markiert');
   };
 
   const toggleGroup = (groupId: string) => {
