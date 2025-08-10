@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
 import { SimplePDFViewer } from '@/components/SimplePDFViewer';
+import { ExcelViewer } from '@/components/ExcelViewer';
 
 interface Assignment {
   id: string;
@@ -935,6 +936,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                         <div className="flex-1 border rounded-lg overflow-hidden">
                           {selectedDocuments[0].file_type === 'application/pdf' ? (
                             <SimplePDFViewer document={selectedDocuments[0]} />
+                          ) : selectedDocuments[0].file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                               selectedDocuments[0].file_type === 'application/vnd.ms-excel' ? (
+                            <ExcelViewer document={selectedDocuments[0]} />
                           ) : (
                             <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
                               <FileText className="h-16 w-16 mb-4 opacity-60" />
@@ -942,10 +946,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                 {selectedDocuments[0].file_name}
                               </p>
                               <p className="text-sm text-center mt-2">
-                                {selectedDocuments[0].file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                                 selectedDocuments[0].file_type === 'application/vnd.ms-excel' ? 
-                                 'Excel-Datei - Klicken Sie hier zum Download' : 
-                                 'Vorschau für diesen Dateityp nicht verfügbar'}
+                                Vorschau für diesen Dateityp nicht verfügbar
                               </p>
                             </div>
                           )}
@@ -966,6 +967,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                               <div className="h-full border rounded-lg overflow-hidden">
                                 {doc.file_type === 'application/pdf' ? (
                                   <SimplePDFViewer document={doc} />
+                                ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                                     doc.file_type === 'application/vnd.ms-excel' ? (
+                                  <ExcelViewer document={doc} />
                                 ) : (
                                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
                                     <FileText className="h-16 w-16 mb-4 opacity-60" />
@@ -973,10 +977,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                       {doc.file_name}
                                     </p>
                                     <p className="text-sm text-center mt-2">
-                                      {doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                                       doc.file_type === 'application/vnd.ms-excel' ? 
-                                       'Excel-Datei - Klicken Sie hier zum Download' : 
-                                       'Vorschau für diesen Dateityp nicht verfügbar'}
+                                      Vorschau für diesen Dateityp nicht verfügbar
                                     </p>
                                   </div>
                                 )}
