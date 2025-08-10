@@ -2,6 +2,8 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
+// Import PDF.js for better PDF text extraction
+import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@4.8.69/build/pdf.mjs'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +26,7 @@ interface AccountMatch {
 }
 
 
-// Helper function to extract text from PDF files
+// Helper function to extract text from PDF files using PDF.js
 async function extractTextFromPDF(supabase: any, filePath: string): Promise<string> {
   try {
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -38,25 +40,71 @@ async function extractTextFromPDF(supabase: any, filePath: string): Promise<stri
 
     const arrayBuffer = await fileData.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Load PDF document with PDF.js
+    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+    const pdf = await loadingTask.promise;
+    
+    let fullText = '';
+    
+    // Extract text from all pages
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        // Combine all text items
+        const pageText = textContent.items
+          .map((item: any) => item.str || '')
+          .join(' ');
+        
+        fullText += pageText + '\n';
+      } catch (pageError) {
+        console.log(`Error extracting text from page ${pageNum} of ${filePath}:`, pageError);
+        // Continue with other pages
+      }
+    }
+    
+    console.log(`Extracted ${fullText.length} characters from PDF ${filePath} (${pdf.numPages} pages)`);
+    return fullText;
+    
+  } catch (error) {
+    console.log(`Error extracting text from PDF file ${filePath}:`, error);
+    // Fallback to simple binary extraction if PDF.js fails
+    return await extractTextFromPDFFallback(supabase, filePath);
+  }
+}
+
+// Fallback function for PDF text extraction
+async function extractTextFromPDFFallback(supabase: any, filePath: string): Promise<string> {
+  try {
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('account-evidence')
+      .download(filePath);
+
+    if (downloadError) {
+      return '';
+    }
+
+    const arrayBuffer = await fileData.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
     let extractedText = '';
     
-    // Convert to string and look for readable ASCII characters
+    // Simple binary-to-text conversion as fallback
     for (let i = 0; i < uint8Array.length; i++) {
       const byte = uint8Array[i];
-      // ASCII printable characters (32-126) plus some common chars
       if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13) {
         extractedText += String.fromCharCode(byte);
       } else {
-        // Add space to separate potential text segments
         extractedText += ' ';
       }
     }
     
-    console.log(`Extracted ${extractedText.length} characters from PDF ${filePath}`);
+    console.log(`Fallback extraction: ${extractedText.length} characters from PDF ${filePath}`);
     return extractedText;
     
   } catch (error) {
-    console.log(`Error extracting text from PDF file ${filePath}:`, error);
+    console.log(`Error in fallback PDF extraction for ${filePath}:`, error);
     return '';
   }
 }
