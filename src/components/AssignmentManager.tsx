@@ -85,17 +85,33 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
         if (tempError) throw tempError;
 
         if (tempMatchesData && tempMatchesData.length > 0) {
-          // Create virtual groups from temp matches
-          groups = tempMatchesData.map(match => ({
-            id: match.id,
-            name: `${match.account_number} - ${match.account_name}`,
-            description: `Saldo: ${match.current_year_balance?.toLocaleString() || 0}`,
-            assigned_member_id: null,
-            assigned_member: null,
-            status: 'pending' as const,
-            account_count: 1,
-            is_temp: true
-          }));
+          // Load team members for assigned temp matches
+          const tempMatchesWithMembers = await Promise.all(
+            tempMatchesData.map(async (match) => {
+              let assignedMember = null;
+              if (match.assigned_member_id) {
+                const { data: memberData } = await supabase
+                  .from('team_members')
+                  .select('*')
+                  .eq('id', match.assigned_member_id)
+                  .single();
+                assignedMember = memberData;
+              }
+              
+              return {
+                id: match.id,
+                name: `${match.account_number} - ${match.account_name}`,
+                description: `Saldo: ${match.current_year_balance?.toLocaleString() || 0}`,
+                assigned_member_id: match.assigned_member_id,
+                assigned_member: assignedMember,
+                status: (match.match_status === 'assigned' ? 'in_progress' : 'pending') as AccountGroup['status'],
+                account_count: 1,
+                is_temp: true
+              };
+            })
+          );
+          
+          groups = tempMatchesWithMembers;
         }
       }
 

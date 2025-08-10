@@ -299,6 +299,7 @@ export type Database = {
         Row: {
           account_name: string
           account_number: string
+          assigned_member_id: string | null
           confidence_score: number | null
           created_at: string
           current_year_balance: number | null
@@ -312,6 +313,7 @@ export type Database = {
         Insert: {
           account_name: string
           account_number: string
+          assigned_member_id?: string | null
           confidence_score?: number | null
           created_at?: string
           current_year_balance?: number | null
@@ -325,6 +327,7 @@ export type Database = {
         Update: {
           account_name?: string
           account_number?: string
+          assigned_member_id?: string | null
           confidence_score?: number | null
           created_at?: string
           current_year_balance?: number | null
@@ -335,7 +338,15 @@ export type Database = {
           trial_balance_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "temp_account_matches_assigned_member_id_fkey"
+            columns: ["assigned_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trial_balances: {
         Row: {
