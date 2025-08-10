@@ -19,6 +19,7 @@ import { DocumentViewer } from '@/components/DocumentViewer';
 import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { PDFCommentExporter } from '@/components/PDFCommentExporter';
+import * as XLSX from 'xlsx';
 
 interface Assignment {
   id: string;
@@ -48,6 +49,25 @@ interface Document {
   file_path: string;
   file_type: string;
   file_size: number;
+}
+
+interface TrialBalanceData {
+  id: string;
+  filename: string;
+  file_path: string;
+  account_number_column?: string;
+  account_name_column?: string;
+  current_year_column?: string;
+  previous_year_column?: string;
+  foreign_currency_column?: string;
+}
+
+interface TrialBalanceRow {
+  accountNumber: string;
+  accountName: string;
+  currentYear: number;
+  previousYear: number;
+  foreignCurrency?: number;
 }
 
 const Review: React.FC = () => {
@@ -132,17 +152,6 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
       if (commentsError) throw commentsError;
 
-      // Verarbeite Daten mit Type Casting für nullable Felder
-      const allAssignments = groupsData.flatMap(group => 
-        group.assignments.map(assignment => ({
-          ...assignment,
-          account_group_id: group.id,
-          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
-          confidence_score: assignment.confidence_score || undefined,
-          matched_documents: assignment.matched_documents || undefined
-        }))
-      );
-
       // Erstelle Kommentar-Mapping
       const commentMap: {[key: string]: string} = {};
       const loadedMap: {[key: string]: boolean} = {};
@@ -161,36 +170,53 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         };
       });
 
-      setAssignments(allAssignments);
       setDocuments(documentsResponse || []);
       setTeamMembers(teamMemberMap);
       
-      // Sortiere Account Groups nach created_at (Reihenfolge der Gruppierung)
-      const sortedGroups = groupsData
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-        .map(group => ({
-          ...group,
-          // Sortiere Assignments innerhalb der Gruppe nach Kontonummer aufsteigend
-          assignments: group.assignments
-            .map(assignment => ({
-              ...assignment,
-              match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
-              confidence_score: assignment.confidence_score || undefined,
-              matched_documents: assignment.matched_documents || undefined
-            }))
-            .sort((a, b) => {
-              // Sortiere nach Kontonummer (numerisch wenn möglich, sonst alphabetisch)
-              const aNum = parseInt(a.account_number);
-              const bNum = parseInt(b.account_number);
-              if (!isNaN(aNum) && !isNaN(bNum)) {
-                return aNum - bNum;
-              }
-              return a.account_number.localeCompare(b.account_number);
-            }),
-          isOpen: false
-        }));
+      if (groupsData && groupsData.length > 0) {
+        // Groups exist - use existing logic
+        const allAssignments = groupsData.flatMap(group => 
+          group.assignments.map(assignment => ({
+            ...assignment,
+            account_group_id: group.id,
+            match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+            confidence_score: assignment.confidence_score || undefined,
+            matched_documents: assignment.matched_documents || undefined
+          }))
+        );
+
+        // Sortiere Account Groups nach created_at (Reihenfolge der Gruppierung)
+        const sortedGroups = groupsData
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map(group => ({
+            ...group,
+            // Sortiere Assignments innerhalb der Gruppe nach Kontonummer aufsteigend
+            assignments: group.assignments
+              .map(assignment => ({
+                ...assignment,
+                match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+                confidence_score: assignment.confidence_score || undefined,
+                matched_documents: assignment.matched_documents || undefined
+              }))
+              .sort((a, b) => {
+                // Sortiere nach Kontonummer (numerisch wenn möglich, sonst alphabetisch)
+                const aNum = parseInt(a.account_number);
+                const bNum = parseInt(b.account_number);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                  return aNum - bNum;
+                }
+                return a.account_number.localeCompare(b.account_number);
+              }),
+            isOpen: false
+          }));
+        
+        setAccountGroups(sortedGroups);
+        setAssignments(allAssignments);
+      } else {
+        // No groups exist - load trial balance directly
+        await loadTrialBalanceDirectly();
+      }
       
-      setAccountGroups(sortedGroups);
       setAccountComments(commentMap);
       setLoadedComments(loadedMap);
     } catch (error: any) {
@@ -198,6 +224,87 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       toast.error('Fehler beim Laden der Daten');
     }
   }, [trialBalanceId, user]);
+
+  const loadTrialBalanceDirectly = async () => {
+    try {
+      // Lade Trial Balance Metadaten
+      const { data: trialBalanceData, error: tbError } = await supabase
+        .from('trial_balances')
+        .select('*')
+        .eq('id', trialBalanceId)
+        .single();
+
+      if (tbError || !trialBalanceData) {
+        console.error('Error loading trial balance:', tbError);
+        return;
+      }
+
+      // Download and parse Excel file
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('trial-balances')
+        .download(trialBalanceData.file_path);
+
+      if (downloadError) {
+        console.error('Error downloading file:', downloadError);
+        return;
+      }
+
+      const arrayBuffer = await fileData.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+      if (jsonData.length < 2) return;
+
+      const headers = jsonData[0] as string[];
+      const dataRows = jsonData.slice(1);
+
+      // Find column indices
+      const accountNumberIndex = headers.findIndex(h => h === trialBalanceData.account_number_column);
+      const accountNameIndex = headers.findIndex(h => h === trialBalanceData.account_name_column);
+      const currentYearIndex = headers.findIndex(h => h === trialBalanceData.current_year_column);
+      const previousYearIndex = headers.findIndex(h => h === trialBalanceData.previous_year_column);
+
+      const parsedData: TrialBalanceRow[] = dataRows
+        .filter(row => row[accountNumberIndex] && row[accountNameIndex])
+        .map(row => ({
+          accountNumber: String(row[accountNumberIndex] || '').trim(),
+          accountName: String(row[accountNameIndex] || '').trim(),
+          currentYear: parseFloat(String(row[currentYearIndex] || 0)) || 0,
+          previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
+        }));
+
+      // Create individual assignments from trial balance entries
+      const individualAssignments: Assignment[] = parsedData.map(row => ({
+        id: `tb-${row.accountNumber}`,
+        account_group_id: 'no-group',
+        account_number: row.accountNumber,
+        account_name: row.accountName,
+        current_year_balance: row.currentYear,
+        previous_year_balance: row.previousYear,
+        match_status: 'pending' as const,
+        confidence_score: undefined,
+        matched_documents: undefined
+      }));
+
+      // Create a virtual group for ungrouped accounts
+      const virtualGroup: AccountGroup = {
+        id: 'no-group',
+        trial_balance_id: trialBalanceId!,
+        name: 'Alle Konten',
+        description: 'Ungroupierte Saldobilanz',
+        assignments: individualAssignments,
+        isOpen: true
+      };
+
+      setAccountGroups([virtualGroup]);
+      setAssignments(individualAssignments);
+    } catch (error) {
+      console.error('Error loading trial balance directly:', error);
+      toast.error('Fehler beim Laden der Saldobilanz');
+    }
+  };
 
   const previewDocument = async (document: Document) => {
     setPreviewLoading(true);
@@ -860,7 +967,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 <div className="space-y-4">
                   {accountGroups.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      <p>Keine Kontengruppen gefunden</p>
+                      <p>Lade Saldobilanz...</p>
                     </div>
                   ) : (
                     <Tabs defaultValue="bilanz" className="w-full">
