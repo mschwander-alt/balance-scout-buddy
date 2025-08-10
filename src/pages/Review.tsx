@@ -384,26 +384,24 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   };
 
   // Funktion zum Entfernen und Neu-Zuweisen von Dokumenten
-  const handleReassignDocument = async (removeFromCurrent: boolean = true) => {
-    if (!documentToReassign || !selectedAccountData) return;
+  const handleReassignDocument = async () => {
+    if (!documentToReassign || !selectedAccountData || selectedAccountsForAssign.size === 0) return;
 
     try {
-      // Entferne von aktuellem Konto falls gewünscht
-      if (removeFromCurrent) {
-        const updatedMatchedDocuments = selectedAccountData.matched_documents?.filter(
-          docId => docId !== documentToReassign.id
-        ) || [];
+      // Entferne von aktuellem Konto
+      const updatedMatchedDocuments = selectedAccountData.matched_documents?.filter(
+        docId => docId !== documentToReassign.id
+      ) || [];
 
-        await supabase
-          .from('account_group_assignments')
-          .update({
-            matched_documents: updatedMatchedDocuments.length > 0 ? updatedMatchedDocuments : null,
-            match_status: updatedMatchedDocuments.length > 0 ? 'matched' : 'pending'
-          })
-          .eq('id', selectedAccountData.id);
-      }
+      await supabase
+        .from('account_group_assignments')
+        .update({
+          matched_documents: updatedMatchedDocuments.length > 0 ? updatedMatchedDocuments : null,
+          match_status: updatedMatchedDocuments.length > 0 ? 'matched' : 'pending'
+        })
+        .eq('id', selectedAccountData.id);
 
-      // Weise neuen Konten zu falls welche ausgewählt
+      // Weise neuen Konten zu
       for (const assignmentId of selectedAccountsForAssign) {
         const assignment = assignments.find(a => a.id === assignmentId);
         if (!assignment) continue;
@@ -425,16 +423,14 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       // Aktualisiere lokalen State
       await loadData();
       
-      const action = removeFromCurrent && selectedAccountsForAssign.size > 0 ? 'neu zugewiesen' :
-                    removeFromCurrent ? 'entfernt' : 'zusätzlich zugewiesen';
-      
-      toast.success(`Nachweis erfolgreich ${action}`);
+      toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konto${selectedAccountsForAssign.size > 1 ? 'en' : ''} verschoben`);
+      setSearchQuery('');
       setShowReassignModal(false);
       setDocumentToReassign(null);
       setSelectedAccountsForAssign(new Set());
     } catch (error: any) {
       console.error('Error during reassign:', error);
-      toast.error('Neu-Zuweisung fehlgeschlagen');
+      toast.error('Verschiebung fehlgeschlagen');
     }
   };
 
