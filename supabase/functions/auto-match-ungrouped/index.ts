@@ -2,10 +2,6 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
-import { getDocument, GlobalWorkerOptions } from 'https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs'
-
-// Set up PDF.js worker
-GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -283,7 +279,7 @@ serve(async (req) => {
       }
     };
 
-    // Enhanced function to parse PDF document and extract all numeric values
+    // Simple function to parse PDF document and extract numeric values using basic text extraction
     const parsePDFForValues = async (doc: any): Promise<number[]> => {
       try {
         console.log(`Parsing PDF file: ${doc.file_name}`);
@@ -296,30 +292,37 @@ serve(async (req) => {
           return [];
         }
 
+        // Convert PDF to text using a simple approach
         const arrayBuffer = await docData.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         
-        // Load PDF document
-        const pdfDoc = await getDocument({ data: uint8Array }).promise;
+        // Try to extract text using a simple PDF text extraction
+        // This is a basic approach - we'll look for numbers in the raw PDF data
+        const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
+        let pdfText = '';
+        
+        try {
+          pdfText = textDecoder.decode(uint8Array);
+        } catch {
+          // If UTF-8 fails, try latin1
+          const latin1Decoder = new TextDecoder('latin1');
+          pdfText = latin1Decoder.decode(uint8Array);
+        }
+        
         const allValues: number[] = [];
         
-        // Process each page
-        for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-          const page = await pdfDoc.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          
-          // Extract text from all text items
-          const pageText = textContent.items
-            .map((item: any) => item.str)
-            .join(' ');
-          
-          // Extract all numeric values using regex
-          const numberPattern = /\d+[\.,]?\d*/g;
-          const matches = pageText.match(numberPattern);
-          
+        // Extract all numeric values using regex - more comprehensive patterns
+        const numberPatterns = [
+          /\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?\b/g,  // Numbers with thousand separators
+          /\b\d+[.,]\d{2}\b/g,                          // Decimal numbers
+          /\b\d+\b/g                                    // Whole numbers
+        ];
+        
+        for (const pattern of numberPatterns) {
+          const matches = pdfText.match(pattern);
           if (matches) {
             for (const match of matches) {
-              const cleanedMatch = match.replace(',', '.');
+              const cleanedMatch = match.replace(/[^\d.,-]/g, '').replace(',', '.');
               const numValue = parseFloat(cleanedMatch);
               if (!isNaN(numValue) && Math.abs(numValue) > 0.01) {
                 allValues.push(numValue);
@@ -328,8 +331,11 @@ serve(async (req) => {
           }
         }
         
-        console.log(`Found ${allValues.length} numeric values in PDF ${doc.file_name}`);
-        return allValues;
+        // Remove duplicates and sort
+        const uniqueValues = [...new Set(allValues)].sort((a, b) => b - a);
+        
+        console.log(`Found ${uniqueValues.length} unique numeric values in PDF ${doc.file_name}`);
+        return uniqueValues;
       } catch (error) {
         console.log(`Error parsing PDF document ${doc.file_name}:`, error.message);
         return [];
