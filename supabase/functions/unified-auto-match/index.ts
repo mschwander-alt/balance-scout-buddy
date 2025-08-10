@@ -79,28 +79,63 @@ async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<n
     const arrayBuffer = await fileData.arrayBuffer();
     const numbers: number[] = [];
     
-    // Convert PDF binary to text by looking for readable text patterns
+    // Convert PDF binary to text with better extraction
     const uint8Array = new Uint8Array(arrayBuffer);
     let text = '';
     
-    // Extract readable ASCII text from PDF stream
-    for (let i = 0; i < uint8Array.length - 1; i++) {
-      const char = uint8Array[i];
-      // Include printable ASCII characters and common European characters
+    // Look for PDF text streams and extract content
+    const pdfString = new TextDecoder('latin1').decode(uint8Array);
+    
+    // Extract text from PDF streams (look for content between "stream" and "endstream")
+    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/gi;
+    let streamMatch;
+    
+    while ((streamMatch = streamRegex.exec(pdfString)) !== null) {
+      const streamContent = streamMatch[1];
+      
+      // Try to extract readable text from the stream
+      for (let i = 0; i < streamContent.length; i++) {
+        const char = streamContent.charCodeAt(i);
+        if ((char >= 32 && char <= 126) || char === 10 || char === 13) {
+          text += streamContent[i];
+        } else if (char === 0 || char === 9) {
+          text += ' ';
+        }
+      }
+    }
+    
+    // Also extract from the general PDF structure (outside streams)
+    const generalText = pdfString.replace(/stream[\s\S]*?endstream/gi, '');
+    for (let i = 0; i < generalText.length; i++) {
+      const char = generalText.charCodeAt(i);
       if ((char >= 32 && char <= 126) || char === 10 || char === 13) {
-        text += String.fromCharCode(char);
-      } else {
-        // Add space to separate potential numbers
+        text += generalText[i];
+      } else if (char === 0 || char === 9) {
         text += ' ';
       }
     }
     
-    // Improved number extraction with better patterns
+    console.log(`Extracted text length: ${text.length} characters from ${filePath}`);
+    
+    // Comprehensive number extraction with Swiss formatting
     const numberPatterns = [
-      /\b\d{1,3}(?:['\s]\d{3})*[.,]\d{2}\b/g,  // 1'000.50, 1 000,50
-      /\b\d{1,3}(?:['\s]\d{3})*\b/g,           // 1'000, 1 000
-      /\b\d+[.,]\d+\b/g,                       // 123.45, 123,45
-      /\b\d+\b/g                               // 123
+      // Swiss number formats with apostrophe
+      /\b\d{1,3}(?:'\d{3})*\.\d{2}\b/g,        // 1'000.50
+      /\b\d{1,3}(?:'\d{3})*,\d{2}\b/g,         // 1'000,50
+      /\b\d{1,3}(?:'\d{3})*\b/g,               // 1'000
+      
+      // Standard European formats
+      /\b\d{1,3}(?:\s\d{3})*[.,]\d{2}\b/g,     // 1 000.50, 1 000,50
+      /\b\d{1,3}(?:\s\d{3})*\b/g,              // 1 000
+      
+      // Simple decimal numbers
+      /\b\d+\.\d{2}\b/g,                       // 123.45
+      /\b\d+,\d{2}\b/g,                        // 123,45
+      /\b\d+\.\d+\b/g,                         // 123.4567
+      /\b\d+,\d+\b/g,                          // 123,4567
+      
+      // Whole numbers (but filter out dates and years)
+      /\b(?!(?:19|20)\d{2}\b)\d{2,}\b/g        // At least 2 digits, but not years like 1999, 2024
     ];
     
     for (const pattern of numberPatterns) {
@@ -109,19 +144,31 @@ async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<n
         for (const match of matches) {
           // Clean and normalize the number
           let cleanNum = match
-            .replace(/['\s]/g, '')        // Remove thousands separators
-            .replace(',', '.');           // Normalize decimal separator
+            .replace(/[''\s]/g, '')           // Remove apostrophes and spaces
+            .replace(',', '.');               // Normalize decimal separator to dot
           
           const numValue = parseFloat(cleanNum);
-          if (!isNaN(numValue) && numValue > 0 && numValue < 999999999) {
-            numbers.push(Math.abs(numValue));
+          
+          // Filter valid numbers (exclude very small decimals, dates, etc.)
+          if (!isNaN(numValue) && numValue >= 0.01 && numValue < 999999999) {
+            // Skip common non-financial numbers
+            if (numValue < 1800 || numValue > 2100) { // Skip years
+              numbers.push(Math.abs(numValue));
+            }
           }
         }
       }
     }
     
-    const uniqueNumbers = [...new Set(numbers)].sort((a, b) => a - b);
+    // Remove duplicates and sort
+    const uniqueNumbers = [...new Set(numbers.map(n => Math.round(n * 100) / 100))].sort((a, b) => a - b);
     console.log(`Found ${uniqueNumbers.length} unique numeric values in PDF ${filePath}`);
+    
+    // Log some examples for debugging
+    if (uniqueNumbers.length > 0) {
+      const examples = uniqueNumbers.slice(0, 10).join(', ');
+      console.log(`Examples: ${examples}${uniqueNumbers.length > 10 ? '...' : ''}`);
+    }
     
     return uniqueNumbers;
   } catch (error) {
