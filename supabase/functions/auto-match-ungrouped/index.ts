@@ -56,7 +56,7 @@ async function extractNumbersFromExcel(supabase: any, filePath: string): Promise
   }
 }
 
-// Helper function to extract numbers from PDF files using simple text extraction
+// Helper function to extract numbers from PDF files using improved text extraction
 async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<number[]> {
   try {
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -68,27 +68,58 @@ async function extractNumbersFromPDF(supabase: any, filePath: string): Promise<n
       return [];
     }
 
-    // Simple text extraction approach - convert to string and extract numbers
     const arrayBuffer = await fileData.arrayBuffer();
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const text = textDecoder.decode(arrayBuffer);
-    
     const numbers: number[] = [];
     
-    // Extract numbers using regex - look for decimal numbers
-    const numberMatches = text.match(/\d+[.,]\d+|\d+/g);
+    // Convert PDF binary to text by looking for readable text patterns
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let text = '';
     
-    if (numberMatches) {
-      for (const match of numberMatches) {
-        const numValue = parseFloat(match.replace(',', '.'));
-        if (!isNaN(numValue) && numValue !== 0) {
-          numbers.push(Math.abs(numValue));
+    // Extract readable ASCII text from PDF stream
+    for (let i = 0; i < uint8Array.length - 1; i++) {
+      const char = uint8Array[i];
+      // Include printable ASCII characters and common European characters
+      if ((char >= 32 && char <= 126) || char === 10 || char === 13) {
+        text += String.fromCharCode(char);
+      } else {
+        // Add space to separate potential numbers
+        text += ' ';
+      }
+    }
+    
+    // Improved number extraction with better patterns
+    // Look for numbers with various decimal separators and thousands separators
+    const numberPatterns = [
+      /\b\d{1,3}(?:['\s]\d{3})*[.,]\d{2}\b/g,  // 1'000.50, 1 000,50
+      /\b\d{1,3}(?:['\s]\d{3})*\b/g,           // 1'000, 1 000
+      /\b\d+[.,]\d+\b/g,                       // 123.45, 123,45
+      /\b\d+\b/g                               // 123
+    ];
+    
+    for (const pattern of numberPatterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          // Clean and normalize the number
+          let cleanNum = match
+            .replace(/['\s]/g, '')        // Remove thousands separators
+            .replace(',', '.');           // Normalize decimal separator
+          
+          const numValue = parseFloat(cleanNum);
+          if (!isNaN(numValue) && numValue > 0 && numValue < 999999999) {
+            numbers.push(Math.abs(numValue));
+          }
         }
       }
     }
-
-    console.log(`Found ${numbers.length} numeric values in PDF ${filePath}`);
-    return numbers;
+    
+    // Remove duplicates and sort
+    const uniqueNumbers = [...new Set(numbers)].sort((a, b) => a - b);
+    
+    console.log(`Found ${uniqueNumbers.length} unique numeric values in PDF ${filePath}`);
+    console.log(`Sample values: ${uniqueNumbers.slice(0, 10).join(', ')}`);
+    
+    return uniqueNumbers;
   } catch (error) {
     console.log(`Error parsing PDF file ${filePath}:`, error);
     return [];
