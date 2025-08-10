@@ -1033,30 +1033,30 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                            return (
                              <>
                                <div className="text-center min-w-0 flex-1">
-                                 <div className="text-xs text-muted-foreground mb-1">Lfd. Jahr</div>
-                                 <div className={`font-medium ${textSizeClass} leading-tight`} title={currentYearStr}>
+                                 <div className="text-xs text-muted-foreground mb-1 whitespace-nowrap">Lfd. Jahr</div>
+                                 <div className={`font-medium ${textSizeClass} leading-tight whitespace-nowrap`} title={currentYearStr}>
                                    {currentYearStr}
                                  </div>
                                </div>
                                
                                <div className="text-center min-w-0 flex-1">
-                                 <div className="text-xs text-muted-foreground mb-1">Vorjahr</div>
-                                 <div className={`font-medium ${textSizeClass} leading-tight`} title={previousYearStr}>
+                                 <div className="text-xs text-muted-foreground mb-1 whitespace-nowrap">Vorjahr</div>
+                                 <div className={`font-medium ${textSizeClass} leading-tight whitespace-nowrap`} title={previousYearStr}>
                                    {previousYearStr}
                                  </div>
                                </div>
                                
                                <div className="text-center min-w-0 flex-1">
-                                 <div className="text-xs text-muted-foreground mb-1">Abwg.</div>
-                                 <div className={`font-medium ${textSizeClass} leading-tight`} title={deviationStr}>
+                                 <div className="text-xs text-muted-foreground mb-1 whitespace-nowrap">Abwg.</div>
+                                 <div className={`font-medium ${textSizeClass} leading-tight whitespace-nowrap`} title={deviationStr}>
                                    {deviationStr}
                                  </div>
                                </div>
                                
                                {selectedAccountData.previous_year_balance !== 0 && (
                                  <div className="text-center min-w-0 flex-1">
-                                   <div className="text-xs text-muted-foreground mb-1">%</div>
-                                   <div className={`font-medium ${textSizeClass} leading-tight ${
+                                   <div className="text-xs text-muted-foreground mb-1 whitespace-nowrap">%</div>
+                                   <div className={`font-medium ${textSizeClass} leading-tight whitespace-nowrap ${
                                      ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
                                        ? 'text-green-600' 
                                        : 'text-red-600'
