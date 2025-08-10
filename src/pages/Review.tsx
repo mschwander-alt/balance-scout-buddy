@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -72,6 +72,9 @@ const Review: React.FC = () => {
 const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
   const [loadedComments, setLoadedComments] = useState<{[key: string]: boolean}>({});
   const [completedAccounts, setCompletedAccounts] = useState<Set<string>>(new Set());
+  const [showMultiAssignModal, setShowMultiAssignModal] = useState(false);
+  const [selectedDocumentForMultiAssign, setSelectedDocumentForMultiAssign] = useState<Document | null>(null);
+  const [selectedAccountsForAssign, setSelectedAccountsForAssign] = useState<Set<string>>(new Set());
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -315,6 +318,65 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     } catch (error: any) {
       console.error('Error during manual assign:', error);
       toast.error('Manuelle Zuweisung fehlgeschlagen');
+    }
+  };
+
+  // Funktion für Mehrfachzuweisung
+  const handleMultiAssign = async () => {
+    if (!selectedDocumentForMultiAssign || selectedAccountsForAssign.size === 0) return;
+
+    try {
+      for (const assignmentId of selectedAccountsForAssign) {
+        const assignment = assignments.find(a => a.id === assignmentId);
+        if (!assignment) continue;
+
+        const updatedMatchedDocuments = assignment.matched_documents 
+          ? [...assignment.matched_documents, selectedDocumentForMultiAssign.id]
+          : [selectedDocumentForMultiAssign.id];
+
+        await supabase
+          .from('account_group_assignments')
+          .update({
+            match_status: 'matched',
+            confidence_score: 1.0,
+            matched_documents: updatedMatchedDocuments
+          })
+          .eq('id', assignmentId);
+      }
+
+      // Update lokaler State
+      const updatedAssignments = assignments.map(a => {
+        if (selectedAccountsForAssign.has(a.id)) {
+          const updatedMatchedDocuments = a.matched_documents 
+            ? [...a.matched_documents, selectedDocumentForMultiAssign.id]
+            : [selectedDocumentForMultiAssign.id];
+          
+          return {
+            ...a,
+            match_status: 'matched' as const,
+            confidence_score: 1.0,
+            matched_documents: updatedMatchedDocuments
+          };
+        }
+        return a;
+      });
+
+      setAssignments(updatedAssignments);
+      
+      setAccountGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          assignments: updatedAssignments.filter(a => a.account_group_id === group.id)
+        }))
+      );
+
+      toast.success(`Nachweis erfolgreich ${selectedAccountsForAssign.size} Konten zugewiesen`);
+      setShowMultiAssignModal(false);
+      setSelectedDocumentForMultiAssign(null);
+      setSelectedAccountsForAssign(new Set());
+    } catch (error: any) {
+      console.error('Error during multi assign:', error);
+      toast.error('Mehrfachzuweisung fehlgeschlagen');
     }
   };
 
@@ -1019,20 +1081,35 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                        {/* Kommentarfeld */}
                        <div className="border-t pt-4 h-[160px] flex-shrink-0 mt-4">
                          <div className="space-y-3">
-                           <div className="flex items-center justify-between">
-                             <label className="text-sm font-medium text-foreground">
-                               Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
-                             </label>
-                             <Button 
-                               variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
-                               size="sm"
-                               onClick={() => handleMarkCompleted(selectedAccountData.id)}
-                               className="flex items-center gap-2"
-                             >
-                               <CheckCircle className="h-4 w-4" />
-                               {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
-                             </Button>
-                           </div>
+                            <div className="flex items-center justify-between">
+                              <label className="text-sm font-medium text-foreground">
+                                Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedDocumentForMultiAssign(selectedDocuments[0]);
+                                    setShowMultiAssignModal(true);
+                                  }}
+                                  className="flex items-center gap-2"
+                                  disabled={selectedDocuments.length === 0}
+                                >
+                                  <Link className="h-4 w-4" />
+                                  Nachweis dient weiteren Konten
+                                </Button>
+                                <Button 
+                                  variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                  {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                                </Button>
+                              </div>
+                            </div>
                            <Textarea
                              placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
                              value={accountComments[selectedAccountData.id] || ''}
@@ -1044,34 +1121,104 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                ✓ Kommentar gespeichert
                              </p>
                            )}
-                         </div>
-                       </div>
+                          </div>
+                        </div>
+                      </div>
+                   ) : (
+                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                       <p>Keine Nachweise für dieses Konto gefunden</p>
                      </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Keine Nachweise für dieses Konto gefunden</p>
-                    </div>
-                  )
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                    <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                   )
+                 ) : (
+                   <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
+                   </div>
+                 )}
+               </CardContent>
+             </Card>
+           </div>
 
-          <div className="flex justify-center gap-3 py-2">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}>
-              Zurück zu Dokumenten
-            </Button>
-            <Button size="sm" onClick={() => navigate('/')}>
-              Zur Übersicht
-            </Button>
-          </div>
-        </div>
-      </main>
+           <div className="flex justify-center gap-3 py-2">
+             <Button variant="outline" size="sm" onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}>
+               Zurück zu Dokumenten
+             </Button>
+             <Button size="sm" onClick={() => navigate('/')}>
+               Zur Übersicht
+             </Button>
+           </div>
+         </div>
+       </main>
+
+        {/* Mehrfachzuweisungs-Dialog */}
+        <Dialog open={showMultiAssignModal} onOpenChange={setShowMultiAssignModal}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Nachweis weiteren Konten zuweisen</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              <p className="text-sm text-muted-foreground">
+                Wählen Sie die Konten aus, denen dieser Nachweis zusätzlich zugewiesen werden soll:
+              </p>
+              <div className="space-y-2">
+                {assignments
+                  .filter(assignment => 
+                    !assignment.matched_documents?.includes(selectedDocumentForMultiAssign?.id || '') &&
+                    assignment.id !== selectedAccountData?.id
+                  )
+                  .map(assignment => (
+                    <div 
+                      key={assignment.id} 
+                      className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                      onClick={() => {
+                        const newSelection = new Set(selectedAccountsForAssign);
+                        if (newSelection.has(assignment.id)) {
+                          newSelection.delete(assignment.id);
+                        } else {
+                          newSelection.add(assignment.id);
+                        }
+                        setSelectedAccountsForAssign(newSelection);
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAccountsForAssign.has(assignment.id)}
+                        onChange={() => {}} // Handled by parent onClick
+                        className="rounded"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {assignment.account_number} - {assignment.account_name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Saldo: {formatCurrency(assignment.current_year_balance)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowMultiAssignModal(false);
+                  setSelectedDocumentForMultiAssign(null);
+                  setSelectedAccountsForAssign(new Set());
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button 
+                onClick={handleMultiAssign}
+                disabled={selectedAccountsForAssign.size === 0}
+              >
+                {selectedAccountsForAssign.size} Konten zuweisen
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </TooltipProvider>
   );
