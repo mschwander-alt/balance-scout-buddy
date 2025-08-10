@@ -178,50 +178,19 @@ serve(async (req) => {
              Math.abs(Math.abs(docValue) - Math.abs(accountBalance)) < tolerance;
     };
 
-    // Helper function to parse Excel document and extract numeric values
-    const parseDocumentForValues = async (doc: any): Promise<number[]> => {
-      try {
-        if (!doc.file_name.toLowerCase().endsWith('.xlsx') && !doc.file_name.toLowerCase().endsWith('.xls')) {
-          return [];
+    // Simple balance matching for Excel files only (to avoid timeouts)
+    const checkBalanceInFilename = (fileName: string, balance: number): boolean => {
+      // Extract numbers from filename using regex
+      const numberMatches = fileName.match(/\d+[\.,]?\d*/g);
+      if (!numberMatches) return false;
+      
+      for (const match of numberMatches) {
+        const num = parseFloat(match.replace(',', '.'));
+        if (!isNaN(num) && isBalanceMatch(num, balance)) {
+          return true;
         }
-
-        const { data: docData, error: docError } = await supabase.storage
-          .from('account-evidence')
-          .download(doc.file_path);
-
-        if (docError) {
-          console.log(`Could not download document ${doc.file_name}:`, docError.message);
-          return [];
-        }
-
-        const docArrayBuffer = await docData.arrayBuffer();
-        const docWorkbook = XLSX.read(docArrayBuffer, { type: 'array' });
-        
-        const allValues: number[] = [];
-        
-        // Parse all sheets in the document
-        for (const sheetName of docWorkbook.SheetNames) {
-          const sheet = docWorkbook.Sheets[sheetName];
-          const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as any[][];
-          
-          // Extract all numeric values from the sheet
-          for (const row of sheetData) {
-            for (const cell of row) {
-              if (cell !== null && cell !== undefined && cell !== '') {
-                const numValue = parseFloat(String(cell).replace(/[^\d.-]/g, ''));
-                if (!isNaN(numValue) && Math.abs(numValue) > 0.01) { // Ignore very small values
-                  allValues.push(numValue);
-                }
-              }
-            }
-          }
-        }
-        
-        return allValues;
-      } catch (error) {
-        console.log(`Error parsing document ${doc.file_name}:`, error.message);
-        return [];
       }
+      return false;
     };
 
     // Create temp matches for each account
@@ -231,7 +200,7 @@ serve(async (req) => {
       const matchedDocuments: string[] = [];
       let maxConfidence = 0;
       
-      // Enhanced matching logic with balance checking
+      // Simplified matching logic to avoid timeouts
       for (const doc of documents) {
         const fileName = doc.file_name.toUpperCase();
         const accountNum = account.accountNumber.toString().trim();
@@ -239,34 +208,18 @@ serve(async (req) => {
         
         let confidence = 0;
         
-        // 1. BALANCE MATCHING (Highest Priority)
-        const documentValues = await parseDocumentForValues(doc);
-        let balanceMatched = false;
-        
-        // Check if current year balance is found in document
-        for (const docValue of documentValues) {
-          if (isBalanceMatch(docValue, account.currentYear)) {
+        // 1. BALANCE IN FILENAME CHECK (for Excel files)
+        if (doc.file_name.toLowerCase().includes('.xls')) {
+          if (checkBalanceInFilename(fileName, account.currentYear)) {
             confidence = Math.max(confidence, 0.95);
-            balanceMatched = true;
-            console.log(`Balance match found: ${docValue} ≈ ${account.currentYear} in ${doc.file_name}`);
-            break;
+            console.log(`Balance match in filename: ${account.currentYear} found in ${doc.file_name}`);
+          } else if (account.previousYear !== 0 && checkBalanceInFilename(fileName, account.previousYear)) {
+            confidence = Math.max(confidence, 0.90);
+            console.log(`Previous year balance match in filename: ${account.previousYear} found in ${doc.file_name}`);
           }
         }
         
-        // Check if previous year balance is found in document
-        if (!balanceMatched && account.previousYear !== 0) {
-          for (const docValue of documentValues) {
-            if (isBalanceMatch(docValue, account.previousYear)) {
-              confidence = Math.max(confidence, 0.90);
-              balanceMatched = true;
-              console.log(`Previous year balance match: ${docValue} ≈ ${account.previousYear} in ${doc.file_name}`);
-              break;
-            }
-          }
-        }
-        
-        // 2. FILENAME MATCHING (Lower Priority)
-        // Exact account number match
+        // 2. ACCOUNT NUMBER MATCHING
         if (fileName.includes(accountNum)) {
           confidence = Math.max(confidence, 0.85);
         }
@@ -316,8 +269,8 @@ serve(async (req) => {
           }
         }
         
-        // Only include documents with sufficient confidence (lowered threshold for balance matches)
-        if (confidence >= (balanceMatched ? 0.85 : 0.5)) {
+        // Only include documents with sufficient confidence
+        if (confidence >= 0.5) {
           matchedDocuments.push(doc.id);
           maxConfidence = Math.max(maxConfidence, confidence);
         }
