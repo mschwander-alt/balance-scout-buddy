@@ -378,7 +378,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     setProgress(0);
 
     try {
-      const { data, error } = await supabase.functions.invoke('auto-match-ungrouped', {
+      const { data, error } = await supabase.functions.invoke('unified-auto-match', {
         body: { trial_balance_id: trialBalanceId }
       });
 

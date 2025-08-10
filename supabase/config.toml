@@ -15,3 +15,9 @@ verify_jwt = false
 
 [functions.auto-match-documents]
 verify_jwt = false
+
+[functions.auto-match-ungrouped]
+verify_jwt = false
+
+[functions.unified-auto-match]
+verify_jwt = false
