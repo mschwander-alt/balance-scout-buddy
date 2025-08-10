@@ -131,81 +131,26 @@ serve(async (req) => {
     const headers = jsonData[0] as string[];
     const dataRows = jsonData.slice(1);
 
-    console.log(`Headers found: ${JSON.stringify(headers)}`);
-    console.log(`Column mapping - Account Number: ${trialBalance.account_number_column}, Account Name: ${trialBalance.account_name_column}, Current Year: ${trialBalance.current_year_column}`);
-
-    // Find column indices - more flexible matching
-    let accountNumberIndex = -1;
-    let accountNameIndex = -1;
-    let currentYearIndex = -1;
-    let previousYearIndex = -1;
-
-    // Try exact match first, then partial match
-    for (let i = 0; i < headers.length; i++) {
-      const header = String(headers[i] || '').trim();
-      
-      if (trialBalance.account_number_column && header === trialBalance.account_number_column) {
-        accountNumberIndex = i;
-      } else if (trialBalance.account_name_column && header === trialBalance.account_name_column) {
-        accountNameIndex = i;
-      } else if (trialBalance.current_year_column && header === trialBalance.current_year_column) {
-        currentYearIndex = i;
-      } else if (trialBalance.previous_year_column && header === trialBalance.previous_year_column) {
-        previousYearIndex = i;
-      }
-    }
-
-    console.log(`Column indices - Number: ${accountNumberIndex}, Name: ${accountNameIndex}, Current: ${currentYearIndex}, Previous: ${previousYearIndex}`);
+    // Find column indices
+    const accountNumberIndex = headers.findIndex(h => h === trialBalance.account_number_column);
+    const accountNameIndex = headers.findIndex(h => h === trialBalance.account_name_column);
+    const currentYearIndex = headers.findIndex(h => h === trialBalance.current_year_column);
+    const previousYearIndex = headers.findIndex(h => h === trialBalance.previous_year_column);
 
     if (accountNumberIndex === -1 || accountNameIndex === -1) {
-      console.log('Required columns not found - trying fallback detection');
-      // Fallback: try to find columns by common patterns
-      for (let i = 0; i < headers.length; i++) {
-        const header = String(headers[i] || '').toLowerCase().trim();
-        if (accountNumberIndex === -1 && (header.includes('konto') || header.includes('account') || header.includes('nummer'))) {
-          accountNumberIndex = i;
-          console.log(`Found account number column at index ${i}: ${headers[i]}`);
-        }
-        if (accountNameIndex === -1 && (header.includes('bezeichnung') || header.includes('name') || header.includes('text'))) {
-          accountNameIndex = i;
-          console.log(`Found account name column at index ${i}: ${headers[i]}`);
-        }
-      }
+      throw new Error('Required columns not found in trial balance');
     }
 
-    if (accountNumberIndex === -1 || accountNameIndex === -1) {
-      throw new Error(`Required columns not found. Account Number Index: ${accountNumberIndex}, Account Name Index: ${accountNameIndex}`);
-    }
+    const parsedAccounts: TrialBalanceRow[] = dataRows
+      .filter(row => row[accountNumberIndex] && row[accountNameIndex])
+      .map(row => ({
+        accountNumber: String(row[accountNumberIndex] || '').trim(),
+        accountName: String(row[accountNameIndex] || '').trim(),
+        currentYear: parseFloat(String(row[currentYearIndex] || 0)) || 0,
+        previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
+      }));
 
-    const parsedAccounts: TrialBalanceRow[] = [];
-    let skippedRows = 0;
-    
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i];
-      const accountNumber = String(row[accountNumberIndex] || '').trim();
-      const accountName = String(row[accountNameIndex] || '').trim();
-      
-      // Skip empty rows or rows without essential data
-      if (!accountNumber || !accountName || accountNumber === '0' || accountName.toLowerCase() === 'total') {
-        skippedRows++;
-        if (skippedRows <= 5) { // Only log first few skipped rows to avoid spam
-          console.log(`Skipping row ${i + 2}: missing account data - Number: "${accountNumber}", Name: "${accountName}"`);
-        }
-        continue;
-      }
-      
-      const currentYear = currentYearIndex >= 0 ? (parseFloat(String(row[currentYearIndex] || 0)) || 0) : 0;
-      const previousYear = previousYearIndex >= 0 ? (parseFloat(String(row[previousYearIndex] || 0)) || 0) : 0;
-      
-      parsedAccounts.push({
-        accountNumber,
-        accountName,
-        currentYear,
-        previousYear,
-      });
-    }
-
-    console.log(`Found ${parsedAccounts.length} accounts in trial balance, skipped ${skippedRows} rows`);
+    console.log(`Found ${parsedAccounts.length} accounts in trial balance`);
 
     // Clear existing temp matches for this trial balance
     await supabase
@@ -226,183 +171,78 @@ serve(async (req) => {
     let matchedCount = 0;
     const tempMatches = [];
 
-    // Helper function to check if a value matches within a tolerance
-    const isBalanceMatch = (docValue: number, accountBalance: number, tolerance = 0.01): boolean => {
-      if (accountBalance === 0) return Math.abs(docValue) < tolerance;
-      return Math.abs(docValue - accountBalance) < tolerance || 
-             Math.abs(Math.abs(docValue) - Math.abs(accountBalance)) < tolerance;
-    };
-
-    // Enhanced function to parse Excel document and extract all numeric values
-    const parseExcelForValues = async (doc: any): Promise<number[]> => {
-      try {
-        console.log(`Parsing Excel file: ${doc.file_name}`);
-        const { data: docData, error: docError } = await supabase.storage
-          .from('account-evidence')
-          .download(doc.file_path);
-
-        if (docError) {
-          console.log(`Could not download document ${doc.file_name}:`, docError.message);
-          return [];
-        }
-
-        const docArrayBuffer = await docData.arrayBuffer();
-        const docWorkbook = XLSX.read(docArrayBuffer, { type: 'array' });
-        
-        const allValues: number[] = [];
-        
-        // Parse all sheets in the document
-        for (const sheetName of docWorkbook.SheetNames) {
-          const sheet = docWorkbook.Sheets[sheetName];
-          const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as any[][];
-          
-          // Extract all numeric values from the sheet
-          for (const row of sheetData) {
-            for (const cell of row) {
-              if (cell !== null && cell !== undefined && cell !== '') {
-                // More robust number parsing
-                const cellStr = String(cell).replace(/[^\d.,-]/g, '').replace(',', '.');
-                const numValue = parseFloat(cellStr);
-                if (!isNaN(numValue) && Math.abs(numValue) > 0.01) {
-                  allValues.push(numValue);
-                }
-              }
-            }
-          }
-        }
-        
-        console.log(`Found ${allValues.length} numeric values in ${doc.file_name}`);
-        return allValues;
-      } catch (error) {
-        console.log(`Error parsing Excel document ${doc.file_name}:`, error.message);
-        return [];
-      }
-    };
-
-    // Simple function to parse PDF document and extract numeric values using basic text extraction
-    const parsePDFForValues = async (doc: any): Promise<number[]> => {
-      try {
-        console.log(`Parsing PDF file: ${doc.file_name}`);
-        const { data: docData, error: docError } = await supabase.storage
-          .from('account-evidence')
-          .download(doc.file_path);
-
-        if (docError) {
-          console.log(`Could not download PDF document ${doc.file_name}:`, docError.message);
-          return [];
-        }
-
-        // Convert PDF to text using a simple approach
-        const arrayBuffer = await docData.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        // Try to extract text using a simple PDF text extraction
-        // This is a basic approach - we'll look for numbers in the raw PDF data
-        const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
-        let pdfText = '';
-        
-        try {
-          pdfText = textDecoder.decode(uint8Array);
-        } catch {
-          // If UTF-8 fails, try latin1
-          const latin1Decoder = new TextDecoder('latin1');
-          pdfText = latin1Decoder.decode(uint8Array);
-        }
-        
-        const allValues: number[] = [];
-        
-        // Extract all numeric values using regex - more comprehensive patterns
-        const numberPatterns = [
-          /\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?\b/g,  // Numbers with thousand separators
-          /\b\d+[.,]\d{2}\b/g,                          // Decimal numbers
-          /\b\d+\b/g                                    // Whole numbers
-        ];
-        
-        for (const pattern of numberPatterns) {
-          const matches = pdfText.match(pattern);
-          if (matches) {
-            for (const match of matches) {
-              const cleanedMatch = match.replace(/[^\d.,-]/g, '').replace(',', '.');
-              const numValue = parseFloat(cleanedMatch);
-              if (!isNaN(numValue) && Math.abs(numValue) > 0.01) {
-                allValues.push(numValue);
-              }
-            }
-          }
-        }
-        
-        // Remove duplicates and sort
-        const uniqueValues = [...new Set(allValues)].sort((a, b) => b - a);
-        
-        console.log(`Found ${uniqueValues.length} unique numeric values in PDF ${doc.file_name}`);
-        return uniqueValues;
-      } catch (error) {
-        console.log(`Error parsing PDF document ${doc.file_name}:`, error.message);
-        return [];
-      }
-    };
-
-    // Pre-parse all documents once to avoid repeated parsing
-    console.log('Pre-parsing all evidence documents...');
-    const documentData = new Map<string, number[]>();
-    
-    for (const doc of documents) {
-      const isExcel = doc.file_name.toLowerCase().includes('.xls');
-      const isPDF = doc.file_name.toLowerCase().includes('.pdf');
-      
-      if (!isExcel && !isPDF) {
-        continue;
-      }
-      
-      try {
-        let values: number[] = [];
-        if (isExcel) {
-          values = await parseExcelForValues(doc);
-        } else if (isPDF) {
-          values = await parsePDFForValues(doc);
-        }
-        documentData.set(doc.id, values);
-      } catch (error) {
-        console.log(`Error pre-parsing ${doc.file_name}:`, error.message);
-        documentData.set(doc.id, []);
-      }
-    }
-
-    // SIMPLE BALANCE MATCHING: Search for exact current year balance in pre-parsed data
+    // Create temp matches for each account
     for (const account of parsedAccounts) {
       const matchedDocuments: string[] = [];
+      let maxConfidence = 0;
       
-      // Skip accounts with zero balance
-      if (account.currentYear === 0) {
-        tempMatches.push({
-          trial_balance_id: trial_balance_id,
-          account_number: account.accountNumber,
-          account_name: account.accountName,
-          current_year_balance: account.currentYear,
-          previous_year_balance: account.previousYear,
-          match_status: 'pending',
-          confidence_score: null,
-          matched_documents: []
-        });
-        continue;
-      }
-      
-      // Search through pre-parsed document data
+      // Enhanced matching logic for better document detection
       for (const doc of documents) {
-        const values = documentData.get(doc.id) || [];
+        const fileName = doc.file_name.toUpperCase();
+        const accountNum = account.accountNumber.toString().trim();
+        const accountName = account.accountName.toUpperCase().trim();
         
-        // Check if the exact balance is found in this document
-        const balanceFound = values.some(value => isBalanceMatch(value, account.currentYear));
+        let confidence = 0;
         
-        if (balanceFound) {
+        // Exact account number match (highest confidence)
+        if (fileName.includes(accountNum)) {
+          confidence = Math.max(confidence, 0.9);
+        }
+        
+        // Account name word matching
+        const accountWords = accountName.split(/\s+/).filter(word => word.length > 2);
+        let nameMatches = 0;
+        for (const word of accountWords) {
+          if (fileName.includes(word)) {
+            nameMatches++;
+          }
+        }
+        if (accountWords.length > 0) {
+          const nameMatchRatio = nameMatches / accountWords.length;
+          if (nameMatchRatio > 0.5) {
+            confidence = Math.max(confidence, 0.7 * nameMatchRatio);
+          }
+        }
+        
+        // Partial account number matching for similar patterns
+        if (accountNum.length >= 3) {
+          const accountPrefix = accountNum.substring(0, 3);
+          if (fileName.includes(accountPrefix)) {
+            confidence = Math.max(confidence, 0.5);
+          }
+        }
+        
+        // Account number with common separators
+        const patterns = [
+          accountNum.replace(/(\d)(\d{2})/, '$1-$2'),  // 1000 -> 1-00
+          accountNum.replace(/(\d{2})(\d{2})/, '$1-$2'), // 1000 -> 10-00
+          accountNum.replace(/(\d)/, '$1.'),            // Add dots
+          accountNum.replace(/(\d)/, '$1_'),            // Add underscores
+        ];
+        
+        for (const pattern of patterns) {
+          if (fileName.includes(pattern.toUpperCase())) {
+            confidence = Math.max(confidence, 0.8);
+          }
+        }
+        
+        // Check for common accounting terms that might relate to account types
+        const commonTerms = getAccountTypeTerms(account.accountName);
+        for (const term of commonTerms) {
+          if (fileName.includes(term.toUpperCase())) {
+            confidence = Math.max(confidence, 0.6);
+          }
+        }
+        
+        // Only include documents with sufficient confidence
+        if (confidence >= 0.5) {
           matchedDocuments.push(doc.id);
-          console.log(`✓ MATCH: Balance ${account.currentYear} found in ${doc.file_name}`);
+          maxConfidence = Math.max(maxConfidence, confidence);
         }
       }
 
-      // Create the temp match record
       const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
-      const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null;
+      const confidenceScore = matchedDocuments.length > 0 ? Math.round(maxConfidence * 100) / 100 : null;
 
       if (matchedDocuments.length > 0) {
         matchedCount++;
