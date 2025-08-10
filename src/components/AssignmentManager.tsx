@@ -75,7 +75,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
           is_temp: false
         }));
       } else {
-        // No account groups, check for temp matches
+        // No account groups, check for temp matches and create them if needed
         const { data: tempMatchesData, error: tempError } = await supabase
           .from('temp_account_matches')
           .select('*')
@@ -84,8 +84,70 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
         if (tempError) throw tempError;
 
-        if (tempMatchesData && tempMatchesData.length > 0) {
+        if (!tempMatchesData || tempMatchesData.length === 0) {
+          // No temp matches exist, create them using the auto-match-ungrouped function
+          try {
+            const response = await fetch('https://szrpyhwjqftwxhaagcds.supabase.co/functions/v1/auto-match-ungrouped', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6cnB5aHdqcWZ0d3hoYWFnY2RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1OTc2MTcsImV4cCI6MjA3MDE3MzYxN30.5xsLB9EcZ8jiWRPvTK-appNnjVs2pfG_5Yh39Z-d4b8`,
+              },
+              body: JSON.stringify({ trial_balance_id: trialBalanceId }),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to create temp matches');
+            }
+
+            // Reload temp matches after creation
+            const { data: newTempMatchesData, error: newTempError } = await supabase
+              .from('temp_account_matches')
+              .select('*')
+              .eq('trial_balance_id', trialBalanceId)
+              .order('account_number', { ascending: true });
+
+            if (newTempError) throw newTempError;
+            
+            if (newTempMatchesData && newTempMatchesData.length > 0) {
           // Load team members for assigned temp matches
+          const tempMatchesWithMembers = await Promise.all(
+            newTempMatchesData.map(async (match) => {
+              let assignedMember = null;
+              if (match.assigned_member_id) {
+                const { data: memberData } = await supabase
+                  .from('team_members')
+                  .select('*')
+                  .eq('id', match.assigned_member_id)
+                  .single();
+                assignedMember = memberData;
+              }
+              
+              return {
+                id: match.id,
+                name: `${match.account_number} - ${match.account_name}`,
+                description: `Saldo: ${match.current_year_balance?.toLocaleString() || 0}`,
+                assigned_member_id: match.assigned_member_id,
+                assigned_member: assignedMember,
+                status: (match.match_status === 'assigned' ? 'in_progress' : 'pending') as AccountGroup['status'],
+                account_count: 1,
+                is_temp: true
+              };
+            })
+          );
+          
+          groups = tempMatchesWithMembers;
+            }
+          } catch (error) {
+            console.error('Error creating temp matches:', error);
+            toast({
+              title: "Fehler beim Erstellen der temporären Zuordnungen",
+              description: "Die Konten konnten nicht geladen werden.",
+              variant: "destructive",
+            });
+          }
+        } else if (tempMatchesData && tempMatchesData.length > 0) {
+          // Load team members for existing temp matches
           const tempMatchesWithMembers = await Promise.all(
             tempMatchesData.map(async (match) => {
               let assignedMember = null;
