@@ -919,13 +919,10 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                   <div className="border-l border-border h-6"></div>
                   {selectedAccountData ? (
                     <div className="flex items-center gap-6">
-                      <div>
-                        <CardTitle className="text-lg">
+                      <div className="min-w-0 flex-shrink">
+                        <CardTitle className="text-sm font-medium truncate">
                           {selectedAccountData.account_number} - {selectedAccountData.account_name}
                         </CardTitle>
-                        <CardDescription className="text-sm">
-                          Nachweise und Saldenabstimmung
-                        </CardDescription>
                       </div>
                       
                       <div className="flex items-center gap-4 bg-muted/30 rounded-lg px-4 py-2 border">
