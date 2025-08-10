@@ -925,7 +925,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     {sidebarCollapsed ? 'Saldobilanz anzeigen' : 'Saldobilanz ausblenden'}
                   </Button>
                   <div className="border-l border-border h-6"></div>
-                  <div className="flex-1">
+                  <div>
                     <CardTitle className="text-lg">Gefundene Nachweise</CardTitle>
                     <CardDescription className="text-sm">
                       {selectedAccountData ? 
@@ -934,17 +934,6 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                       }
                     </CardDescription>
                   </div>
-                  {selectedAccountData && (
-                    <Button 
-                      variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleMarkCompleted(selectedAccountData.id)}
-                      className="flex items-center gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="h-[calc(100vh-12rem)] overflow-hidden py-3 flex flex-col">
@@ -958,26 +947,41 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           </div>
                         ))}
                       </div>
-                      
-                      {/* Kommentarfeld */}
-                      <div className="border-t pt-4 h-[160px] flex-shrink-0">
-                        <div className="space-y-3">
-                          <label className="text-sm font-medium text-foreground block">
-                            Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
-                          </label>
-                          <Textarea
-                            placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
-                            value={accountComments[selectedAccountData.id] || ''}
-                            onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
-                            className="h-[120px] resize-none"
-                          />
-                          {loadedComments[selectedAccountData.id] && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              ✓ Kommentar gespeichert
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                       
+                       {/* Completed Button */}
+                       {selectedAccountData && (
+                         <div className="flex justify-end pt-3 border-t">
+                           <Button 
+                             variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                             size="sm"
+                             onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                             className="flex items-center gap-2"
+                           >
+                             <CheckCircle className="h-4 w-4" />
+                             {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                           </Button>
+                         </div>
+                       )}
+
+                       {/* Kommentarfeld */}
+                       <div className="border-t pt-4 h-[160px] flex-shrink-0">
+                         <div className="space-y-3">
+                           <label className="text-sm font-medium text-foreground block">
+                             Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                           </label>
+                           <Textarea
+                             placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
+                             value={accountComments[selectedAccountData.id] || ''}
+                             onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                             className="h-[120px] resize-none"
+                           />
+                           {loadedComments[selectedAccountData.id] && (
+                             <p className="text-xs text-muted-foreground mt-1">
+                               ✓ Kommentar gespeichert
+                             </p>
+                           )}
+                         </div>
+                       </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
