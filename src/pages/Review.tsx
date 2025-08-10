@@ -24,6 +24,7 @@ interface Assignment {
   account_number: string;
   account_name: string;
   current_year_balance: number;
+  previous_year_balance: number;
   match_status?: 'pending' | 'matched' | 'unmatched';
   confidence_score?: number;
   matched_documents?: string[];
@@ -916,15 +917,61 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     {sidebarCollapsed ? 'Saldobilanz anzeigen' : 'Saldobilanz ausblenden'}
                   </Button>
                   <div className="border-l border-border h-6"></div>
-                  <div>
-                    <CardTitle className="text-lg">Gefundene Nachweise</CardTitle>
-                    <CardDescription className="text-sm">
-                      {selectedAccountData ? 
-                        `${selectedAccountData.account_number} - ${selectedAccountData.account_name}` :
-                        'Wählen Sie ein Konto aus der Liste links'
-                      }
-                    </CardDescription>
-                  </div>
+                  {selectedAccountData ? (
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <CardTitle className="text-lg">
+                          {selectedAccountData.account_number} - {selectedAccountData.account_name}
+                        </CardTitle>
+                        <CardDescription className="text-sm">
+                          Nachweise und Saldenabstimmung
+                        </CardDescription>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 bg-muted/30 rounded-lg px-4 py-2 border">
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Lfd. Jahr</div>
+                          <div className="font-medium text-sm">
+                            {formatCurrency(selectedAccountData.current_year_balance)}
+                          </div>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Vorjahr</div>
+                          <div className="font-medium text-sm">
+                            {formatCurrency(selectedAccountData.previous_year_balance)}
+                          </div>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Abwg.</div>
+                          <div className="font-medium text-sm">
+                            {formatCurrency(selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance)}
+                          </div>
+                        </div>
+                        
+                        {selectedAccountData.previous_year_balance !== 0 && (
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">%</div>
+                            <div className={`font-medium text-sm ${
+                              ((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100) >= 0 
+                                ? 'text-green-600' 
+                                : 'text-red-600'
+                            }`}>
+                              {((selectedAccountData.current_year_balance - selectedAccountData.previous_year_balance) / selectedAccountData.previous_year_balance * 100).toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <CardTitle className="text-lg">Nachweise</CardTitle>
+                      <CardDescription className="text-sm">
+                        Wählen Sie ein Konto aus der Liste links
+                      </CardDescription>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col py-3" style={{height: 'calc(100vh - 12rem)'}}>
