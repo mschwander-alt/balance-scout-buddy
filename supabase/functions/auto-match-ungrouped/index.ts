@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
+import { getDocument } from 'https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -181,10 +182,6 @@ serve(async (req) => {
     // Enhanced function to parse Excel document and extract all numeric values
     const parseExcelForValues = async (doc: any): Promise<number[]> => {
       try {
-        if (!doc.file_name.toLowerCase().includes('.xls')) {
-          return [];
-        }
-
         console.log(`Parsing Excel file: ${doc.file_name}`);
         const { data: docData, error: docError } = await supabase.storage
           .from('account-evidence')
@@ -223,30 +220,92 @@ serve(async (req) => {
         console.log(`Found ${allValues.length} numeric values in ${doc.file_name}`);
         return allValues;
       } catch (error) {
-        console.log(`Error parsing document ${doc.file_name}:`, error.message);
+        console.log(`Error parsing Excel document ${doc.file_name}:`, error.message);
         return [];
       }
     };
 
-    // Create temp matches for each account - FOCUS ON BALANCE MATCHING ONLY
+    // Enhanced function to parse PDF document and extract all numeric values
+    const parsePDFForValues = async (doc: any): Promise<number[]> => {
+      try {
+        console.log(`Parsing PDF file: ${doc.file_name}`);
+        const { data: docData, error: docError } = await supabase.storage
+          .from('account-evidence')
+          .download(doc.file_path);
+
+        if (docError) {
+          console.log(`Could not download PDF document ${doc.file_name}:`, docError.message);
+          return [];
+        }
+
+        const arrayBuffer = await docData.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Load PDF document
+        const pdfDoc = await getDocument({ data: uint8Array }).promise;
+        const allValues: number[] = [];
+        
+        // Process each page
+        for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+          const page = await pdfDoc.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          
+          // Extract text from all text items
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+          
+          // Extract all numeric values using regex
+          const numberPattern = /\d+[\.,]?\d*/g;
+          const matches = pageText.match(numberPattern);
+          
+          if (matches) {
+            for (const match of matches) {
+              const cleanedMatch = match.replace(',', '.');
+              const numValue = parseFloat(cleanedMatch);
+              if (!isNaN(numValue) && Math.abs(numValue) > 0.01) {
+                allValues.push(numValue);
+              }
+            }
+          }
+        }
+        
+        console.log(`Found ${allValues.length} numeric values in PDF ${doc.file_name}`);
+        return allValues;
+      } catch (error) {
+        console.log(`Error parsing PDF document ${doc.file_name}:`, error.message);
+        return [];
+      }
+    };
+
+    // Create temp matches for each account - BALANCE MATCHING FOR EXCEL AND PDF FILES
     for (const account of parsedAccounts) {
       console.log(`Processing account: ${account.accountNumber} - ${account.accountName} (Balance: ${account.currentYear})`);
       
       const matchedDocuments: string[] = [];
       let maxConfidence = 0;
       
-      // Process only Excel documents for balance matching
+      // Process both Excel and PDF documents for balance matching
       for (const doc of documents) {
-        if (!doc.file_name.toLowerCase().includes('.xls')) {
-          continue; // Skip non-Excel files
+        const isExcel = doc.file_name.toLowerCase().includes('.xls');
+        const isPDF = doc.file_name.toLowerCase().includes('.pdf');
+        
+        if (!isExcel && !isPDF) {
+          continue; // Skip other file types
         }
         
         let confidence = 0;
         
         console.log(`Checking ${doc.file_name} for balance ${account.currentYear}`);
         
-        // Parse Excel and check for exact balance matches
-        const documentValues = await parseExcelForValues(doc);
+        // Parse document based on type and check for exact balance matches
+        let documentValues: number[] = [];
+        
+        if (isExcel) {
+          documentValues = await parseExcelForValues(doc);
+        } else if (isPDF) {
+          documentValues = await parsePDFForValues(doc);
+        }
         let balanceMatched = false;
         
         // Check if current year balance is found in document
