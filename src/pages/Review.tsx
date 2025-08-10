@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
-import { PDFDocumentLoader } from '@/components/PDFDocumentLoader';
+import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 
 interface Assignment {
   id: string;
@@ -728,11 +728,9 @@ const Review: React.FC = () => {
                     <div className="flex flex-col h-full gap-4">
                       <div className="flex-1 min-h-0 border rounded-lg">
                         {selectedDocuments.map((doc) => (
-                           <PDFDocumentLoader 
-                              document={doc}
-                              assignmentId={selectedAccountData.id}
-                              trialBalanceId={trialBalanceId!}
-                            />
+                          <div key={doc.id} className="h-full">
+                            <SimplePDFViewer document={doc} />
+                          </div>
                         ))}
                       </div>
                       
