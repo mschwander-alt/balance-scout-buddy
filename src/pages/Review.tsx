@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -448,6 +449,34 @@ const Review: React.FC = () => {
     return getInitialsFromEmail(teamMembers[memberId].email);
   };
 
+  // Funktion zur Kategorisierung der Account Groups
+  const categorizeAccountGroups = (groups: AccountGroup[]) => {
+    const bilanzGroups: AccountGroup[] = [];
+    const erfolgsrechnungGroups: AccountGroup[] = [];
+
+    groups.forEach(group => {
+      // Prüfe anhand der ersten Kontonummer in der Gruppe
+      const firstAccountNumber = group.assignments[0]?.account_number;
+      if (firstAccountNumber) {
+        const accountNum = parseInt(firstAccountNumber);
+        // Schweizer Kontenplan: 1000-2999 = Bilanz, 3000-9999 = Erfolgsrechnung
+        if (accountNum >= 1000 && accountNum <= 2999) {
+          bilanzGroups.push(group);
+        } else if (accountNum >= 3000 && accountNum <= 9999) {
+          erfolgsrechnungGroups.push(group);
+        } else {
+          // Fallback: Standardmäßig in Bilanz
+          bilanzGroups.push(group);
+        }
+      } else {
+        // Fallback: Gruppen ohne Konten in Bilanz
+        bilanzGroups.push(group);
+      }
+    });
+
+    return { bilanzGroups, erfolgsrechnungGroups };
+  };
+
   const selectedAccountData = selectedAccount 
     ? assignments.find(a => a.id === selectedAccount)
     : null;
@@ -660,103 +689,208 @@ const Review: React.FC = () => {
                       <p>Keine Kontengruppen gefunden</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {accountGroups.map((group) => (
-                        <Collapsible key={group.id} open={group.isOpen} onOpenChange={() => toggleGroup(group.id)}>
-                          <Card>
-                            <CollapsibleTrigger asChild>
-                              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    {group.isOpen ? 
-                                      <ChevronDown className="h-4 w-4" /> : 
-                                      <ChevronRight className="h-4 w-4" />
-                                    }
-                                     <div>
-                                       <CardTitle className="text-left text-lg">{group.name}</CardTitle>
-                                       {group.description && (
-                                         <CardDescription className="text-left text-sm">
-                                           {group.description}
-                                         </CardDescription>
+                    <Tabs defaultValue="bilanz" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 mb-4">
+                        <TabsTrigger value="bilanz">BILANZ</TabsTrigger>
+                        <TabsTrigger value="erfolgsrechnung">ERFOLGSRECHNUNG</TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="bilanz" className="space-y-2">
+                        {categorizeAccountGroups(accountGroups).bilanzGroups.map((group) => (
+                          <Collapsible key={group.id} open={group.isOpen} onOpenChange={() => toggleGroup(group.id)}>
+                            <Card>
+                              <CollapsibleTrigger asChild>
+                                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      {group.isOpen ? 
+                                        <ChevronDown className="h-4 w-4" /> : 
+                                        <ChevronRight className="h-4 w-4" />
+                                      }
+                                       <div>
+                                         <CardTitle className="text-left text-lg">{group.name}</CardTitle>
+                                         {group.description && (
+                                           <CardDescription className="text-left text-sm">
+                                             {group.description}
+                                           </CardDescription>
+                                         )}
+                                       </div>
+                                    </div>
+                                     <div className="flex items-center gap-2">
+                                       {getTeamMemberInitials(group.assigned_member_id) && (
+                                         <Badge variant="default" className="bg-blue-500 text-white text-xs px-2 py-1">
+                                           {getTeamMemberInitials(group.assigned_member_id)}
+                                         </Badge>
                                        )}
+                                       <Badge variant="outline">
+                                         {formatCurrency(calculateGroupSum(group))}
+                                       </Badge>
+                                        <Badge variant={
+                                          group.assignments.some(a => a.match_status === 'matched') 
+                                            ? 'default' 
+                                            : 'secondary'
+                                        }>
+                                          {group.assignments.filter(a => a.match_status === 'matched').length} gefunden
+                                        </Badge>
                                      </div>
                                   </div>
-                                   <div className="flex items-center gap-2">
-                                     {getTeamMemberInitials(group.assigned_member_id) && (
-                                       <Badge variant="default" className="bg-blue-500 text-white text-xs px-2 py-1">
-                                         {getTeamMemberInitials(group.assigned_member_id)}
+                                </CardHeader>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <CardContent className="pt-0">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Konto</TableHead>
+                                        <TableHead className="text-right">Saldo</TableHead>
+                                        <TableHead className="text-center">Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {group.assignments.map((assignment) => (
+                                         <TableRow 
+                                           key={assignment.id}
+                                           className={`cursor-pointer hover:bg-muted/50 ${
+                                             selectedAccount === assignment.id ? 'bg-muted' : ''
+                                           }`}
+                                           onClick={() => {
+                                             setSelectedAccount(assignment.id);
+                                             handleAccountClick(assignment);
+                                           }}
+                                         >
+                                          <TableCell className="py-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium">{assignment.account_number}</span>
+                                              <span className="text-sm text-muted-foreground">
+                                                {assignment.account_name}
+                                              </span>
+                                            </div>
+                                          </TableCell>
+                                           <TableCell className="text-right py-2">
+                                             {formatCurrency(assignment.current_year_balance)}
+                                           </TableCell>
+                                           <TableCell className="text-center py-2">
+                                             <div className="flex items-center justify-center gap-2">
+                                               {getMatchStatusIcon(assignment.match_status || 'pending')}
+                                               <span className="text-sm">
+                                                 {getMatchStatusText(assignment.match_status || 'pending')}
+                                                 {assignment.match_status === 'matched' && assignment.confidence_score && (
+                                                   <span className="text-xs text-muted-foreground ml-1">
+                                                     {Math.round(assignment.confidence_score * 100)}%
+                                                   </span>
+                                                 )}
+                                               </span>
+                                             </div>
+                                           </TableCell>
+                                         </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </CardContent>
+                              </CollapsibleContent>
+                            </Card>
+                          </Collapsible>
+                        ))}
+                      </TabsContent>
+                      
+                      <TabsContent value="erfolgsrechnung" className="space-y-2">
+                        {categorizeAccountGroups(accountGroups).erfolgsrechnungGroups.map((group) => (
+                          <Collapsible key={group.id} open={group.isOpen} onOpenChange={() => toggleGroup(group.id)}>
+                            <Card>
+                              <CollapsibleTrigger asChild>
+                                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      {group.isOpen ? 
+                                        <ChevronDown className="h-4 w-4" /> : 
+                                        <ChevronRight className="h-4 w-4" />
+                                      }
+                                       <div>
+                                         <CardTitle className="text-left text-lg">{group.name}</CardTitle>
+                                         {group.description && (
+                                           <CardDescription className="text-left text-sm">
+                                             {group.description}
+                                           </CardDescription>
+                                         )}
+                                       </div>
+                                    </div>
+                                     <div className="flex items-center gap-2">
+                                       {getTeamMemberInitials(group.assigned_member_id) && (
+                                         <Badge variant="default" className="bg-blue-500 text-white text-xs px-2 py-1">
+                                           {getTeamMemberInitials(group.assigned_member_id)}
+                                         </Badge>
+                                       )}
+                                       <Badge variant="outline">
+                                         {formatCurrency(calculateGroupSum(group))}
                                        </Badge>
-                                     )}
-                                     <Badge variant="outline">
-                                       {formatCurrency(calculateGroupSum(group))}
-                                     </Badge>
-                                      <Badge variant={
-                                        group.assignments.some(a => a.match_status === 'matched') 
-                                          ? 'default' 
-                                          : 'secondary'
-                                      }>
-                                        {group.assignments.filter(a => a.match_status === 'matched').length} gefunden
-                                      </Badge>
-                                   </div>
-                                </div>
-                              </CardHeader>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <CardContent className="pt-0">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Konto</TableHead>
-                                      <TableHead className="text-right">Saldo</TableHead>
-                                      <TableHead className="text-center">Status</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {group.assignments.map((assignment) => (
-                                       <TableRow 
-                                         key={assignment.id}
-                                         className={`cursor-pointer hover:bg-muted/50 ${
-                                           selectedAccount === assignment.id ? 'bg-muted' : ''
-                                         }`}
-                                         onClick={() => {
-                                           setSelectedAccount(assignment.id);
-                                           handleAccountClick(assignment);
-                                         }}
-                                       >
-                                        <TableCell className="py-2">
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-medium">{assignment.account_number}</span>
-                                            <span className="text-sm text-muted-foreground">
-                                              {assignment.account_name}
-                                            </span>
-                                          </div>
-                                        </TableCell>
-                                         <TableCell className="text-right py-2">
-                                           {formatCurrency(assignment.current_year_balance)}
-                                         </TableCell>
-                                         <TableCell className="text-center py-2">
-                                           <div className="flex items-center justify-center gap-2">
-                                             {getMatchStatusIcon(assignment.match_status || 'pending')}
-                                             <span className="text-sm">
-                                               {getMatchStatusText(assignment.match_status || 'pending')}
-                                               {assignment.match_status === 'matched' && assignment.confidence_score && (
-                                                 <span className="text-xs text-muted-foreground ml-1">
-                                                   {Math.round(assignment.confidence_score * 100)}%
-                                                 </span>
-                                               )}
-                                             </span>
-                                           </div>
-                                         </TableCell>
-                                       </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </CardContent>
-                            </CollapsibleContent>
-                          </Card>
-                        </Collapsible>
-                      ))}
-                    </div>
+                                        <Badge variant={
+                                          group.assignments.some(a => a.match_status === 'matched') 
+                                            ? 'default' 
+                                            : 'secondary'
+                                        }>
+                                          {group.assignments.filter(a => a.match_status === 'matched').length} gefunden
+                                        </Badge>
+                                     </div>
+                                  </div>
+                                </CardHeader>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <CardContent className="pt-0">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Konto</TableHead>
+                                        <TableHead className="text-right">Saldo</TableHead>
+                                        <TableHead className="text-center">Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {group.assignments.map((assignment) => (
+                                         <TableRow 
+                                           key={assignment.id}
+                                           className={`cursor-pointer hover:bg-muted/50 ${
+                                             selectedAccount === assignment.id ? 'bg-muted' : ''
+                                           }`}
+                                           onClick={() => {
+                                             setSelectedAccount(assignment.id);
+                                             handleAccountClick(assignment);
+                                           }}
+                                         >
+                                          <TableCell className="py-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium">{assignment.account_number}</span>
+                                              <span className="text-sm text-muted-foreground">
+                                                {assignment.account_name}
+                                              </span>
+                                            </div>
+                                          </TableCell>
+                                           <TableCell className="text-right py-2">
+                                             {formatCurrency(assignment.current_year_balance)}
+                                           </TableCell>
+                                           <TableCell className="text-center py-2">
+                                             <div className="flex items-center justify-center gap-2">
+                                               {getMatchStatusIcon(assignment.match_status || 'pending')}
+                                               <span className="text-sm">
+                                                 {getMatchStatusText(assignment.match_status || 'pending')}
+                                                 {assignment.match_status === 'matched' && assignment.confidence_score && (
+                                                   <span className="text-xs text-muted-foreground ml-1">
+                                                     {Math.round(assignment.confidence_score * 100)}%
+                                                   </span>
+                                                 )}
+                                               </span>
+                                             </div>
+                                           </TableCell>
+                                         </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </CardContent>
+                              </CollapsibleContent>
+                            </Card>
+                          </Collapsible>
+                        ))}
+                      </TabsContent>
+                    </Tabs>
                   )}
                 </div>
               </CardContent>
