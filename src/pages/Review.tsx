@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { DocumentViewer } from '@/components/DocumentViewer';
+import { AnnotatedPDFViewer } from '@/components/AnnotatedPDFViewer';
 import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 import { ExcelViewer } from '@/components/ExcelViewer';
 
@@ -1172,7 +1173,13 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
                             <div className="h-full border rounded-lg overflow-hidden">
                               {doc.file_type === 'application/pdf' ? (
-                                <SimplePDFViewer document={doc} />
+                                <AnnotatedPDFViewer 
+                                  document={doc} 
+                                  assignmentId={selectedAccountData.id}
+                                  trialBalanceId={trialBalanceId}
+                                  onLoad={() => {}}
+                                  onError={(error) => console.error('PDF annotation error:', error)}
+                                />
                               ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
                                    doc.file_type === 'application/vnd.ms-excel' ? (
                                 <ExcelViewer document={doc} />
