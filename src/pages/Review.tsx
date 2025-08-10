@@ -464,6 +464,20 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         newSet.delete(assignmentId);
       } else {
         newSet.add(assignmentId);
+        
+        // Mark all manually assigned accounts as completed too
+        const selectedAssignment = assignments.find(a => a.id === assignmentId);
+        if (selectedAssignment?.matched_documents) {
+          // Find all assignments that share the same documents
+          const documentsUsedByThisAssignment = selectedAssignment.matched_documents;
+          documentsUsedByThisAssignment.forEach(docId => {
+            assignments.forEach(assignment => {
+              if (assignment.matched_documents?.includes(docId) && assignment.id !== assignmentId) {
+                newSet.add(assignment.id);
+              }
+            });
+          });
+        }
       }
       return newSet;
     });
@@ -1087,19 +1101,37 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                 Kommentare zu {selectedAccountData.account_number} - {selectedAccountData.account_name}
                               </label>
                               <div className="flex items-center gap-2">
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedDocumentForMultiAssign(selectedDocuments[0]);
-                                    setShowMultiAssignModal(true);
-                                  }}
-                                  className="flex items-center gap-2"
-                                  disabled={selectedDocuments.length === 0}
-                                >
-                                  <Link className="h-4 w-4" />
-                                  Konten
-                                </Button>
+                                 {(() => {
+                                   // Count how many other accounts share documents with this account
+                                   const documentsForThisAccount = selectedDocuments.map(doc => doc.id);
+                                   const otherAccountsWithSameDocuments = new Set<string>();
+                                   
+                                   documentsForThisAccount.forEach(docId => {
+                                     assignments.forEach(assignment => {
+                                       if (assignment.matched_documents?.includes(docId) && assignment.id !== selectedAccountData.id) {
+                                         otherAccountsWithSameDocuments.add(assignment.id);
+                                       }
+                                     });
+                                   });
+                                   
+                                   const additionalAccountsCount = otherAccountsWithSameDocuments.size;
+                                   
+                                   return (
+                                     <Button 
+                                       variant="outline"
+                                       size="sm"
+                                       onClick={() => {
+                                         setSelectedDocumentForMultiAssign(selectedDocuments[0]);
+                                         setShowMultiAssignModal(true);
+                                       }}
+                                       className="flex items-center gap-2"
+                                       disabled={selectedDocuments.length === 0}
+                                     >
+                                       <Link className="h-4 w-4" />
+                                       Konten {additionalAccountsCount > 0 && `(${additionalAccountsCount})`}
+                                     </Button>
+                                   );
+                                 })()}
                                 <Button 
                                   variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
                                   size="sm"
