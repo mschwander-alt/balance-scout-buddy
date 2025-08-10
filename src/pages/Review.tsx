@@ -261,8 +261,61 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         setAccountGroups([virtualGroup]);
         setAssignments(tempAssignments);
       } else {
-        // No temp matches exist, load trial balance directly (fallback)
-        await loadTrialBalanceDirectly();
+        // No temp matches exist, create them using unified auto-match
+        console.log('No temp matches found, creating them...');
+        
+        const { data: matchResult, error: matchError } = await supabase.functions.invoke('unified-auto-match', {
+          body: { trial_balance_id: trialBalanceId }
+        });
+
+        if (matchError) {
+          console.error('Error creating temp matches:', matchError);
+          // Fallback to direct trial balance loading
+          await loadTrialBalanceDirectly();
+          return;
+        }
+
+        // Reload temp matches after creation
+        const { data: newTempMatches, error: newTempError } = await supabase
+          .from('temp_account_matches')
+          .select('*')
+          .eq('trial_balance_id', trialBalanceId!);
+
+        if (newTempError) {
+          console.error('Error loading new temp matches:', newTempError);
+          await loadTrialBalanceDirectly();
+          return;
+        }
+
+        if (newTempMatches && newTempMatches.length > 0) {
+          // Use newly created temp matches
+          const tempAssignments: Assignment[] = newTempMatches.map(match => ({
+            id: match.id,
+            account_group_id: 'no-group',
+            account_number: match.account_number,
+            account_name: match.account_name,
+            current_year_balance: match.current_year_balance || 0,
+            previous_year_balance: match.previous_year_balance || 0,
+            match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+            confidence_score: match.confidence_score || undefined,
+            matched_documents: match.matched_documents || undefined
+          }));
+
+          const virtualGroup: AccountGroup = {
+            id: 'no-group',
+            trial_balance_id: trialBalanceId!,
+            name: 'Alle Konten',
+            description: 'Ungroupierte Saldobilanz',
+            assignments: tempAssignments,
+            isOpen: true
+          };
+
+          setAccountGroups([virtualGroup]);
+          setAssignments(tempAssignments);
+        } else {
+          // Final fallback to direct trial balance loading
+          await loadTrialBalanceDirectly();
+        }
       }
     } catch (error) {
       console.error('Error loading temporary matches:', error);
