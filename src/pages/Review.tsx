@@ -925,7 +925,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                   </Tooltip>
                   <div className="border-l border-border h-6"></div>
                   {selectedAccountData ? (
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center justify-between w-full">
                       <div className="min-w-0 flex-shrink">
                         <CardTitle className="text-sm font-medium truncate">
                           {selectedAccountData.account_number} - {selectedAccountData.account_name}
