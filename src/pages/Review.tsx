@@ -132,16 +132,33 @@ const Review: React.FC = () => {
 
       setAssignments(allAssignments);
       setDocuments(documentsResponse || []);
-      setAccountGroups(groupsData.map(group => ({
-        ...group,
-        assignments: group.assignments.map(assignment => ({
-          ...assignment,
-          match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
-          confidence_score: assignment.confidence_score || undefined,
-          matched_documents: assignment.matched_documents || undefined
-        })),
-        isOpen: false
-      })));
+      
+      // Sortiere Account Groups nach created_at (Reihenfolge der Gruppierung)
+      const sortedGroups = groupsData
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .map(group => ({
+          ...group,
+          // Sortiere Assignments innerhalb der Gruppe nach Kontonummer aufsteigend
+          assignments: group.assignments
+            .map(assignment => ({
+              ...assignment,
+              match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+              confidence_score: assignment.confidence_score || undefined,
+              matched_documents: assignment.matched_documents || undefined
+            }))
+            .sort((a, b) => {
+              // Sortiere nach Kontonummer (numerisch wenn möglich, sonst alphabetisch)
+              const aNum = parseInt(a.account_number);
+              const bNum = parseInt(b.account_number);
+              if (!isNaN(aNum) && !isNaN(bNum)) {
+                return aNum - bNum;
+              }
+              return a.account_number.localeCompare(b.account_number);
+            }),
+          isOpen: false
+        }));
+      
+      setAccountGroups(sortedGroups);
       setAccountComments(commentMap);
       setLoadedComments(loadedMap);
     } catch (error: any) {
@@ -389,6 +406,10 @@ const Review: React.FC = () => {
     }).format(amount);
   };
 
+  const calculateGroupSum = (group: AccountGroup) => {
+    return group.assignments.reduce((sum, assignment) => sum + assignment.current_year_balance, 0);
+  };
+
   const selectedAccountData = selectedAccount 
     ? assignments.find(a => a.id === selectedAccount)
     : null;
@@ -622,18 +643,18 @@ const Review: React.FC = () => {
                                        )}
                                      </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline">
-                                      {group.assignments.length} Konten
-                                    </Badge>
-                                     <Badge variant={
-                                       group.assignments.some(a => a.match_status === 'matched') 
-                                         ? 'default' 
-                                         : 'secondary'
-                                     }>
-                                       {group.assignments.filter(a => a.match_status === 'matched').length} gefunden
+                                   <div className="flex items-center gap-2">
+                                     <Badge variant="outline">
+                                       {formatCurrency(calculateGroupSum(group))}
                                      </Badge>
-                                  </div>
+                                      <Badge variant={
+                                        group.assignments.some(a => a.match_status === 'matched') 
+                                          ? 'default' 
+                                          : 'secondary'
+                                      }>
+                                        {group.assignments.filter(a => a.match_status === 'matched').length} gefunden
+                                      </Badge>
+                                   </div>
                                 </div>
                               </CardHeader>
                             </CollapsibleTrigger>
