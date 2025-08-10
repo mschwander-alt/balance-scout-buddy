@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -506,7 +507,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   }, [loadData]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <TooltipProvider>
+      <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card py-2">
         <div className="container mx-auto px-2 py-2 flex justify-between items-center">
           <h1 className="text-xl font-bold text-foreground">Audit Agent</h1>
@@ -907,15 +909,20 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             <Card className="flex-1 min-w-0 relative">
               <CardHeader className="py-3">
                 <div className="flex items-center gap-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                    className="flex items-center gap-2"
-                  >
-                    {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-                    {sidebarCollapsed ? 'Saldobilanz anzeigen' : 'Saldobilanz ausblenden'}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                      >
+                        {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {sidebarCollapsed ? 'Saldobilanz anzeigen' : 'Saldobilanz ausblenden'}
+                    </TooltipContent>
+                  </Tooltip>
                   <div className="border-l border-border h-6"></div>
                   {selectedAccountData ? (
                     <div className="flex items-center gap-6">
@@ -1065,7 +1072,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };
 
