@@ -1524,18 +1524,19 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                              </div>
                           </div>
                        </div>
-                   ) : (
-                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                       <p>Keine Nachweise für dieses Konto gefunden</p>
-                     </div>
-                   )
-                 ) : (
-                   <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
-                   </div>
-                 )}
-               </CardContent>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>Keine Nachweise für dieses Konto gefunden</p>
+                    </div>
+                  )
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                    <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
+                  </div>
+                )}
+              </CardContent>
              </Card>
            </div>
 
