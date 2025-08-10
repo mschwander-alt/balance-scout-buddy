@@ -2,7 +2,10 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
-import { getDocument } from 'https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs'
+import { getDocument, GlobalWorkerOptions } from 'https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs'
+
+// Set up PDF.js worker
+GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -333,15 +336,38 @@ serve(async (req) => {
       }
     };
 
-    // SIMPLE BALANCE MATCHING: Search for exact current year balance in all evidence files
-    for (const account of parsedAccounts) {
-      console.log(`Searching for balance ${account.currentYear} for account ${account.accountNumber}`);
+    // Pre-parse all documents once to avoid repeated parsing
+    console.log('Pre-parsing all evidence documents...');
+    const documentData = new Map<string, number[]>();
+    
+    for (const doc of documents) {
+      const isExcel = doc.file_name.toLowerCase().includes('.xls');
+      const isPDF = doc.file_name.toLowerCase().includes('.pdf');
       
+      if (!isExcel && !isPDF) {
+        continue;
+      }
+      
+      try {
+        let values: number[] = [];
+        if (isExcel) {
+          values = await parseExcelForValues(doc);
+        } else if (isPDF) {
+          values = await parsePDFForValues(doc);
+        }
+        documentData.set(doc.id, values);
+      } catch (error) {
+        console.log(`Error pre-parsing ${doc.file_name}:`, error.message);
+        documentData.set(doc.id, []);
+      }
+    }
+
+    // SIMPLE BALANCE MATCHING: Search for exact current year balance in pre-parsed data
+    for (const account of parsedAccounts) {
       const matchedDocuments: string[] = [];
       
       // Skip accounts with zero balance
       if (account.currentYear === 0) {
-        console.log(`Skipping account ${account.accountNumber} - zero balance`);
         tempMatches.push({
           trial_balance_id: trial_balance_id,
           account_number: account.accountNumber,
@@ -355,47 +381,25 @@ serve(async (req) => {
         continue;
       }
       
-      // Search through ALL evidence files for this balance
+      // Search through pre-parsed document data
       for (const doc of documents) {
-        const isExcel = doc.file_name.toLowerCase().includes('.xls');
-        const isPDF = doc.file_name.toLowerCase().includes('.pdf');
+        const values = documentData.get(doc.id) || [];
         
-        if (!isExcel && !isPDF) {
-          continue;
-        }
+        // Check if the exact balance is found in this document
+        const balanceFound = values.some(value => isBalanceMatch(value, account.currentYear));
         
-        console.log(`Checking ${doc.file_name} for balance ${account.currentYear}`);
-        
-        let documentValues: number[] = [];
-        
-        try {
-          if (isExcel) {
-            documentValues = await parseExcelForValues(doc);
-          } else if (isPDF) {
-            documentValues = await parsePDFForValues(doc);
-          }
-          
-          // Check if the exact balance is found in this document
-          const balanceFound = documentValues.some(value => isBalanceMatch(value, account.currentYear));
-          
-          if (balanceFound) {
-            matchedDocuments.push(doc.id);
-            console.log(`✓ MATCH: Balance ${account.currentYear} found in ${doc.file_name}`);
-          }
-        } catch (error) {
-          console.log(`Error processing ${doc.file_name}:`, error.message);
+        if (balanceFound) {
+          matchedDocuments.push(doc.id);
+          console.log(`✓ MATCH: Balance ${account.currentYear} found in ${doc.file_name}`);
         }
       }
 
       // Create the temp match record
       const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
-      const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null; // 100% confidence for exact matches
+      const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null;
 
       if (matchedDocuments.length > 0) {
         matchedCount++;
-        console.log(`✓ Account ${account.accountNumber} (${account.currentYear}) matched with ${matchedDocuments.length} documents`);
-      } else {
-        console.log(`✗ Account ${account.accountNumber} (${account.currentYear}) - no matches found`);
       }
 
       tempMatches.push({
