@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -1141,35 +1141,36 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="flex flex-col h-full">
-                       {/* Document tabs with reassign buttons */}
+                       {/* Document tabs with embedded reassign icons */}
                        <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
-                         <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                           <TabsList className="grid flex-1 mr-2" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
-                             {selectedDocuments.map((doc) => (
-                               <TabsTrigger key={doc.id} value={doc.id} className="text-xs px-2 truncate">
-                                 {doc.file_name.length > 20 ? `${doc.file_name.substring(0, 20)}...` : doc.file_name}
+                         <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
+                           {selectedDocuments.map((doc) => (
+                             <div key={doc.id} className="relative group">
+                               <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
+                                 <span className="truncate">
+                                   {doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
+                                 </span>
+                                 <TooltipProvider>
+                                   <Tooltip>
+                                     <TooltipTrigger asChild>
+                                       <Send 
+                                         className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setDocumentToReassign(doc);
+                                           setShowReassignModal(true);
+                                         }}
+                                       />
+                                     </TooltipTrigger>
+                                     <TooltipContent>
+                                       Neu zuweisen
+                                     </TooltipContent>
+                                   </Tooltip>
+                                 </TooltipProvider>
                                </TabsTrigger>
-                             ))}
-                           </TabsList>
-                           <div className="flex items-center gap-1">
-                             {selectedDocuments.map((doc) => (
-                               <Button
-                                 key={`reassign-${doc.id}`}
-                                 variant="outline"
-                                 size="sm"
-                                 onClick={() => {
-                                   setDocumentToReassign(doc);
-                                   setShowReassignModal(true);
-                                 }}
-                                 className="flex items-center gap-1 text-xs px-2 py-1 h-8"
-                                 title={`${doc.file_name} neu zuweisen oder entfernen`}
-                               >
-                                 <Link className="h-3 w-3" />
-                                 Neu zuweisen
-                               </Button>
-                             ))}
-                           </div>
-                         </div>
+                             </div>
+                           ))}
+                         </TabsList>
                         
                         {selectedDocuments.map((doc) => (
                           <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
@@ -1229,7 +1230,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                        className="flex items-center gap-2"
                                        disabled={selectedDocuments.length === 0}
                                      >
-                                       <Link className="h-4 w-4" />
+                                       <Send className="h-4 w-4" />
                                        Konten {additionalAccountsCount > 0 && `(${additionalAccountsCount})`}
                                      </Button>
                                    );
