@@ -931,61 +931,39 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 ? (
                     <div className="flex flex-col h-full">
-                      {selectedDocuments.length === 1 ? (
-                        // Single document - no tabs needed
-                        <div className="flex-1 border rounded-lg overflow-hidden">
-                          {selectedDocuments[0].file_type === 'application/pdf' ? (
-                            <SimplePDFViewer document={selectedDocuments[0]} />
-                          ) : selectedDocuments[0].file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                               selectedDocuments[0].file_type === 'application/vnd.ms-excel' ? (
-                            <ExcelViewer document={selectedDocuments[0]} />
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
-                              <FileText className="h-16 w-16 mb-4 opacity-60" />
-                              <p className="text-center">
-                                {selectedDocuments[0].file_name}
-                              </p>
-                              <p className="text-sm text-center mt-2">
-                                Vorschau für diesen Dateityp nicht verfügbar
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        // Multiple documents - show tabs
-                        <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
-                          <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
-                            {selectedDocuments.map((doc) => (
-                              <TabsTrigger key={doc.id} value={doc.id} className="text-xs px-2 truncate">
-                                {doc.file_name.length > 20 ? `${doc.file_name.substring(0, 20)}...` : doc.file_name}
-                              </TabsTrigger>
-                            ))}
-                          </TabsList>
-                          
+                      {/* Always show tabs for consistency */}
+                      <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
+                        <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
                           {selectedDocuments.map((doc) => (
-                            <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
-                              <div className="h-full border rounded-lg overflow-hidden">
-                                {doc.file_type === 'application/pdf' ? (
-                                  <SimplePDFViewer document={doc} />
-                                ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                                     doc.file_type === 'application/vnd.ms-excel' ? (
-                                  <ExcelViewer document={doc} />
-                                ) : (
-                                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
-                                    <FileText className="h-16 w-16 mb-4 opacity-60" />
-                                    <p className="text-center">
-                                      {doc.file_name}
-                                    </p>
-                                    <p className="text-sm text-center mt-2">
-                                      Vorschau für diesen Dateityp nicht verfügbar
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </TabsContent>
+                            <TabsTrigger key={doc.id} value={doc.id} className="text-xs px-2 truncate">
+                              {doc.file_name.length > 20 ? `${doc.file_name.substring(0, 20)}...` : doc.file_name}
+                            </TabsTrigger>
                           ))}
-                        </Tabs>
-                      )}
+                        </TabsList>
+                        
+                        {selectedDocuments.map((doc) => (
+                          <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
+                            <div className="h-full border rounded-lg overflow-hidden">
+                              {doc.file_type === 'application/pdf' ? (
+                                <SimplePDFViewer document={doc} />
+                              ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                                   doc.file_type === 'application/vnd.ms-excel' ? (
+                                <ExcelViewer document={doc} />
+                              ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
+                                  <FileText className="h-16 w-16 mb-4 opacity-60" />
+                                  <p className="text-center">
+                                    {doc.file_name}
+                                  </p>
+                                  <p className="text-sm text-center mt-2">
+                                    Vorschau für diesen Dateityp nicht verfügbar
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </TabsContent>
+                        ))}
+                      </Tabs>
                         
                        {/* Kommentarfeld */}
                        <div className="border-t pt-4 h-[160px] flex-shrink-0 mt-4">
