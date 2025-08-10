@@ -1097,7 +1097,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                   disabled={selectedDocuments.length === 0}
                                 >
                                   <Link className="h-4 w-4" />
-                                  Nachweis dient weiteren Konten
+                                  Konten
                                 </Button>
                                 <Button 
                                   variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
