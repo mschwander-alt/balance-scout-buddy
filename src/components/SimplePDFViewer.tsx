@@ -183,107 +183,33 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         />
       </div>
       
-      {/* Enhanced Comment Section with Tabs - immer sichtbar */}
+      {/* Comment Section - einfache Darstellung wie bei Excel */}
       {assignmentId ? (
-        <div className="flex-shrink-0 border-t bg-white">{/* flex-shrink-0 verhindert Komprimierung */}
-          <Card className="border-t-0 rounded-t-none shadow-sm">{/* Weniger Shadow */}
-          <CardContent className="p-0">
-            <Tabs defaultValue="comments" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 rounded-none border-b">
-                <TabsTrigger value="comments" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  Kommentare
-                </TabsTrigger>
-                <TabsTrigger value="accounts" className="gap-2">
-                  <Link className="h-4 w-4" />
-                  Konten
-                </TabsTrigger>
-                <TabsTrigger value="complete" className="gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  Als vollständig markieren
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="comments" className="p-4 space-y-3 mt-0 max-h-40 overflow-y-auto">
-                <Textarea
-                  placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  className="min-h-[80px] max-h-24 resize-none"
-                />
-                <div className="flex gap-2 items-center justify-between">
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={saveComment}
-                      disabled={commentLoading}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                    >
-                      {commentLoading ? 'Speichere...' : 'Speichern'}
-                    </Button>
-                    <PDFCommentExporter
-                      document={document}
-                      assignmentId={assignmentId}
-                      trialBalanceId={trialBalanceId}
-                      accountName={accountName}
-                      accountNumber={accountNumber}
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="accounts" className="p-3 mt-0">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm">{accountName}</p>
-                      <p className="text-xs text-muted-foreground">Konto {accountNumber}</p>
-                    </div>
-                    <Badge variant="secondary">Verknüpft</Badge>
-                  </div>
-                  
-                  {/* Konten-Verknüpfungs-Button - echte Funktionalität */}
-                  {onShowMultiAssign && selectedDocuments.length > 0 && (
-                    <div className="pt-2">
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onShowMultiAssign(selectedDocuments[0])}
-                        className="flex items-center gap-2 w-full"
-                        disabled={selectedDocuments.length === 0}
-                      >
-                        <Link className="h-4 w-4" />
-                        Weiteren Konten zuweisen
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="complete" className="p-3 mt-0">
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Markieren Sie dieses Konto als vollständig geprüft, wenn alle Nachweise überprüft wurden.
-                  </p>
-                  
-                  {/* Als vollständig markieren - echte Funktionalität */}
-                  {assignmentId && onMarkCompleted && (
-                    <Button 
-                      variant={completedAccounts.has(assignmentId) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => onMarkCompleted(assignmentId)}
-                      className="w-full gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      {completedAccounts.has(assignmentId) ? 'Vollständig' : 'Als vollständig markieren'}
-                    </Button>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-          </Card>
+        <div className="flex-shrink-0 border-t bg-white p-4 space-y-4">
+          <div className="space-y-2">
+            <textarea 
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Kommentar hinzufügen..."
+              className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm min-h-20 max-h-40 overflow-y-auto"
+            />
+            <div className="flex gap-2">
+              <Button 
+                onClick={saveComment}
+                size="sm"
+                disabled={!comment.trim() || commentLoading}
+              >
+                {commentLoading ? 'Speichere...' : 'Speichern'}
+              </Button>
+              <PDFCommentExporter
+                document={document}
+                assignmentId={assignmentId}
+                trialBalanceId={trialBalanceId}
+                accountName={accountName}
+                accountNumber={accountNumber}
+              />
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
