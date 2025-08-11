@@ -114,189 +114,174 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
   const generateCommentPage = async (comments: Comment[]): Promise<Uint8Array> => {
     const pdf = new jsPDF();
     
-    let currentY = 20;
+    let currentY = 30;
     
-    // Logo placeholder box - exactly like in the design
+    // Logo placeholder box - top right like in your design
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.5);
-    pdf.rect(20, currentY, 60, 30);
+    pdf.rect(150, 20, 40, 25);
+    
+    // Logo placeholder text
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(0, 0, 0);
+    pdf.text('Platzhalter', 170, 30);
+    pdf.text('Für Logo', 170, 35);
     
     // Load and add logo if available
     if (companySettings.logo_path) {
       const logoBase64 = await loadLogoAsBase64(companySettings.logo_path);
       if (logoBase64) {
         try {
-          pdf.addImage(logoBase64, 'JPEG', 22, currentY + 2, 56, 26);
+          pdf.addImage(logoBase64, 'JPEG', 152, 22, 36, 21);
         } catch (error) {
           console.error('Error adding logo to PDF:', error);
-          // Show placeholder text if logo fails
-          pdf.setFontSize(12);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(100, 100, 100);
-          pdf.text('Platzhalter', 50, currentY + 18);
         }
       }
-    } else {
-      // Show placeholder text exactly like in design
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(0, 0, 0);
-      pdf.text('Platzhalter', 50, currentY + 18);
     }
     
-    currentY += 50;
+    currentY = 70;
     
-    // Account information table - exact structure from design
+    // Account information table - exactly like your design
     const tableData = [
       ['Konto:', `${accountNumber} – ${accountName}`],
       ['Dokument:', document.file_name],
       ['Erstellungsdatum:', `${new Date().toLocaleDateString('de-DE')} um ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`]
     ];
     
+    const tableStartX = 20;
     const tableWidth = 170;
     const labelWidth = 40;
     const valueWidth = 130;
-    const rowHeight = 8;
+    const rowHeight = 7;
     
-    // Draw table with borders
+    // Draw table outline
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.3);
+    pdf.rect(tableStartX, currentY, tableWidth, tableData.length * rowHeight);
     
-    // Outer table border
-    pdf.rect(20, currentY, tableWidth, tableData.length * rowHeight);
-    
+    // Draw table content
     tableData.forEach((row, index) => {
       const y = currentY + (index * rowHeight);
       
       // Horizontal lines between rows
       if (index > 0) {
-        pdf.line(20, y, 20 + tableWidth, y);
+        pdf.line(tableStartX, y, tableStartX + tableWidth, y);
       }
       
       // Vertical line between columns
-      pdf.line(20 + labelWidth, y, 20 + labelWidth, y + rowHeight);
+      pdf.line(tableStartX + labelWidth, y, tableStartX + labelWidth, y + rowHeight);
       
       // Add text
-      pdf.setFontSize(10);
+      pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(0, 0, 0);
-      pdf.text(row[0], 22, y + 5.5);
-      pdf.text(row[1], 22 + labelWidth, y + 5.5);
+      pdf.text(row[0], tableStartX + 2, y + 5);
+      pdf.text(row[1], tableStartX + labelWidth + 2, y + 5);
     });
     
     currentY += (tableData.length * rowHeight) + 20;
     
-    // Prüfungsnotizen section - exact header from design
-    pdf.setFontSize(14);
+    // Prüfungsnotizen section
+    pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(0, 0, 0);
-    pdf.text('Prüfungsnotizen', 20, currentY);
+    pdf.text('Prüfungsnotizen', tableStartX, currentY);
     
     currentY += 15;
     
-    // Vorjahresvergleich subsection
-    pdf.setFontSize(11);
+    // Vorjahresvergleich table
+    pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
-    pdf.text('Vorjahresvergleich:', 20, currentY);
+    pdf.text('Vorjahresvergleich:', tableStartX, currentY);
     
-    currentY += 10;
+    currentY += 8;
     
-    // Comparison table - exact structure from design
-    const comparisonHeaders = ['Lfd. Jahr', 'Vorjahr', 'Abw.', '%'];
-    const comparisonData = ['CHF 233.50', 'CHF 2\'200.75', 'CHF -1\'967.25', '-89.4%'];
-    const compTableWidth = 150;
-    const colWidth = compTableWidth / 4;
-    const headerHeight = 8;
-    const dataHeight = 8;
+    // Comparison table headers and data
+    const compHeaders = ['Lfd. Jahr', 'Vorjahr', 'Abw.', '%'];
+    const compData = ['CHF 233.50', 'CHF 2\'200.75', 'CHF -1\'967.25', '-89.4%'];
+    const compTableWidth = 120;
+    const compColWidth = compTableWidth / 4;
+    const compTableHeight = 14;
     
     // Draw comparison table
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.3);
+    pdf.rect(tableStartX, currentY, compTableWidth, compTableHeight);
     
-    // Table border
-    pdf.rect(20, currentY, compTableWidth, headerHeight + dataHeight);
-    
-    // Header row
-    pdf.setFontSize(9);
+    // Headers
+    pdf.setFontSize(8);
     pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(0, 0, 0);
-    
-    comparisonHeaders.forEach((header, index) => {
-      const x = 20 + (index * colWidth);
+    compHeaders.forEach((header, index) => {
+      const x = tableStartX + (index * compColWidth);
       
       // Vertical lines
       if (index > 0) {
-        pdf.line(x, currentY, x, currentY + headerHeight + dataHeight);
+        pdf.line(x, currentY, x, currentY + compTableHeight);
       }
       
-      // Header text
-      pdf.text(header, x + 2, currentY + 6);
+      pdf.text(header, x + 1, currentY + 5);
     });
     
     // Horizontal line under headers
-    pdf.line(20, currentY + headerHeight, 20 + compTableWidth, currentY + headerHeight);
+    pdf.line(tableStartX, currentY + 7, tableStartX + compTableWidth, currentY + 7);
     
     // Data row
-    comparisonData.forEach((data, index) => {
-      const x = 20 + (index * colWidth);
+    compData.forEach((data, index) => {
+      const x = tableStartX + (index * compColWidth);
       
-      // Set red color for percentage if negative
+      // Set red color for negative percentage
       if (index === 3 && data.startsWith('-')) {
         pdf.setTextColor(255, 0, 0);
       } else {
         pdf.setTextColor(0, 0, 0);
       }
       
-      pdf.text(data, x + 2, currentY + headerHeight + 6);
+      pdf.text(data, x + 1, currentY + 11);
     });
     
     pdf.setTextColor(0, 0, 0); // Reset color
     
-    currentY += headerHeight + dataHeight + 15;
+    currentY += compTableHeight + 15;
     
-    // Comments subsection
-    pdf.setFontSize(11);
+    // Comments section
+    pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
-    pdf.text('Kommentare:', 20, currentY);
+    pdf.text('Kommentare:', tableStartX, currentY);
     
-    currentY += 10;
+    currentY += 8;
     
-    // Comments content
+    // Comments content - simple text, no table
     if (comments.length === 0) {
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'italic');
-      pdf.setTextColor(100, 100, 100);
-      pdf.text('Hier kommt der Kommentar rein', 20, currentY);
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Hier kommt der Kommentar rein', tableStartX, currentY);
     } else {
-      pdf.setFontSize(10);
+      pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(0, 0, 0);
       
       comments.forEach((comment, index) => {
-        const commentDate = new Date(comment.created_at).toLocaleDateString('de-DE');
-        const commentTime = new Date(comment.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        
-        // Add comment with date/time if multiple comments
         if (comments.length > 1) {
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(`${commentDate} ${commentTime}:`, 20, currentY);
+          const commentDate = new Date(comment.created_at).toLocaleDateString('de-DE');
+          const commentTime = new Date(comment.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          pdf.text(`${commentDate} ${commentTime}:`, tableStartX, currentY);
           currentY += 5;
-          pdf.setFont('helvetica', 'normal');
         }
         
-        // Comment text
         const lines = pdf.splitTextToSize(comment.comment_text, 160);
         lines.forEach((line: string) => {
           if (currentY > 270) {
             pdf.addPage();
             currentY = 20;
           }
-          pdf.text(line, 20, currentY);
+          pdf.text(line, tableStartX, currentY);
           currentY += 4;
         });
         
         if (index < comments.length - 1) {
-          currentY += 5; // Space between comments
+          currentY += 5;
         }
       });
     }
