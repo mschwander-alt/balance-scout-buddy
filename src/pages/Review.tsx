@@ -546,28 +546,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         throw error;
       }
 
-      // Update lokaler State - both account groups and assignments
-      if (isUsingGroups) {
-        setAccountGroups(prevGroups => 
-          prevGroups.map(group => ({
-            ...group,
-            assignments: group.assignments.map(assignment => {
-              if (assignment.id === assignmentId) {
-                return {
-                  ...assignment,
-                  match_status: 'matched' as const,
-                  confidence_score: 1.0,
-                  matched_documents: updatedMatchedDocuments
-                };
-              }
-              return assignment;
-            })
-          }))
-        );
-      } else {
-        // Update assignments state for temp matches
-        setAssignments(prevAssignments => 
-          prevAssignments.map(assignment => {
+      // Update lokaler State - ALWAYS update accountGroups since that's what the UI uses
+      setAccountGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          assignments: group.assignments.map(assignment => {
             if (assignment.id === assignmentId) {
               return {
                 ...assignment,
@@ -578,8 +561,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             }
             return assignment;
           })
-        );
-      }
+        }))
+      );
+
+      // Also update documents list to ensure unmatched documents list is updated
+      setDocuments(prevDocs => [...prevDocs]);
 
       toast.success('Dokument erfolgreich zugewiesen');
       setSelectedDocumentForAssign(null);
@@ -625,31 +611,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           .eq('id', assignmentId);
       }
 
-      // Aktualisiere lokalen State - both account groups and assignments
-      if (isUsingGroups) {
-        setAccountGroups(prevGroups => 
-          prevGroups.map(group => ({
-            ...group,
-            assignments: group.assignments.map(assignment => {
-              if (selectedAccountsForAssign.has(assignment.id)) {
-                const updatedMatchedDocuments = assignment.matched_documents 
-                  ? [...assignment.matched_documents, selectedDocumentForMultiAssign.id]
-                  : [selectedDocumentForMultiAssign.id];
-                return {
-                  ...assignment,
-                  match_status: 'matched' as const,
-                  confidence_score: 1.0,
-                  matched_documents: updatedMatchedDocuments
-                };
-              }
-              return assignment;
-            })
-          }))
-        );
-      } else {
-        // Update assignments state for temp matches
-        setAssignments(prevAssignments => 
-          prevAssignments.map(assignment => {
+      // Aktualisiere lokalen State - ALWAYS update accountGroups since that's what the UI uses
+      setAccountGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          assignments: group.assignments.map(assignment => {
             if (selectedAccountsForAssign.has(assignment.id)) {
               const updatedMatchedDocuments = assignment.matched_documents 
                 ? [...assignment.matched_documents, selectedDocumentForMultiAssign.id]
@@ -663,8 +629,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             }
             return assignment;
           })
-        );
-      }
+        }))
+      );
       
       toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konten zugewiesen`);
       setSearchQuery('');
@@ -726,13 +692,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           .eq('id', assignmentId);
       }
 
-      // Aktualisiere lokalen State - similar to multi-assign
-      if (isUsingGroups) {
-        await loadData(); // Keep loadData for groups as it's more complex
-      } else {
-        // Update assignments state for temp matches
-        setAssignments(prevAssignments => 
-          prevAssignments.map(assignment => {
+      // Aktualisiere lokalen State - ALWAYS update accountGroups since that's what the UI uses
+      setAccountGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          assignments: group.assignments.map(assignment => {
             // Remove from current assignment
             if (assignment.id === selectedAccountData.id) {
               const updatedMatchedDocuments = assignment.matched_documents?.filter(
@@ -758,8 +722,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             }
             return assignment;
           })
-        );
-      }
+        }))
+      );
       
       toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konto${selectedAccountsForAssign.size > 1 ? 'en' : ''} verschoben`);
       setSearchQuery('');
@@ -911,21 +875,12 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         await handleManualAssign(docData.id, accountId);
         console.log('Document assigned successfully to account:', accountId);
         
-        // Update the assignment's match_status to 'matched' after successful upload
-        setAssignments(prevAssignments => 
-          prevAssignments.map(assignment => 
-            assignment.id === accountId 
-              ? { ...assignment, match_status: 'matched' }
-              : assignment
-          )
-        );
-        
         // Update local state instead of full reload to prevent system overload
-        const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
-        if (!isUsingGroups) {
-          // Update assignments state for temp matches
-          setAssignments(prevAssignments => 
-            prevAssignments.map(assignment => {
+        // ALWAYS update accountGroups since that's what the UI uses
+        setAccountGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            assignments: group.assignments.map(assignment => {
               if (assignment.id === accountId) {
                 const updatedMatchedDocuments = assignment.matched_documents 
                   ? [...assignment.matched_documents, docData.id]
@@ -938,13 +893,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               }
               return assignment;
             })
-          );
-        } else {
-          // For groups, still use loadData but with a delay
-          setTimeout(async () => {
-            await loadData();
-          }, 100);
-        }
+          }))
+        );
+        
+        // Update documents list to include the new document
+        setDocuments(prevDocs => [...prevDocs, docData]);
         
       } catch (assignError) {
         console.error('Assignment error:', assignError);
