@@ -173,7 +173,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-300px)]">{/* Reduzierte max-height für Footer-Platz */}
+    <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">{/* Angepasste max-height */}
       {/* PDF Viewer with Annotations */}
       <div className="flex-1 overflow-hidden min-h-0">{/* min-h-0 für flex-shrink */}
         <PdfAnnotator
