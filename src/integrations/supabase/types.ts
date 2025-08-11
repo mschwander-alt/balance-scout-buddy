@@ -190,6 +190,57 @@ export type Database = {
           },
         ]
       }
+      document_analysis: {
+        Row: {
+          analysis_status: string
+          created_at: string
+          document_id: string
+          extracted_numbers: Json
+          id: string
+          matched_accounts: Json
+          trial_balance_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis_status?: string
+          created_at?: string
+          document_id: string
+          extracted_numbers?: Json
+          id?: string
+          matched_accounts?: Json
+          trial_balance_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis_status?: string
+          created_at?: string
+          document_id?: string
+          extracted_numbers?: Json
+          id?: string
+          matched_accounts?: Json
+          trial_balance_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_analysis_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "account_evidence"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analysis_trial_balance_id_fkey"
+            columns: ["trial_balance_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdf_annotations: {
         Row: {
           annotation_type: string
