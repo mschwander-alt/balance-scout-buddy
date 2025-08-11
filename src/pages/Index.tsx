@@ -7,11 +7,12 @@ import ColumnConfig from '@/components/ColumnConfig';
 import TrialBalancePreview from '@/components/TrialBalancePreview';
 import TeamMembersManager from '@/components/TeamMembersManager';
 import AccountGrouping from '@/components/AccountGrouping';
+import { CompanySettings } from '@/components/CompanySettings';
 
 const Index = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'preview' | 'team' | 'grouping' | 'dashboard'>('upload');
+  const [currentStep, setCurrentStep] = useState<'upload' | 'configure' | 'preview' | 'team' | 'grouping' | 'settings' | 'dashboard'>('upload');
   const [currentTrialBalanceId, setCurrentTrialBalanceId] = useState<string>('');
   const [currentTrialBalanceData, setCurrentTrialBalanceData] = useState<any>(null);
 
@@ -54,6 +55,13 @@ const Index = () => {
             <span className="text-sm text-muted-foreground">
               Willkommen, {user?.email}
             </span>
+            <Button 
+              variant="outline" 
+              onClick={() => setCurrentStep('settings')}
+              className="text-sm"
+            >
+              Firmeneinstellungen
+            </Button>
             <Button variant="outline" onClick={signOut}>
               Abmelden
             </Button>
@@ -154,6 +162,25 @@ const Index = () => {
               trialBalanceData={currentTrialBalanceData}
               onGroupingComplete={handleGroupingComplete}
             />
+          </div>
+        )}
+
+        {currentStep === 'settings' && (
+          <div className="text-center space-y-8">
+            <div>
+              <h2 className="text-3xl font-bold mb-4 text-foreground">
+                Firmeneinstellungen
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8">
+                Konfigurieren Sie Ihre Firma und das Logo für professionelle Dokumente
+              </p>
+            </div>
+            <CompanySettings />
+            <div className="flex justify-center gap-4">
+              <Button variant="outline" onClick={() => setCurrentStep('upload')}>
+                Zurück zur Hauptseite
+              </Button>
+            </div>
           </div>
         )}
 
