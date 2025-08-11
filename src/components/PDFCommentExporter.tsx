@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { Button } from './ui/button';
 import { Download, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -130,83 +130,81 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     }
   };
 
-  const generateAnnotationsPage = async (annotations: any[]): Promise<Uint8Array> => {
-    const pdf = new jsPDF();
-    
-    let currentY = 30;
-    
-    // Logo placeholder box - top right
-    pdf.setDrawColor(0, 0, 0);
-    pdf.setLineWidth(0.5);
-    pdf.rect(150, 20, 40, 25);
-    
-    // Logo placeholder text
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(0, 0, 0);
-    pdf.text('Platzhalter', 170, 30);
-    pdf.text('Für Logo', 170, 35);
-    
-    // Load and add logo if available
-    if (companySettings.logo_path) {
-      const logoBase64 = await loadLogoAsBase64(companySettings.logo_path);
-      if (logoBase64) {
-        try {
-          pdf.addImage(logoBase64, 'JPEG', 152, 22, 36, 21);
-        } catch (error) {
-          console.error('Error adding logo to PDF:', error);
-        }
-      }
-    }
-    
-    currentY = 70;
-    
-    // Title
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('PDF Annotationen', 20, currentY);
-    currentY += 20;
-    
-    // Annotations summary
-    if (annotations.length > 0) {
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Gefundene Annotationen: ${annotations.length}`, 20, currentY);
-      currentY += 15;
+  const embedAnnotationsInPDF = async (originalPdfData: Uint8Array, annotations: any[]): Promise<Uint8Array> => {
+    try {
+      const pdfDoc = await PDFDocument.load(originalPdfData);
+      const pages = pdfDoc.getPages();
       
-      annotations.forEach((annotation, index) => {
-        if (currentY > 260) {
-          pdf.addPage();
-          currentY = 20;
+      // Group annotations by page
+      const annotationsByPage: { [pageNum: number]: any[] } = {};
+      annotations.forEach(annotation => {
+        const pageNum = annotation.page - 1; // Convert to 0-based index
+        if (!annotationsByPage[pageNum]) {
+          annotationsByPage[pageNum] = [];
         }
-        
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`${index + 1}. ${annotation.type.toUpperCase()}`, 20, currentY);
-        currentY += 8;
-        
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(`Seite: ${annotation.page}`, 25, currentY);
-        currentY += 6;
-        
-        if (annotation.type === 'highlight') {
-          pdf.text(`Farbe: ${annotation.color || '#ffeb00'}`, 25, currentY);
-          pdf.text(`Bereiche: ${annotation.rects?.length || 0}`, 100, currentY);
-        } else if (annotation.type === 'freetext') {
-          pdf.text(`Text: "${annotation.text}"`, 25, currentY);
-          currentY += 6;
-          pdf.text(`Position: X:${(annotation.x * 100).toFixed(1)}%, Y:${(annotation.y * 100).toFixed(1)}%`, 25, currentY);
-        }
-        
-        currentY += 12;
+        annotationsByPage[pageNum].push(annotation);
       });
-    } else {
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Keine Annotationen gefunden.', 20, currentY);
+      
+      // Apply annotations to each page
+      Object.keys(annotationsByPage).forEach(pageNumStr => {
+        const pageNum = parseInt(pageNumStr);
+        const page = pages[pageNum];
+        if (!page) return;
+        
+        const { width, height } = page.getSize();
+        const pageAnnotations = annotationsByPage[pageNum];
+        
+        pageAnnotations.forEach(annotation => {
+          if (annotation.type === 'highlight') {
+            // Draw highlight rectangles
+            annotation.rects?.forEach((rect: any) => {
+              const x = rect.x * width;
+              const y = height - (rect.y * height) - (rect.h * height); // Flip Y coordinate
+              const w = rect.w * width;
+              const h = rect.h * height;
+              
+              // Convert hex color to RGB
+              const color = annotation.color || '#ffeb00';
+              const r = parseInt(color.slice(1, 3), 16) / 255;
+              const g = parseInt(color.slice(3, 5), 16) / 255;
+              const b = parseInt(color.slice(5, 7), 16) / 255;
+              
+              page.drawRectangle({
+                x,
+                y,
+                width: w,
+                height: h,
+                color: rgb(r, g, b),
+                opacity: 0.3, // Semi-transparent highlight
+              });
+            });
+          } else if (annotation.type === 'freetext') {
+            // Draw text annotations
+            const x = annotation.x * width;
+            const y = height - (annotation.y * height); // Flip Y coordinate
+            const fontSize = annotation.fontSize || 12;
+            const color = annotation.color || '#000000';
+            
+            // Convert hex color to RGB
+            const r = parseInt(color.slice(1, 3), 16) / 255;
+            const g = parseInt(color.slice(3, 5), 16) / 255;
+            const b = parseInt(color.slice(5, 7), 16) / 255;
+            
+            page.drawText(annotation.text, {
+              x,
+              y,
+              size: fontSize,
+              color: rgb(r, g, b),
+            });
+          }
+        });
+      });
+      
+      return await pdfDoc.save();
+    } catch (error) {
+      console.error('Error embedding annotations in PDF:', error);
+      throw error;
     }
-    
-    return new Uint8Array(pdf.output('arraybuffer'));
   };
 
   const generateCommentPage = async (comments: Comment[]): Promise<Uint8Array> => {
@@ -405,26 +403,19 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     }
   };
 
-  const combinePDFs = async (commentPdf: Uint8Array, originalPdf: Uint8Array, annotationsPdf?: Uint8Array): Promise<Uint8Array> => {
+  const combinePDFs = async (commentPdf: Uint8Array, annotatedPdf: Uint8Array): Promise<Uint8Array> => {
     try {
       const combinedPdf = await PDFDocument.create();
       
-      // Add comment page
+      // Add comment page first
       const commentDoc = await PDFDocument.load(commentPdf);
       const commentPages = await combinedPdf.copyPages(commentDoc, commentDoc.getPageIndices());
       commentPages.forEach((page) => combinedPdf.addPage(page));
       
-      // Add annotations page if provided
-      if (annotationsPdf) {
-        const annotationsDoc = await PDFDocument.load(annotationsPdf);
-        const annotationsPages = await combinedPdf.copyPages(annotationsDoc, annotationsDoc.getPageIndices());
-        annotationsPages.forEach((page) => combinedPdf.addPage(page));
-      }
-      
-      // Add original PDF pages
-      const originalDoc = await PDFDocument.load(originalPdf);
-      const originalPages = await combinedPdf.copyPages(originalDoc, originalDoc.getPageIndices());
-      originalPages.forEach((page) => combinedPdf.addPage(page));
+      // Add annotated PDF pages
+      const annotatedDoc = await PDFDocument.load(annotatedPdf);
+      const annotatedPages = await combinedPdf.copyPages(annotatedDoc, annotatedDoc.getPageIndices());
+      annotatedPages.forEach((page) => combinedPdf.addPage(page));
       
       return await combinedPdf.save();
     } catch (error) {
@@ -443,9 +434,10 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
         downloadOriginalPDF()
       ]);
       
+      // Embed annotations directly into the original PDF
+      const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
       const commentPdf = await generateCommentPage(comments);
-      const annotationsPdf = await generateAnnotationsPage(annotations);
-      const combinedPdf = await combinePDFs(commentPdf, originalPdf, annotationsPdf);
+      const combinedPdf = await combinePDFs(commentPdf, annotatedPdf);
       
       // Download combined PDF
       const blob = new Blob([combinedPdf], { type: 'application/pdf' });
@@ -474,9 +466,10 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
         downloadOriginalPDF()
       ]);
       
+      // Embed annotations directly into the original PDF
+      const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
       const commentPdf = await generateCommentPage(comments);
-      const annotationsPdf = await generateAnnotationsPage(annotations);
-      const combinedPdf = await combinePDFs(commentPdf, originalPdf, annotationsPdf);
+      const combinedPdf = await combinePDFs(commentPdf, annotatedPdf);
       
       // Open print dialog
       const blob = new Blob([combinedPdf], { type: 'application/pdf' });
