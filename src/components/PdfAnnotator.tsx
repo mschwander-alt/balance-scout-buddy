@@ -357,21 +357,8 @@ function PageView({
               });
               console.log("✅ TextLayer populated with", textContent.items.length, "text items");
             } else {
-              // Scan-PDF: Fallback-Info anzeigen
-              const fallbackSpan = document.createElement('span');
-              fallbackSpan.textContent = 'Gescanntes PDF - verwende Box-Highlight (ziehen)';
-              fallbackSpan.style.position = 'absolute';
-              fallbackSpan.style.top = '10px';
-              fallbackSpan.style.left = '10px';
-              fallbackSpan.style.fontSize = '12px';
-              fallbackSpan.style.background = 'rgba(255,255,0,0.8)';
-              fallbackSpan.style.padding = '4px 8px';
-              fallbackSpan.style.borderRadius = '4px';
-              fallbackSpan.style.userSelect = 'none';
-              fallbackSpan.style.pointerEvents = 'none';
-              fallbackSpan.style.zIndex = '10';
-              textLayerDiv.appendChild(fallbackSpan);
-              console.log("📝 Scan-PDF detected: Box-Highlight mode activated");
+              // Scan-PDF: Keine sichtbare Info, aber Box-Highlight aktiviert
+              console.log("📝 Scan-PDF detected: Box-Highlight mode activated (silent)");
             }
             
           } catch (textError) {
