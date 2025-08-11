@@ -116,7 +116,7 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     
     let currentY = 20;
     
-    // Logo placeholder box
+    // Logo placeholder box - exactly like in the design
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.5);
     pdf.rect(20, currentY, 60, 30);
@@ -130,163 +130,174 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
         } catch (error) {
           console.error('Error adding logo to PDF:', error);
           // Show placeholder text if logo fails
-          pdf.setFontSize(10);
+          pdf.setFontSize(12);
           pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(100, 100, 100);
           pdf.text('Platzhalter', 50, currentY + 18);
         }
       }
     } else {
-      // Show placeholder text
-      pdf.setFontSize(10);
+      // Show placeholder text exactly like in design
+      pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
       pdf.text('Platzhalter', 50, currentY + 18);
     }
     
     currentY += 50;
     
-    // Account information table
-    const tableRows = [
-      ['Konto:', `${accountNumber} - ${accountName}`],
+    // Account information table - exact structure from design
+    const tableData = [
+      ['Konto:', `${accountNumber} – ${accountName}`],
       ['Dokument:', document.file_name],
       ['Erstellungsdatum:', `${new Date().toLocaleDateString('de-DE')} um ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`]
     ];
     
     const tableWidth = 170;
-    const colWidth = tableWidth / 2;
+    const labelWidth = 40;
+    const valueWidth = 130;
     const rowHeight = 8;
     
-    // Draw table
+    // Draw table with borders
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.3);
     
-    tableRows.forEach((row, index) => {
+    // Outer table border
+    pdf.rect(20, currentY, tableWidth, tableData.length * rowHeight);
+    
+    tableData.forEach((row, index) => {
       const y = currentY + (index * rowHeight);
       
-      // Draw row borders
-      pdf.rect(20, y, tableWidth, rowHeight);
-      pdf.line(20 + colWidth, y, 20 + colWidth, y + rowHeight);
+      // Horizontal lines between rows
+      if (index > 0) {
+        pdf.line(20, y, 20 + tableWidth, y);
+      }
+      
+      // Vertical line between columns
+      pdf.line(20 + labelWidth, y, 20 + labelWidth, y + rowHeight);
       
       // Add text
       pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(row[0], 22, y + 5.5);
-      
       pdf.setFont('helvetica', 'normal');
-      pdf.text(row[1], 22 + colWidth, y + 5.5);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(row[0], 22, y + 5.5);
+      pdf.text(row[1], 22 + labelWidth, y + 5.5);
     });
     
-    currentY += (tableRows.length * rowHeight) + 20;
+    currentY += (tableData.length * rowHeight) + 20;
     
-    // Prüfungsnotizen section
+    // Prüfungsnotizen section - exact header from design
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(0, 0, 0);
     pdf.text('Prüfungsnotizen', 20, currentY);
     
     currentY += 15;
     
-    // Vorjahresvergleich subsection (placeholder for now)
+    // Vorjahresvergleich subsection
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'normal');
     pdf.text('Vorjahresvergleich:', 20, currentY);
     
     currentY += 10;
     
-    // Simple comparison table placeholder
-    const comparisonTableY = currentY;
-    const comparisonTableHeight = 25;
+    // Comparison table - exact structure from design
+    const comparisonHeaders = ['Lfd. Jahr', 'Vorjahr', 'Abw.', '%'];
+    const comparisonData = ['CHF 233.50', 'CHF 2\'200.75', 'CHF -1\'967.25', '-89.4%'];
+    const compTableWidth = 150;
+    const colWidth = compTableWidth / 4;
+    const headerHeight = 8;
+    const dataHeight = 8;
     
+    // Draw comparison table
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.3);
-    pdf.rect(20, comparisonTableY, 150, comparisonTableHeight);
     
-    // Table headers
-    const headers = ['Lfd. Jahr', 'Vorjahr', 'Abw.', '%'];
-    const headerWidth = 150 / 4;
+    // Table border
+    pdf.rect(20, currentY, compTableWidth, headerHeight + dataHeight);
     
+    // Header row
     pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'bold');
-    headers.forEach((header, index) => {
-      pdf.text(header, 22 + (index * headerWidth), comparisonTableY + 8);
-      if (index < headers.length - 1) {
-        pdf.line(20 + ((index + 1) * headerWidth), comparisonTableY, 20 + ((index + 1) * headerWidth), comparisonTableY + comparisonTableHeight);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(0, 0, 0);
+    
+    comparisonHeaders.forEach((header, index) => {
+      const x = 20 + (index * colWidth);
+      
+      // Vertical lines
+      if (index > 0) {
+        pdf.line(x, currentY, x, currentY + headerHeight + dataHeight);
       }
+      
+      // Header text
+      pdf.text(header, x + 2, currentY + 6);
     });
     
     // Horizontal line under headers
-    pdf.line(20, comparisonTableY + 12, 170, comparisonTableY + 12);
+    pdf.line(20, currentY + headerHeight, 20 + compTableWidth, currentY + headerHeight);
     
-    // Sample data row
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('CHF 233.50', 22, comparisonTableY + 20);
-    pdf.text('CHF 2\'200.75', 22 + headerWidth, comparisonTableY + 20);
-    pdf.text('CHF -1\'967.25', 22 + (2 * headerWidth), comparisonTableY + 20);
+    // Data row
+    comparisonData.forEach((data, index) => {
+      const x = 20 + (index * colWidth);
+      
+      // Set red color for percentage if negative
+      if (index === 3 && data.startsWith('-')) {
+        pdf.setTextColor(255, 0, 0);
+      } else {
+        pdf.setTextColor(0, 0, 0);
+      }
+      
+      pdf.text(data, x + 2, currentY + headerHeight + 6);
+    });
     
-    pdf.setTextColor(255, 0, 0); // Red for negative percentage
-    pdf.text('-89.4%', 22 + (3 * headerWidth), comparisonTableY + 20);
-    pdf.setTextColor(0, 0, 0); // Reset to black
+    pdf.setTextColor(0, 0, 0); // Reset color
     
-    currentY += comparisonTableHeight + 20;
+    currentY += headerHeight + dataHeight + 15;
     
-    // Comments section
+    // Comments subsection
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'normal');
     pdf.text('Kommentare:', 20, currentY);
     
     currentY += 10;
     
-    // Comments table
-    const commentsTableY = currentY;
-    let commentsTableHeight = 20;
-    
+    // Comments content
     if (comments.length === 0) {
-      // Single row for "no comments"
-      pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.3);
-      pdf.rect(20, commentsTableY, 170, commentsTableHeight);
-      
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'italic');
-      pdf.text('Keine Kommentare für dieses Konto erfasst.', 22, commentsTableY + 12);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text('Hier kommt der Kommentar rein', 20, currentY);
     } else {
-      // Calculate needed height for all comments
-      let totalTextHeight = 0;
-      const commentTexts: string[][] = [];
-      
-      comments.forEach((comment) => {
-        const lines = pdf.splitTextToSize(comment.comment_text, 160);
-        commentTexts.push(lines);
-        totalTextHeight += Math.max(lines.length * 4, 15); // Minimum 15, or 4 per line
-      });
-      
-      commentsTableHeight = Math.max(totalTextHeight + (comments.length * 5), 30);
-      
-      // Draw comments table border
-      pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.3);
-      pdf.rect(20, commentsTableY, 170, commentsTableHeight);
-      
-      // Add comments
-      let commentY = commentsTableY + 8;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
       
       comments.forEach((comment, index) => {
         const commentDate = new Date(comment.created_at).toLocaleDateString('de-DE');
         const commentTime = new Date(comment.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`${commentDate} ${commentTime}:`, 22, commentY);
+        // Add comment with date/time if multiple comments
+        if (comments.length > 1) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${commentDate} ${commentTime}:`, 20, currentY);
+          currentY += 5;
+          pdf.setFont('helvetica', 'normal');
+        }
         
-        commentY += 6;
-        
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        const lines = commentTexts[index];
+        // Comment text
+        const lines = pdf.splitTextToSize(comment.comment_text, 160);
         lines.forEach((line: string) => {
-          pdf.text(line, 22, commentY);
-          commentY += 4;
+          if (currentY > 270) {
+            pdf.addPage();
+            currentY = 20;
+          }
+          pdf.text(line, 20, currentY);
+          currentY += 4;
         });
         
-        commentY += 5; // Space between comments
+        if (index < comments.length - 1) {
+          currentY += 5; // Space between comments
+        }
       });
     }
     
