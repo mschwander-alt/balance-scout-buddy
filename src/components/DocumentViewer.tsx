@@ -40,25 +40,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     try {
       console.log('Loading document:', document.file_name);
       
-      // Check if we have a cached URL first
-      const cachedUrl = sessionStorage.getItem(`doc_url_${document.id}`);
-      if (cachedUrl) {
-        console.log('Using cached URL for document:', document.file_name);
-        setFileUrl(cachedUrl);
-        
-        if (document.file_type.includes('spreadsheet') || 
-            document.file_type.includes('excel') ||
-            document.file_name.endsWith('.xlsx') ||
-            document.file_name.endsWith('.xls')) {
-          await loadExcelData(cachedUrl);
-        }
-        
-        onLoad?.();
-        setLoading(false);
-        return;
-      }
-
-      // Get signed URL for document
+      // Always get a fresh signed URL to avoid JWT expiration issues
       const { data, error: urlError } = await supabase.storage
         .from('account-evidence')
         .createSignedUrl(document.file_path, 3600);
@@ -66,11 +48,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (urlError) throw urlError;
       
       if (data?.signedUrl) {
-        console.log('Got signed URL for:', document.file_name);
+        console.log('Got fresh signed URL for:', document.file_name);
         setFileUrl(data.signedUrl);
-        
-        // Cache the URL for this session
-        sessionStorage.setItem(`doc_url_${document.id}`, data.signedUrl);
         
         // Handle Excel files
         if (document.file_type.includes('spreadsheet') || 
