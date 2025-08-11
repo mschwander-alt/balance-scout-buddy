@@ -106,23 +106,26 @@ async function extractTextFromExcel(supabase: any, filePath: string): Promise<st
   }
 }
 
-// Generate saldo patterns for matching (improved precision)
+// Generate saldo patterns for matching (optimized for performance)
 function generateSaldoPatterns(saldo: number): string[] {
   const patterns: string[] = [];
   const absSaldo = Math.abs(saldo);
   
   // Skip very small amounts that are prone to false matches
-  if (absSaldo <= 10) {
-    // For small amounts, only use very specific patterns
+  if (absSaldo <= 5) {
+    // For very small amounts, only use exact patterns
     patterns.push(saldo.toFixed(2));  // Exact: 1.00
+    return patterns.filter(p => p && p !== '0.00' && p !== '-0.00');
+  }
+  
+  // For small amounts (5-50), use fewer patterns to reduce noise
+  if (absSaldo <= 50) {
+    patterns.push(saldo.toFixed(2));  // 23.50
+    patterns.push((-saldo).toFixed(2));  // -23.50
     
-    // Swiss format only for small amounts (more specific)
+    // Only Swiss format for small amounts
     const swissFormat = saldo.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     patterns.push(swissFormat);
-    
-    // German format only for small amounts 
-    const germanFormat = saldo.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    patterns.push(germanFormat);
     
     return patterns.filter(p => p && p !== '0.00' && p !== '-0.00');
   }
@@ -312,78 +315,93 @@ serve(async (req) => {
     }
 
     let matchedCount = 0;
+    const BATCH_SIZE = 10; // Process accounts in batches to avoid timeout
+    const MAX_EXECUTION_TIME = 45000; // 45 seconds max execution time
+    const startTime = Date.now();
 
-    // Process matches for each account using pattern-based matching
-    for (const account of accountsToMatch) {
-      const matchedDocuments: string[] = [];
-      
-      // Skip accounts with zero balance
-      if (account.current_year_balance === 0) {
+    // Process accounts in batches to avoid timeout
+    for (let i = 0; i < accountsToMatch.length; i += BATCH_SIZE) {
+      // Check if we're approaching timeout
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.log(`Timeout approaching, stopping at account ${i}/${accountsToMatch.length}`);
+        break;
+      }
+
+      const batch = accountsToMatch.slice(i, i + BATCH_SIZE);
+      console.log(`Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(accountsToMatch.length/BATCH_SIZE)} (accounts ${i+1}-${Math.min(i+BATCH_SIZE, accountsToMatch.length)})`);
+
+      // Process this batch
+      for (const account of batch) {
+        const matchedDocuments: string[] = [];
+        
+        // Skip accounts with zero balance
+        if (account.current_year_balance === 0) {
+          if (hasGroups) {
+            // Update grouped assignment
+            await supabase
+              .from('account_group_assignments')
+              .update({
+                match_status: 'pending',
+                confidence_score: null,
+                matched_documents: []
+              })
+              .eq('id', account.id);
+          }
+          continue;
+        }
+
+        // Generate saldo patterns for this account
+        const saldoPatterns = generateSaldoPatterns(account.current_year_balance);
+        console.log(`Generated ${saldoPatterns.length} patterns for account ${account.account_number} (${account.current_year_balance})`);
+        
+        // Search for saldo patterns in each document
+        for (const doc of documents) {
+          const docText = documentTexts[doc.id] || '';
+          let patternFound = false;
+          
+          // Check each saldo pattern
+          for (const pattern of saldoPatterns) {
+            if (docText.includes(pattern)) {
+              matchedDocuments.push(doc.id);
+              console.log(`✓ MATCH: Pattern "${pattern}" found in ${doc.file_name} for account ${account.account_number}`);
+              patternFound = true;
+              break; // Found a match, no need to check other patterns for this document
+            }
+          }
+        }
+
+        const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
+        const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null;
+
+        if (matchedDocuments.length > 0) {
+          matchedCount++;
+        }
+
         if (hasGroups) {
           // Update grouped assignment
           await supabase
             .from('account_group_assignments')
             .update({
-              match_status: 'pending',
-              confidence_score: null,
-              matched_documents: []
+              match_status: matchStatus,
+              confidence_score: confidenceScore,
+              matched_documents: matchedDocuments
             })
             .eq('id', account.id);
+        } else {
+          // Create temp match for ungrouped account
+          await supabase
+            .from('temp_account_matches')
+            .insert({
+              trial_balance_id: trial_balance_id,
+              account_number: account.account_number,
+              account_name: account.account_name,
+              current_year_balance: account.current_year_balance,
+              previous_year_balance: account.previous_year_balance,
+              match_status: matchStatus,
+              confidence_score: confidenceScore,
+              matched_documents: matchedDocuments
+            });
         }
-        continue;
-      }
-
-      // Generate saldo patterns for this account
-      const saldoPatterns = generateSaldoPatterns(account.current_year_balance);
-      console.log(`Generated ${saldoPatterns.length} patterns for account ${account.account_number} (${account.current_year_balance})`);
-      
-      // Search for saldo patterns in each document
-      for (const doc of documents) {
-        const docText = documentTexts[doc.id] || '';
-        let patternFound = false;
-        
-        // Check each saldo pattern
-        for (const pattern of saldoPatterns) {
-          if (docText.includes(pattern)) {
-            matchedDocuments.push(doc.id);
-            console.log(`✓ MATCH: Pattern "${pattern}" found in ${doc.file_name} for account ${account.account_number}`);
-            patternFound = true;
-            break; // Found a match, no need to check other patterns for this document
-          }
-        }
-      }
-
-      const matchStatus = matchedDocuments.length > 0 ? 'matched' : 'pending';
-      const confidenceScore = matchedDocuments.length > 0 ? 1.0 : null;
-
-      if (matchedDocuments.length > 0) {
-        matchedCount++;
-      }
-
-      if (hasGroups) {
-        // Update grouped assignment
-        await supabase
-          .from('account_group_assignments')
-          .update({
-            match_status: matchStatus,
-            confidence_score: confidenceScore,
-            matched_documents: matchedDocuments
-          })
-          .eq('id', account.id);
-      } else {
-        // Create temp match for ungrouped account
-        await supabase
-          .from('temp_account_matches')
-          .insert({
-            trial_balance_id: trial_balance_id,
-            account_number: account.account_number,
-            account_name: account.account_name,
-            current_year_balance: account.current_year_balance,
-            previous_year_balance: account.previous_year_balance,
-            match_status: matchStatus,
-            confidence_score: confidenceScore,
-            matched_documents: matchedDocuments
-          });
       }
     }
 
