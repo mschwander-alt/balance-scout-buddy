@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PDFCommentExporter } from './PDFCommentExporter';
 import PdfAnnotator from './PdfAnnotator';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Document {
   id: string;
@@ -27,6 +28,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   accountName, 
   accountNumber 
 }) => {
+  const { user } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         <PdfAnnotator
           docUrl={documentUrl}
           docId={document.id}
-          userId="temp-user-id"
+          userId={user?.id || ''}
         />
       </div>
     </div>
