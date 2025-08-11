@@ -24,3 +24,9 @@ verify_jwt = false
 
 [functions.analyze-documents]
 verify_jwt = false
+
+[functions.enhanced-pdf-match]
+verify_jwt = false
+
+[functions.smart-content-match]
+verify_jwt = false

@@ -496,14 +496,14 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     setProgress(0);
 
     try {
-      // Use the lighter auto-match-ungrouped function instead of unified-auto-match
-      const { data, error } = await supabase.functions.invoke('auto-match-ungrouped', {
-        body: { trial_balance_id: trialBalanceId }
-      });
+        // Use the enhanced PDF matching function
+        const { data, error } = await supabase.functions.invoke('enhanced-pdf-match', {
+          body: { trial_balance_id: trialBalanceId }
+        });
 
       if (error) throw error;
 
-      toast.success('Automatische Zuordnung abgeschlossen');
+      toast.success(`Verbesserte PDF-Zuordnung abgeschlossen! ${data?.total_matches || 0} Treffer gefunden.`);
       await loadData();
     } catch (error: any) {
       console.error('Error during auto match:', error);
