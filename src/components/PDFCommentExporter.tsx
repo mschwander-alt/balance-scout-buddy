@@ -114,204 +114,181 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
   const generateCommentPage = async (comments: Comment[]): Promise<Uint8Array> => {
     const pdf = new jsPDF();
     
-    // Set up modern colors and fonts
-    const primaryColor = [37, 99, 235]; // Modern blue
-    const grayColor = [107, 114, 128]; // Gray-500
-    const lightGrayColor = [249, 250, 251]; // Gray-50
+    let currentY = 20;
     
-    let currentY = 25;
+    // Logo placeholder box
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.5);
+    pdf.rect(20, currentY, 60, 30);
     
     // Load and add logo if available
     if (companySettings.logo_path) {
       const logoBase64 = await loadLogoAsBase64(companySettings.logo_path);
       if (logoBase64) {
         try {
-          pdf.addImage(logoBase64, 'JPEG', 20, currentY, 40, 20);
-          currentY += 25;
+          pdf.addImage(logoBase64, 'JPEG', 22, currentY + 2, 56, 26);
         } catch (error) {
           console.error('Error adding logo to PDF:', error);
+          // Show placeholder text if logo fails
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text('Platzhalter', 50, currentY + 18);
         }
       }
+    } else {
+      // Show placeholder text
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Platzhalter', 50, currentY + 18);
     }
-    
-    // Modern header with gradient-like effect (simulated with rectangles)
-    pdf.setFillColor(lightGrayColor[0], lightGrayColor[1], lightGrayColor[2]);
-    pdf.rect(15, currentY, 180, 35, 'F');
-    
-    // Header border
-    pdf.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    pdf.setLineWidth(0.5);
-    pdf.rect(15, currentY, 180, 35);
-    
-    // Main title
-    pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    pdf.setFontSize(24);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Prüfungsdokumentation', 20, currentY + 15);
-    
-    // Subtitle
-    pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('Kommentare und Analyse', 20, currentY + 25);
     
     currentY += 50;
     
-    // Company information section (if available)
-    if (companySettings.company_name) {
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      
-      let companyY = currentY;
-      pdf.text(`${companySettings.company_name}`, 130, companyY);
-      
-      if (companySettings.address) {
-        companyY += 5;
-        const addressLines = companySettings.address.split('\n');
-        addressLines.forEach((line) => {
-          pdf.text(line, 130, companyY);
-          companyY += 5;
-        });
-      }
-      
-      if (companySettings.phone) {
-        companyY += 2;
-        pdf.text(`Tel: ${companySettings.phone}`, 130, companyY);
-        companyY += 5;
-      }
-      
-      if (companySettings.email) {
-        pdf.text(`E-Mail: ${companySettings.email}`, 130, companyY);
-        companyY += 5;
-      }
-      
-      if (companySettings.website) {
-        pdf.text(`Web: ${companySettings.website}`, 130, companyY);
-      }
-    }
+    // Account information table
+    const tableRows = [
+      ['Konto:', `${accountNumber} - ${accountName}`],
+      ['Dokument:', document.file_name],
+      ['Erstellungsdatum:', `${new Date().toLocaleDateString('de-DE')} um ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`]
+    ];
     
-    // Account information section with modern styling
-    pdf.setFillColor(lightGrayColor[0], lightGrayColor[1], lightGrayColor[2]);
-    pdf.rect(15, currentY, 180, 30, 'F');
-    pdf.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    const tableWidth = 170;
+    const colWidth = tableWidth / 2;
+    const rowHeight = 8;
+    
+    // Draw table
+    pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.3);
-    pdf.rect(15, currentY, 180, 30);
     
-    // Account details
-    pdf.setTextColor(0, 0, 0);
+    tableRows.forEach((row, index) => {
+      const y = currentY + (index * rowHeight);
+      
+      // Draw row borders
+      pdf.rect(20, y, tableWidth, rowHeight);
+      pdf.line(20 + colWidth, y, 20 + colWidth, y + rowHeight);
+      
+      // Add text
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(row[0], 22, y + 5.5);
+      
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(row[1], 22 + colWidth, y + 5.5);
+    });
+    
+    currentY += (tableRows.length * rowHeight) + 20;
+    
+    // Prüfungsnotizen section
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('Kontoinformationen', 20, currentY + 10);
-    
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Konto: ${accountNumber} - ${accountName}`, 20, currentY + 18);
-    pdf.text(`Dokument: ${document.file_name}`, 20, currentY + 25);
-    
-    // Date
-    pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-    pdf.setFontSize(10);
-    pdf.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')} um ${new Date().toLocaleTimeString('de-DE')}`, 130, currentY + 25);
-    
-    currentY += 45;
-    
-    // Comments section
-    pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Kommentare und Anmerkungen', 20, currentY);
+    pdf.text('Prüfungsnotizen', 20, currentY);
     
     currentY += 15;
     
+    // Vorjahresvergleich subsection (placeholder for now)
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('Vorjahresvergleich:', 20, currentY);
+    
+    currentY += 10;
+    
+    // Simple comparison table placeholder
+    const comparisonTableY = currentY;
+    const comparisonTableHeight = 25;
+    
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.3);
+    pdf.rect(20, comparisonTableY, 150, comparisonTableHeight);
+    
+    // Table headers
+    const headers = ['Lfd. Jahr', 'Vorjahr', 'Abw.', '%'];
+    const headerWidth = 150 / 4;
+    
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    headers.forEach((header, index) => {
+      pdf.text(header, 22 + (index * headerWidth), comparisonTableY + 8);
+      if (index < headers.length - 1) {
+        pdf.line(20 + ((index + 1) * headerWidth), comparisonTableY, 20 + ((index + 1) * headerWidth), comparisonTableY + comparisonTableHeight);
+      }
+    });
+    
+    // Horizontal line under headers
+    pdf.line(20, comparisonTableY + 12, 170, comparisonTableY + 12);
+    
+    // Sample data row
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('CHF 233.50', 22, comparisonTableY + 20);
+    pdf.text('CHF 2\'200.75', 22 + headerWidth, comparisonTableY + 20);
+    pdf.text('CHF -1\'967.25', 22 + (2 * headerWidth), comparisonTableY + 20);
+    
+    pdf.setTextColor(255, 0, 0); // Red for negative percentage
+    pdf.text('-89.4%', 22 + (3 * headerWidth), comparisonTableY + 20);
+    pdf.setTextColor(0, 0, 0); // Reset to black
+    
+    currentY += comparisonTableHeight + 20;
+    
+    // Comments section
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('Kommentare:', 20, currentY);
+    
+    currentY += 10;
+    
+    // Comments table
+    const commentsTableY = currentY;
+    let commentsTableHeight = 20;
+    
     if (comments.length === 0) {
-      // No comments styling
-      pdf.setFillColor(254, 249, 195); // Yellow-100
-      pdf.rect(15, currentY, 180, 20, 'F');
-      pdf.setDrawColor(245, 158, 11); // Amber-500
+      // Single row for "no comments"
+      pdf.setDrawColor(0, 0, 0);
       pdf.setLineWidth(0.3);
-      pdf.rect(15, currentY, 180, 20);
+      pdf.rect(20, commentsTableY, 170, commentsTableHeight);
       
-      pdf.setTextColor(146, 64, 14); // Amber-800
-      pdf.setFontSize(11);
+      pdf.setFontSize(10);
       pdf.setFont('helvetica', 'italic');
-      pdf.text('Keine Kommentare für dieses Konto erfasst.', 20, currentY + 12);
+      pdf.text('Keine Kommentare für dieses Konto erfasst.', 22, commentsTableY + 12);
     } else {
-      // Render comments with modern cards
+      // Calculate needed height for all comments
+      let totalTextHeight = 0;
+      const commentTexts: string[][] = [];
+      
+      comments.forEach((comment) => {
+        const lines = pdf.splitTextToSize(comment.comment_text, 160);
+        commentTexts.push(lines);
+        totalTextHeight += Math.max(lines.length * 4, 15); // Minimum 15, or 4 per line
+      });
+      
+      commentsTableHeight = Math.max(totalTextHeight + (comments.length * 5), 30);
+      
+      // Draw comments table border
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.3);
+      pdf.rect(20, commentsTableY, 170, commentsTableHeight);
+      
+      // Add comments
+      let commentY = commentsTableY + 8;
+      
       comments.forEach((comment, index) => {
         const commentDate = new Date(comment.created_at).toLocaleDateString('de-DE');
         const commentTime = new Date(comment.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         
-        // Check if we need a new page
-        if (currentY > 240) {
-          pdf.addPage();
-          currentY = 30;
-        }
-        
-        // Comment card background
-        pdf.setFillColor(255, 255, 255);
-        pdf.rect(15, currentY, 180, 25, 'F');
-        
-        // Comment card border
-        pdf.setDrawColor(229, 231, 235); // Gray-200
-        pdf.setLineWidth(0.3);
-        pdf.rect(15, currentY, 180, 25);
-        
-        // Comment header with accent
-        pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        pdf.rect(15, currentY, 5, 25, 'F');
-        
-        // Comment number and date
-        pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`Kommentar ${index + 1}`, 25, currentY + 8);
-        
-        pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
         pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(`${commentDate} | ${commentTime}`, 25, currentY + 15);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`${commentDate} ${commentTime}:`, 22, commentY);
         
-        currentY += 30;
+        commentY += 6;
         
-        // Comment text with better formatting
-        pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'normal');
+        const lines = commentTexts[index];
+        lines.forEach((line: string) => {
+          pdf.text(line, 22, commentY);
+          commentY += 4;
+        });
         
-        const lines = pdf.splitTextToSize(comment.comment_text, 170);
-        const lineHeight = 5;
-        
-        // Background for comment text
-        const textHeight = lines.length * lineHeight + 8;
-        pdf.setFillColor(248, 250, 252); // Slate-50
-        pdf.rect(15, currentY, 180, textHeight, 'F');
-        pdf.setDrawColor(226, 232, 240); // Slate-200
-        pdf.setLineWidth(0.2);
-        pdf.rect(15, currentY, 180, textHeight);
-        
-        pdf.text(lines, 20, currentY + 8);
-        currentY += textHeight + 10;
+        commentY += 5; // Space between comments
       });
     }
-    
-    // Footer
-    if (currentY > 250) {
-      pdf.addPage();
-      currentY = 30;
-    }
-    
-    // Footer line
-    pdf.setDrawColor(grayColor[0], grayColor[1], grayColor[2]);
-    pdf.setLineWidth(0.3);
-    pdf.line(15, 280, 195, 280);
-    
-    // Footer text
-    pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('Dieses Dokument wurde automatisch generiert', 20, 285);
-    pdf.text(`Seite 1`, 185, 285);
     
     return new Uint8Array(pdf.output('arraybuffer'));
   };
