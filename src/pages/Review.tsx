@@ -822,13 +822,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         await handleManualAssign(docData.id, accountId);
         console.log('Document assigned successfully to account:', accountId);
         
-        // Mark the account as completed after successful upload and assignment
-        setCompletedAccounts(prev => {
-          const newSet = new Set(prev);
-          newSet.add(accountId);
-          completedAccountsRef.current = newSet;
-          return newSet;
-        });
+        // Don't mark as completed automatically - only update evidence status
+        // The "Vollständig" status should only be changed when user clicks the button
         
         // Force a fresh data reload after assignment to update status indicators
         setTimeout(async () => {
