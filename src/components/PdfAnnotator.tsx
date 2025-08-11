@@ -268,6 +268,10 @@ function PageView({
   const textRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
+  // State für Scan-PDF Fallback (Box-Highlight)
+  const [hasText, setHasText] = useState(true);
+  const [drag, setDrag] = useState<null | {x0:number;y0:number;x1:number;y1:number}>(null);
+
   const pageAnns = useMemo(() => anns.filter((a) => a.page === pageNumber), [anns, pageNumber]);
 
   useEffect(() => {
@@ -313,51 +317,66 @@ function PageView({
 
       if (cancelled) return;
 
-        // KRITISCH: Echte TextLayer mit PDF-Text für Selektion erstellen
+        // KRITISCH: Prüfe ob PDF Text hat (Scan vs echtes PDF)
         if (textLayerDiv.parentNode) {
           textLayerDiv.textContent = ""; // Clear previous content
           
           // Get actual text content from PDF
           try {
             const textContent = await page.getTextContent();
+            const hasActualText = (textContent.items?.length ?? 0) > 0;
+            setHasText(hasActualText);
             
-            // Create text spans for selection (simplified approach)
-            textContent.items.forEach((item, index) => {
-              if ('str' in item && item.str.trim()) {
-                const span = document.createElement('span');
-                span.textContent = item.str + ' ';
-                span.style.position = 'absolute';
-                
-                // Use transform matrix for positioning (simplified)
-                const transform = item.transform;
-                if (transform && transform.length >= 6) {
-                  span.style.left = `${transform[4]}px`;
-                  span.style.top = `${viewport.height - transform[5] - 12}px`; // Flip Y
-                  span.style.fontSize = `${transform[0] || 12}px`;
-                }
-                
-                span.style.whiteSpace = 'nowrap';
-                span.style.userSelect = 'text';
-                span.style.pointerEvents = 'auto';
-                textLayerDiv.appendChild(span);
-              }
+            console.log("📄 PDF Text check:", { 
+              hasText: hasActualText, 
+              itemCount: textContent.items.length,
+              type: hasActualText ? "Text-PDF" : "Scan/Image-PDF"
             });
             
-            console.log("✅ TextLayer populated with", textContent.items.length, "text items");
+            if (hasActualText) {
+              // Text-PDF: Echte TextLayer mit selektierbaren Spans erstellen
+              textContent.items.forEach((item, index) => {
+                if ('str' in item && item.str.trim()) {
+                  const span = document.createElement('span');
+                  span.textContent = item.str + ' ';
+                  span.style.position = 'absolute';
+                  
+                  // Use transform matrix for positioning
+                  const transform = item.transform;
+                  if (transform && transform.length >= 6) {
+                    span.style.left = `${transform[4]}px`;
+                    span.style.top = `${viewport.height - transform[5] - 12}px`; // Flip Y
+                    span.style.fontSize = `${Math.abs(transform[0]) || 12}px`;
+                  }
+                  
+                  span.style.whiteSpace = 'nowrap';
+                  span.style.userSelect = 'text';
+                  span.style.pointerEvents = 'auto';
+                  textLayerDiv.appendChild(span);
+                }
+              });
+              console.log("✅ TextLayer populated with", textContent.items.length, "text items");
+            } else {
+              // Scan-PDF: Fallback-Info anzeigen
+              const fallbackSpan = document.createElement('span');
+              fallbackSpan.textContent = 'Gescanntes PDF - verwende Box-Highlight (ziehen)';
+              fallbackSpan.style.position = 'absolute';
+              fallbackSpan.style.top = '10px';
+              fallbackSpan.style.left = '10px';
+              fallbackSpan.style.fontSize = '12px';
+              fallbackSpan.style.background = 'rgba(255,255,0,0.8)';
+              fallbackSpan.style.padding = '4px 8px';
+              fallbackSpan.style.borderRadius = '4px';
+              fallbackSpan.style.userSelect = 'none';
+              fallbackSpan.style.pointerEvents = 'none';
+              fallbackSpan.style.zIndex = '10';
+              textLayerDiv.appendChild(fallbackSpan);
+              console.log("📝 Scan-PDF detected: Box-Highlight mode activated");
+            }
             
           } catch (textError) {
             console.warn("⚠️ Could not load text content:", textError);
-            // Fallback: Create dummy selectable text
-            const fallbackSpan = document.createElement('span');
-            fallbackSpan.textContent = 'Selectable PDF text area';
-            fallbackSpan.style.position = 'absolute';
-            fallbackSpan.style.top = '50%';
-            fallbackSpan.style.left = '50%';
-            fallbackSpan.style.transform = 'translate(-50%, -50%)';
-            fallbackSpan.style.userSelect = 'text';
-            fallbackSpan.style.pointerEvents = 'auto';
-            fallbackSpan.style.opacity = '0.3';
-            textLayerDiv.appendChild(fallbackSpan);
+            setHasText(false); // Fallback zu Scan-Modus
           }
           
           // Apply TextLayer styles - EXAKT gleiche CSS-Größe wie Canvas
@@ -367,8 +386,7 @@ function PageView({
           textLayerDiv.style.width = `${viewport.width}px`;
           textLayerDiv.style.height = `${viewport.height}px`;
           textLayerDiv.style.overflow = "hidden";
-          textLayerDiv.style.userSelect = "text";
-          // KEIN pointerEvents: none! TextLayer muss selektierbar sein
+          textLayerDiv.style.userSelect = hasText ? "text" : "none";
           textLayerDiv.style.opacity = "0.2";
           textLayerDiv.style.lineHeight = "1.0";
         }
@@ -396,75 +414,140 @@ function PageView({
     };
   }, [pdf, pageNumber, scale]);
 
+  // Hilfsfunktion für Koordinaten-Normalisierung
+  const normalizeCoords = (e: React.MouseEvent) => {
+    const box = wrapperRef.current!.getBoundingClientRect();
+    return {
+      x: (e.clientX - box.left) / box.width,
+      y: (e.clientY - box.top) / box.height,
+    };
+  };
+
+  // MouseDown: Drag-Start für Scan-PDFs
+  const onMouseDown = (e: React.MouseEvent) => {
+    console.log("🖱️ Mouse down, mode:", mode, "hasText:", hasText);
+    
+    if (mode !== "highlight" || hasText) return;
+    
+    // Hit-test: Nicht auf bestehende Annotations starten
+    if ((e.target as HTMLElement).closest("[data-ann-id]")) return;
+    
+    const {x, y} = normalizeCoords(e);
+    setDrag({ x0: x, y0: y, x1: x, y1: y });
+    console.log("🎯 Drag started at:", {x, y});
+  };
+
+  // MouseMove: Drag-Update für Scan-PDFs
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!drag || mode !== "highlight") return;
+    
+    const {x, y} = normalizeCoords(e);
+    setDrag(d => d ? { ...d, x1: x, y1: y } : d);
+  };
+
   // Throttle for preventing double highlights
   let lastHighlightTime = 0;
 
-  // Highlight mit asynchroner Selection-Lesung (Fix für Click-Interference)
+  // MouseUp: Highlight erstellen (Text-Selection oder Box-Drag)
   const onMouseUp = () => {
-    console.log("🖱️ Mouse up event, mode:", mode);
+    console.log("🖱️ Mouse up event, mode:", mode, "hasText:", hasText, "drag:", !!drag);
     
     if (mode !== "highlight") {
       console.log("⚠️ Not in highlight mode, skipping");
       return;
     }
+
+    // 1) Fallback: Box-Highlight für Scan-PDFs
+    if (!hasText && drag) {
+      const x = Math.min(drag.x0, drag.x1);
+      const y = Math.min(drag.y0, drag.y1);
+      const w = Math.abs(drag.x1 - drag.x0);
+      const h = Math.abs(drag.y1 - drag.y0);
+      
+      console.log("📦 Box highlight:", {x, y, w, h});
+      
+      if (w > 0.005 && h > 0.005) { // Mindestgröße
+        const newHighlight = {
+          id: nanoid(),
+          page: pageNumber,
+          type: "highlight" as const,
+          rects: [{x, y, w, h}],
+          color: "#ffeb00"
+        };
+        
+        console.log("✅ Creating box highlight:", newHighlight);
+        
+        setAnns(a => {
+          const newAnns = [...a, newHighlight];
+          console.log("📊 Updated annotations:", newAnns);
+          return newAnns;
+        });
+      } else {
+        console.log("⚠️ Box too small, ignoring");
+      }
+      
+      setDrag(null);
+      return;
+    }
+
+    // 2) Normal: Text-Selection für echte Text-PDFs
+    if (hasText) {
+      requestAnimationFrame(() => {
+        const sel = window.getSelection();
+        console.log("📝 Text selection:", { 
+          sel, 
+          type: sel?.type, 
+          rangeCount: sel?.rangeCount,
+          isCollapsed: sel?.isCollapsed 
+        });
+        
+        if (!sel || sel.isCollapsed || sel.type !== "Range" || sel.rangeCount === 0) {
+          console.log("⚠️ No valid text range selection");
+          return;
+        }
+        
+        const range = sel.getRangeAt(0);
+        if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) {
+          console.log("⚠️ Selection not in wrapper");
+          return;
+        }
+        
+        const pageBox = wrapperRef.current!.getBoundingClientRect();
+        const rects = Array.from(range.getClientRects())
+          .filter(r => r.width > 1 && r.height > 1) // Filter garbage rects
+          .map(r => ({
+            x: (r.left - pageBox.left) / pageBox.width,
+            y: (r.top - pageBox.top) / pageBox.height,
+            w: r.width / pageBox.width,
+            h: r.height / pageBox.height,
+          }));
+        
+        console.log("📐 Valid text selection rects:", rects.length);
+        
+        if (rects.length) {
+          const newHighlight = {
+            id: nanoid(),
+            page: pageNumber,
+            type: "highlight" as const,
+            rects,
+            color: "#ffeb00"
+          };
+          
+          console.log("✅ Creating text highlight:", newHighlight);
+          
+          setAnns(a => {
+            const newAnns = [...a, newHighlight];
+            console.log("📊 Updated annotations:", newAnns);
+            return newAnns;
+          });
+        }
+        
+        sel.removeAllRanges();
+      });
+    }
     
-    // Asynchron lesen NACH dem Click-Event (verhindert Click-Interference)
-    requestAnimationFrame(() => {
-      const sel = window.getSelection();
-      console.log("📝 Selection (async):", { 
-        sel, 
-        type: sel?.type, 
-        rangeCount: sel?.rangeCount,
-        isCollapsed: sel?.isCollapsed 
-      });
-      
-      if (!sel || sel.isCollapsed || sel.type !== "Range" || sel.rangeCount === 0) {
-        console.log("⚠️ No valid range selection");
-        return;
-      }
-      
-      const range = sel.getRangeAt(0);
-      if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) {
-        console.log("⚠️ Selection not in wrapper");
-        return;
-      }
-      
-      const pageBox = wrapperRef.current!.getBoundingClientRect();
-      const rects = Array.from(range.getClientRects())
-        .filter(r => r.width > 1 && r.height > 1); // Filter out garbage rects
-      
-      console.log("📐 Valid selection rects:", rects.length);
-      
-      if (!rects.length) {
-        console.log("⚠️ No valid rects after filtering");
-        return;
-      }
-      
-      const normRects = rects.map((r) => ({
-        x: (r.left - pageBox.left) / pageBox.width,
-        y: (r.top - pageBox.top) / pageBox.height,
-        w: r.width / pageBox.width,
-        h: r.height / pageBox.height,
-      }));
-      
-      const newHighlight = { 
-        id: nanoid(), 
-        page: pageNumber, 
-        type: "highlight" as const, 
-        rects: normRects, 
-        color: "#ffeb00" 
-      };
-      
-      console.log("✅ Creating highlight:", newHighlight);
-      
-      setAnns((a) => {
-        const newAnns = [...a, newHighlight];
-        console.log("📊 Updated annotations:", newAnns);
-        return newAnns;
-      });
-      
-      sel.removeAllRanges();
-    });
+    // Reset drag state
+    setDrag(null);
   };
 
   // FreeText per Klick setzen - improved with hit-test to prevent bubbling
@@ -515,9 +598,11 @@ function PageView({
     <div
       className="relative mx-auto my-4 bg-white shadow"
       ref={wrapperRef}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onClick={onClick}
-      style={{ width: "fit-content", minHeight: "200px" }} // Prevent layout shift
+      style={{ width: "fit-content", minHeight: "200px", cursor: mode === "highlight" && !hasText ? "crosshair" : "default" }}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
       {/* TextLayer - AKTIVIERT für Selektion */}
@@ -537,6 +622,22 @@ function PageView({
           pointerEvents: 'none'  // KRITISCH: komplett passiv
         }}
       >
+        {/* Temporäres Drag-Rechteck für Scan-PDFs */}
+        {drag && !hasText && mode === "highlight" && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${Math.min(drag.x0, drag.x1) * 100}%`,
+              top: `${Math.min(drag.y0, drag.y1) * 100}%`,
+              width: `${Math.abs(drag.x1 - drag.x0) * 100}%`,
+              height: `${Math.abs(drag.y1 - drag.y0) * 100}%`,
+              background: 'rgba(255,235,0,0.6)',
+              border: '2px dashed #ffcc00',
+              borderRadius: 2,
+              pointerEvents: 'none'
+            }}
+          />
+        )}
         {pageAnns.map((a) =>
           a.type === "highlight" ? (
             <React.Fragment key={a.id}>
