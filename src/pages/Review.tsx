@@ -812,13 +812,20 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       try {
         await handleManualAssign(docData.id, accountId);
         console.log('Document assigned successfully to account:', accountId);
+        
+        // Force a fresh data reload after assignment to update status indicators
+        setTimeout(async () => {
+          await loadData();
+        }, 100);
+        
       } catch (assignError) {
         console.error('Assignment error:', assignError);
         // Fahre trotzdem fort - das Dokument ist hochgeladen
+        // Even if assignment fails, reload data to show the uploaded document
+        setTimeout(async () => {
+          await loadData();
+        }, 100);
       }
-      
-      // Lade die Daten neu
-      await loadData();
       
       toast.success('Dokument erfolgreich hochgeladen und zugewiesen');
     } catch (error: any) {
