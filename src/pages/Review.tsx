@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
@@ -93,6 +93,7 @@ const Review: React.FC = () => {
 const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
   const [loadedComments, setLoadedComments] = useState<{[key: string]: boolean}>({});
   const [completedAccounts, setCompletedAccounts] = useState<Set<string>>(new Set());
+  const completedAccountsRef = useRef<Set<string>>(new Set());
   const [showMultiAssignModal, setShowMultiAssignModal] = useState(false);
   const [selectedDocumentForMultiAssign, setSelectedDocumentForMultiAssign] = useState<Document | null>(null);
   const [selectedAccountsForAssign, setSelectedAccountsForAssign] = useState<Set<string>>(new Set());
@@ -115,6 +116,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
   const loadData = useCallback(async () => {
     if (!trialBalanceId || !user) return;
+    
+    // Preserve completion status during reload
+    const currentCompletedAccounts = new Set(completedAccountsRef.current);
     
     try {
       // Lade Account Groups mit Assignments
@@ -211,6 +215,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       
       setAccountComments(commentMap);
       setLoadedComments(loadedMap);
+      
+      // Restore completion status after reload
+      setCompletedAccounts(currentCompletedAccounts);
     } catch (error: any) {
       console.error('Error loading data:', error);
       toast.error('Fehler beim Laden der Daten');
@@ -883,6 +890,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           });
         }
       }
+      // Update ref to keep it in sync
+      completedAccountsRef.current = newSet;
       return newSet;
     });
     toast.success(isCurrentlyCompleted ? 'Als unvollständig markiert' : 'Als vollständig markiert');
