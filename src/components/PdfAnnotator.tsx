@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist/build/pdf.mjs";
+import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist";
 
 // Set up PDF.js worker
 GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -44,6 +44,11 @@ function useDebounced<T>(value: T, delay = 800) {
 }
 
 async function loadAnnotations(doc_id: string, user_id: string): Promise<Ann[]> {
+  if (!user_id || user_id === '') {
+    console.warn("loadAnnotations: Invalid user_id");
+    return [];
+  }
+  
   const { data, error } = await supabase
     .from("pdf_annotations")
     .select("annotations")
@@ -55,10 +60,14 @@ async function loadAnnotations(doc_id: string, user_id: string): Promise<Ann[]> 
 }
 
 async function saveAnnotations(doc_id: string, user_id: string, annotations: Ann[]) {
+  if (!user_id || user_id === '') {
+    console.warn("saveAnnotations: Invalid user_id");
+    return;
+  }
+  
   const { error } = await supabase
     .from("pdf_annotations")
-    .upsert({ doc_id, user_id, annotations })
-    .single();
+    .upsert({ doc_id, user_id, annotations });
   if (error) throw error;
 }
 
@@ -73,6 +82,10 @@ export default function PdfAnnotator({
   userId: string; // auth.uid()
   initialScale?: number;
 }) {
+  // Early return if user not authenticated
+  if (!userId || userId === '') {
+    return <div className="p-4">Benutzer nicht authentifiziert</div>;
+  }
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pages, setPages] = useState(0);
   const [scale, setScale] = useState(initialScale);
