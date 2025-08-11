@@ -928,8 +928,76 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         // Add document to documents list first so handleManualAssign can find it
         setDocuments(prevDocs => [...prevDocs, docData]);
         
-        await handleManualAssign(docData.id, accountId);
-        console.log('Document assigned successfully to account:', accountId);
+        // Finde das assignment object für die ID
+        let targetAssignment = null;
+        for (const group of accountGroups) {
+          const found = group.assignments.find(a => a.id === accountId);
+          if (found) {
+            targetAssignment = found;
+            break;
+          }
+        }
+
+        if (targetAssignment) {
+          // Bestimme die richtige Tabelle basierend auf der Gruppierung
+          const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
+          const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
+
+          // Update matched_documents und match_status in der Datenbank
+          const updatedMatchedDocuments = targetAssignment.matched_documents 
+            ? [...targetAssignment.matched_documents, docData.id]
+            : [docData.id];
+
+          const { error: updateError } = await supabase
+            .from(tableName)
+            .update({
+              match_status: 'matched',
+              confidence_score: 1.0,
+              matched_documents: updatedMatchedDocuments
+            })
+            .eq('id', accountId);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          // Aktualisiere lokalen State sofort
+          setAccountGroups(prevGroups => 
+            prevGroups.map(group => ({
+              ...group,
+              assignments: group.assignments.map(assignment => {
+                if (assignment.id === accountId) {
+                  return {
+                    ...assignment,
+                    match_status: 'matched' as const,
+                    confidence_score: 1.0,
+                    matched_documents: updatedMatchedDocuments
+                  };
+                }
+                return assignment;
+              })
+            }))
+          );
+
+          // Aktualisiere auch assignments array für temp_account_matches wenn verwendet
+          setAssignments(prevAssignments => 
+            prevAssignments.map(assignment => {
+              if (assignment.id === accountId) {
+                return {
+                  ...assignment,
+                  match_status: 'matched' as const,
+                  confidence_score: 1.0,
+                  matched_documents: updatedMatchedDocuments
+                };
+              }
+              return assignment;
+            })
+          );
+
+          console.log('Document assigned successfully to account:', accountId);
+        } else {
+          throw new Error('Target assignment not found for account ID: ' + accountId);
+        }
         
       } catch (assignError) {
         console.error('Assignment error:', assignError);
