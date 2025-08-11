@@ -1297,7 +1297,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     Nicht gematchte Dateien manuell zuweisen
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+                <DialogContent className="max-w-7xl min-h-[80vh] max-h-[90vh] overflow-hidden flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Manuelle Dokumentenzuweisung</DialogTitle>
                   </DialogHeader>
