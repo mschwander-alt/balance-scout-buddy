@@ -9,9 +9,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import PDF.js components für v4.x (latest)
+// Import PDF.js components für v4.x (latest) + CSS für TextLayer
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import "pdfjs-dist/web/pdf_viewer.css"; // KRITISCH für TextLayer-Funktion
 
 // Worker für v4.x mit .mjs (universeller Ansatz)
 const worker = new Worker(
@@ -243,7 +244,7 @@ function PageView({
         transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined
       }).promise;
 
-      // Text layer for text selection - match exact canvas CSS size
+      // Text layer for text selection - KRITISCH: muss selektierbar sein
       const textLayerDiv = textRef.current!;
       textLayerDiv.innerHTML = "";
       textLayerDiv.style.position = "absolute";
@@ -252,6 +253,8 @@ function PageView({
       textLayerDiv.style.width = `${viewport.width}px`;
       textLayerDiv.style.height = `${viewport.height}px`;
       textLayerDiv.style.overflow = "hidden";
+      textLayerDiv.style.userSelect = "text"; // ENABLE text selection
+      textLayerDiv.style.pointerEvents = "auto"; // ENABLE mouse events
       textLayerDiv.style.opacity = "0.2";
       textLayerDiv.style.lineHeight = "1.0";
       
@@ -331,10 +334,17 @@ function PageView({
       style={{ width: "fit-content" }}
     >
       <canvas ref={canvasRef} />
-      {/* Textlayer */}
-      <div ref={textRef} className="absolute left-0 top-0 pointer-events-none" style={{ inset: 0 }} />
-      {/* Annotation‑Overlay */}
-      <div className="absolute left-0 top-0" style={{ inset: 0 }}>
+      {/* TextLayer - MUSS selektierbar sein für Highlights */}
+      <div 
+        ref={textRef} 
+        className="absolute left-0 top-0 pointer-events-auto select-text" 
+        style={{ inset: 0, userSelect: 'text', pointerEvents: 'auto' }} 
+      />
+      {/* Annotation‑Overlay - NICHT selektierbar, damit TextLayer funktioniert */}
+      <div 
+        className="absolute left-0 top-0" 
+        style={{ inset: 0, pointerEvents: 'none' }} // KRITISCH: pointer-events none
+      >
         {pageAnns.map((a) =>
           a.type === "highlight" ? (
             <React.Fragment key={a.id}>
@@ -349,6 +359,7 @@ function PageView({
                     height: `${r.h * 100}%`,
                     background: "rgba(255,235,0,0.45)",
                     borderRadius: 2,
+                    pointerEvents: "none", // Highlights nicht klickbar
                   }}
                 />
               ))}
@@ -359,6 +370,7 @@ function PageView({
                     removeAnn(a.id);
                   }}
                   className="absolute right-1 top-1 text-xs bg-white/80 px-1 rounded"
+                  style={{ pointerEvents: "auto" }} // Button klickbar
                 >
                   ×
                 </button>
@@ -386,6 +398,7 @@ function PageView({
                 cursor: "text",
                 minWidth: 24,
                 outline: "none",
+                pointerEvents: "auto", // KRITISCH: FreeText muss klickbar sein
               }}
             >
               {a.text}
@@ -396,6 +409,7 @@ function PageView({
                     removeAnn(a.id);
                   }}
                   className="ml-2 text-xs opacity-70"
+                  style={{ pointerEvents: "auto" }}
                 >
                   ×
                 </button>
