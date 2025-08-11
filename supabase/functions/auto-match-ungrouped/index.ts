@@ -31,7 +31,7 @@ async function extractNumbersFromExcel(supabase: any, filePath: string): Promise
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const numbers: number[] = [];
 
-    // Parse all sheets
+    // Parse all sheets but be more selective about numbers
     for (const sheetName of workbook.SheetNames) {
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
@@ -39,9 +39,13 @@ async function extractNumbersFromExcel(supabase: any, filePath: string): Promise
       for (const row of jsonData) {
         for (const cell of row) {
           if (cell != null) {
-            const numValue = parseFloat(String(cell).replace(/[^\d.-]/g, ''));
-            if (!isNaN(numValue) && numValue !== 0) {
-              numbers.push(Math.abs(numValue));
+            const cellStr = String(cell).trim();
+            // Only consider cells that look like financial numbers
+            if (cellStr.match(/^\-?[\d\s.,]+$/) && !cellStr.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) {
+              const numValue = parseFloat(cellStr.replace(/[^\d.-]/g, ''));
+              if (!isNaN(numValue) && Math.abs(numValue) > 0.01) { // Ignore very small numbers
+                numbers.push(Math.abs(numValue));
+              }
             }
           }
         }

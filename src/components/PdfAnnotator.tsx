@@ -10,11 +10,15 @@ import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
 
 // Import PDF.js components individually to avoid conflicts
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { getDocument, GlobalWorkerOptions, version } from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
-// Set up PDF.js worker to match the installed version
-GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+// Set up PDF.js worker using a fallback approach
+if (typeof window !== 'undefined') {
+  console.log('PDF.js version:', version);
+  // Try the local worker first, fallback to CDN if needed
+  GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.min.js';
+}
 
 export type HighlightAnn = {
   id: string;
