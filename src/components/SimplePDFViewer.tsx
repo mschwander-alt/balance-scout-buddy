@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PDFCommentExporter } from './PDFCommentExporter';
@@ -10,6 +10,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, FileText, Link } from 'lucide-react';
+
+// Debounce utility function
+const debounce = (func: (...args: any[]) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: any[]) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
+};
 
 interface Document {
   id: string;
@@ -106,7 +115,61 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
     loadComment();
   }, [assignmentId, user?.id, commentLoaded]);
 
-  // Save comment function
+  // Debounced save function for auto-save
+  const debouncedSaveComment = useCallback(
+    debounce(async (commentText: string) => {
+      if (!commentText.trim() || !assignmentId || !user?.id || !trialBalanceId) return;
+      
+      try {
+        // Check if comment already exists
+        const { data: existingComment } = await supabase
+          .from('account_comments')
+          .select('id')
+          .eq('assignment_id', assignmentId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (existingComment) {
+          // Update existing comment
+          const { error } = await supabase
+            .from('account_comments')
+            .update({ comment_text: commentText })
+            .eq('id', existingComment.id);
+          
+          if (error) throw error;
+        } else {
+          // Create new comment
+          const { error } = await supabase
+            .from('account_comments')
+            .insert({
+              assignment_id: assignmentId,
+              user_id: user.id,
+              trial_balance_id: trialBalanceId,
+              comment_text: commentText
+            });
+          
+          if (error) throw error;
+        }
+        
+        console.log('💾 Comment auto-saved');
+      } catch (error) {
+        console.error('Auto-save error:', error);
+      }
+    }, 1000),
+    [assignmentId, user?.id, trialBalanceId]
+  );
+
+  // Handle comment change with auto-save
+  const handleCommentChange = (value: string) => {
+    setComment(value);
+    
+    // Auto-save after 1 second of no typing
+    if (commentLoaded) {
+      debouncedSaveComment(value);
+    }
+  };
+
+  // Save comment function - can be called manually or automatically
   const handleSaveComment = async () => {
     if (!assignmentId || !user?.id || !trialBalanceId) return;
     
@@ -225,7 +288,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
             <div className="flex-shrink-0 border-t pt-4 space-y-2">
               <textarea 
                 value={comment}
-                onChange={(e) => setComment(e.target.value)}
+                onChange={(e) => handleCommentChange(e.target.value)}
                 placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
                 className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full p-3 rounded-md"
               />
