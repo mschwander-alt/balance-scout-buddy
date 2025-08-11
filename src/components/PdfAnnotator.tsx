@@ -8,10 +8,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
-import * as pdfjsLib from "pdfjs-dist";
+
+// Import PDF.js components individually to avoid conflicts
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 
 // Set up PDF.js worker to match the installed version
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 export type HighlightAnn = {
   id: string;
@@ -86,7 +89,7 @@ export default function PdfAnnotator({
   if (!userId || userId === '') {
     return <div className="p-4">Benutzer nicht authentifiziert</div>;
   }
-  const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pages, setPages] = useState(0);
   const [scale, setScale] = useState(initialScale);
   const [anns, setAnns] = useState<Ann[]>([]);
@@ -99,7 +102,7 @@ export default function PdfAnnotator({
     let cancel = false;
     (async () => {
       try {
-        const loadingTask = pdfjsLib.getDocument({ url: docUrl });
+        const loadingTask = getDocument({ url: docUrl });
         const doc = await loadingTask.promise;
         if (!cancel) {
           setPdf(doc);
@@ -195,7 +198,7 @@ function PageView({
   anns,
   setAnns,
 }: {
-  pdf: pdfjsLib.PDFDocumentProxy;
+  pdf: PDFDocumentProxy;
   pageNumber: number;
   scale: number;
   mode: "highlight" | "freetext" | "none";
