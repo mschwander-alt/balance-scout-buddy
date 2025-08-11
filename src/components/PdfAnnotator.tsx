@@ -277,41 +277,41 @@ function PageView({
     
     (async () => {
       try {
-        const page = await pdf.getPage(pageNumber);
-        const viewport = page.getViewport({ scale });
-        
-        // HiDPI/Retina support - fix for coordinate drift
-        const outputScale = window.devicePixelRatio || 1;
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale });
+      
+      // HiDPI/Retina korrekt rendern - KRITISCH für gleiche CSS-Größen
+      const dpr = window.devicePixelRatio || 1;
 
-        const canvas = canvasRef.current;
-        const textLayerDiv = textRef.current;
+      const canvas = canvasRef.current;
+      const textLayerDiv = textRef.current;
+      
+      if (!canvas || !textLayerDiv || cancelled) return;
+      
+      // Store references for cleanup
+      currentCanvas = canvas;
+      currentTextDiv = textLayerDiv;
+      
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      
+      // Set physical resolution for HiDPI displays
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      
+      // Set visible CSS size - EXAKT gleich für alle Layer
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
         
-        if (!canvas || !textLayerDiv || cancelled) return;
-        
-        // Store references for cleanup
-        currentCanvas = canvas;
-        currentTextDiv = textLayerDiv;
-        
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        
-        // Set physical resolution for HiDPI displays
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        
-        // Set visible CSS size
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        
-        // Render with proper transform for HiDPI
-        await page.render({ 
-          canvas, 
-          canvasContext: ctx, 
-          viewport,
-          transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined
-        }).promise;
+      // Render with proper transform for HiDPI
+      await page.render({ 
+        canvas,
+        canvasContext: ctx, 
+        viewport,
+        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined
+      }).promise;
 
-        if (cancelled) return;
+      if (cancelled) return;
 
         // KRITISCH: Echte TextLayer mit PDF-Text für Selektion erstellen
         if (textLayerDiv.parentNode) {
@@ -360,7 +360,7 @@ function PageView({
             textLayerDiv.appendChild(fallbackSpan);
           }
           
-          // Apply TextLayer styles
+          // Apply TextLayer styles - EXAKT gleiche CSS-Größe wie Canvas
           textLayerDiv.style.position = "absolute";
           textLayerDiv.style.left = "0";
           textLayerDiv.style.top = "0";
@@ -368,12 +368,12 @@ function PageView({
           textLayerDiv.style.height = `${viewport.height}px`;
           textLayerDiv.style.overflow = "hidden";
           textLayerDiv.style.userSelect = "text";
-          textLayerDiv.style.pointerEvents = "auto";
+          // KEIN pointerEvents: none! TextLayer muss selektierbar sein
           textLayerDiv.style.opacity = "0.2";
           textLayerDiv.style.lineHeight = "1.0";
         }
         
-        // Ensure wrapper has exact CSS size for coordinate calculations
+        // Wrapper EXAKT gleiche CSS-Größe für Koordinaten-Berechnung
         const wrapper = wrapperRef.current;
         if (wrapper && !cancelled) {
           wrapper.style.width = `${viewport.width}px`;
@@ -399,7 +399,7 @@ function PageView({
   // Throttle for preventing double highlights
   let lastHighlightTime = 0;
 
-  // Highlight durch Textauswahl - improved with guards
+  // Highlight mit asynchroner Selection-Lesung (Fix für Click-Interference)
   const onMouseUp = () => {
     console.log("🖱️ Mouse up event, mode:", mode);
     
@@ -408,61 +408,63 @@ function PageView({
       return;
     }
     
-    // Guard against double highlights
-    const now = Date.now();
-    if (now - lastHighlightTime < 200) {
-      console.log("⚠️ Throttled highlight (too fast)");
-      return;
-    }
-    lastHighlightTime = now;
-    
-    const sel = window.getSelection();
-    console.log("📝 Selection:", { sel, type: sel?.type, rangeCount: sel?.rangeCount });
-    
-    if (!sel || sel.type !== "Range" || sel.rangeCount === 0) {
-      console.log("⚠️ No valid selection");
-      return;
-    }
-    
-    const range = sel.getRangeAt(0);
-    if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) {
-      console.log("⚠️ Selection not in wrapper");
-      return;
-    }
-    
-    const rects = Array.from(range.getClientRects());
-    console.log("📐 Selection rects:", rects.length);
-    
-    if (!rects.length) {
-      console.log("⚠️ No rects found");
-      return;
-    }
-    
-    const pageBox = wrapperRef.current!.getBoundingClientRect();
-    const normRects = rects.map((r) => ({
-      x: (r.left - pageBox.left) / pageBox.width,
-      y: (r.top - pageBox.top) / pageBox.height,
-      w: r.width / pageBox.width,
-      h: r.height / pageBox.height,
-    }));
-    
-    const newHighlight = { 
-      id: nanoid(), 
-      page: pageNumber, 
-      type: "highlight" as const, 
-      rects: normRects, 
-      color: "#ffeb00" 
-    };
-    
-    console.log("✅ Creating highlight:", newHighlight);
-    
-    setAnns((a) => {
-      const newAnns = [...a, newHighlight];
-      console.log("📊 Updated annotations:", newAnns);
-      return newAnns;
+    // Asynchron lesen NACH dem Click-Event (verhindert Click-Interference)
+    requestAnimationFrame(() => {
+      const sel = window.getSelection();
+      console.log("📝 Selection (async):", { 
+        sel, 
+        type: sel?.type, 
+        rangeCount: sel?.rangeCount,
+        isCollapsed: sel?.isCollapsed 
+      });
+      
+      if (!sel || sel.isCollapsed || sel.type !== "Range" || sel.rangeCount === 0) {
+        console.log("⚠️ No valid range selection");
+        return;
+      }
+      
+      const range = sel.getRangeAt(0);
+      if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) {
+        console.log("⚠️ Selection not in wrapper");
+        return;
+      }
+      
+      const pageBox = wrapperRef.current!.getBoundingClientRect();
+      const rects = Array.from(range.getClientRects())
+        .filter(r => r.width > 1 && r.height > 1); // Filter out garbage rects
+      
+      console.log("📐 Valid selection rects:", rects.length);
+      
+      if (!rects.length) {
+        console.log("⚠️ No valid rects after filtering");
+        return;
+      }
+      
+      const normRects = rects.map((r) => ({
+        x: (r.left - pageBox.left) / pageBox.width,
+        y: (r.top - pageBox.top) / pageBox.height,
+        w: r.width / pageBox.width,
+        h: r.height / pageBox.height,
+      }));
+      
+      const newHighlight = { 
+        id: nanoid(), 
+        page: pageNumber, 
+        type: "highlight" as const, 
+        rects: normRects, 
+        color: "#ffeb00" 
+      };
+      
+      console.log("✅ Creating highlight:", newHighlight);
+      
+      setAnns((a) => {
+        const newAnns = [...a, newHighlight];
+        console.log("📊 Updated annotations:", newAnns);
+        return newAnns;
+      });
+      
+      sel.removeAllRanges();
     });
-    
-    sel.removeAllRanges();
   };
 
   // FreeText per Klick setzen - improved with hit-test to prevent bubbling
@@ -518,24 +520,21 @@ function PageView({
       style={{ width: "fit-content", minHeight: "200px" }} // Prevent layout shift
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
-      {/* TextLayer - MUSS selektierbar sein für Highlights */}
+      {/* TextLayer - AKTIVIERT für Selektion */}
       <div 
         ref={textRef} 
         className="absolute left-0 top-0" 
         style={{ 
           inset: 0, 
-          userSelect: 'text', 
-          pointerEvents: 'auto',
-          zIndex: 1 
+          userSelect: 'text'  // KEIN pointer-events: none!
         }} 
       />
-      {/* Annotation‑Overlay - NICHT selektierbar, damit TextLayer funktioniert */}
+      {/* Annotation‑Overlay - PASSIV, fängt keine Events ab */}
       <div 
         className="absolute left-0 top-0" 
         style={{ 
           inset: 0, 
-          pointerEvents: 'none',
-          zIndex: 2 
+          pointerEvents: 'none'  // KRITISCH: komplett passiv
         }}
       >
         {pageAnns.map((a) =>
@@ -591,7 +590,7 @@ function PageView({
                 cursor: "text",
                 minWidth: 24,
                 outline: "none",
-                pointerEvents: "auto", // KRITISCH: FreeText muss klickbar sein
+                pointerEvents: "auto", // KRITISCH: FreeText muss Events bekommen
               }}
             >
               {a.text}
