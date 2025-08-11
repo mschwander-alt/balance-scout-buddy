@@ -57,14 +57,23 @@ async function loadAnnotations(doc_id: string, user_id: string): Promise<Ann[]> 
     return [];
   }
   
+  console.log("🔍 Loading annotations for:", { doc_id, user_id });
+  
   const { data, error } = await supabase
     .from("pdf_annotations")
     .select("annotations")
     .eq("doc_id", doc_id)
     .eq("user_id", user_id)
     .maybeSingle();
-  if (error) console.warn("loadAnnotations", error.message);
-  return (data?.annotations as Ann[]) || [];
+  
+  if (error) {
+    console.error("❌ Load annotations error:", error.message);
+    return [];
+  }
+  
+  const annotations = (data?.annotations as Ann[]) || [];
+  console.log("✅ Loaded annotations:", annotations);
+  return annotations;
 }
 
 async function saveAnnotations(doc_id: string, user_id: string, annotations: Ann[]) {
@@ -73,10 +82,18 @@ async function saveAnnotations(doc_id: string, user_id: string, annotations: Ann
     return;
   }
   
+  console.log("💾 Saving annotations:", { doc_id, user_id, count: annotations.length, annotations });
+  
   const { error } = await supabase
     .from("pdf_annotations")
     .upsert({ doc_id, user_id, annotations });
-  if (error) throw error;
+    
+  if (error) {
+    console.error("❌ Save annotations error:", error);
+    throw error;
+  }
+  
+  console.log("✅ Annotations saved successfully");
 }
 
 export default function PdfAnnotator({
@@ -135,12 +152,21 @@ export default function PdfAnnotator({
 
   // Speichern (debounced)
   useEffect(() => {
-    if (!docId || !userId) return;
+    if (!docId || !userId) {
+      console.log("⚠️ Missing docId or userId for saving:", { docId, userId });
+      return;
+    }
+    
+    console.log("💾 Debounced save triggered for:", debouncedAnns.length, "annotations");
+    
     setSaving("saving");
     saveAnnotations(docId, userId, debouncedAnns)
-      .then(() => setSaving("saved"))
+      .then(() => {
+        console.log("✅ Save completed successfully");
+        setSaving("saved");
+      })
       .catch((e) => {
-        console.error(e);
+        console.error("❌ Save failed:", e);
         setSaving("idle");
       });
   }, [debouncedAnns, docId, userId]);
@@ -302,19 +328,42 @@ function PageView({
 
   // Highlight durch Textauswahl - improved with guards
   const onMouseUp = () => {
-    if (mode !== "highlight") return;
+    console.log("🖱️ Mouse up event, mode:", mode);
+    
+    if (mode !== "highlight") {
+      console.log("⚠️ Not in highlight mode, skipping");
+      return;
+    }
     
     // Guard against double highlights
     const now = Date.now();
-    if (now - lastHighlightTime < 200) return;
+    if (now - lastHighlightTime < 200) {
+      console.log("⚠️ Throttled highlight (too fast)");
+      return;
+    }
     lastHighlightTime = now;
     
     const sel = window.getSelection();
-    if (!sel || sel.type !== "Range" || sel.rangeCount === 0) return;
+    console.log("📝 Selection:", { sel, type: sel?.type, rangeCount: sel?.rangeCount });
+    
+    if (!sel || sel.type !== "Range" || sel.rangeCount === 0) {
+      console.log("⚠️ No valid selection");
+      return;
+    }
+    
     const range = sel.getRangeAt(0);
-    if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) return;
+    if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) {
+      console.log("⚠️ Selection not in wrapper");
+      return;
+    }
+    
     const rects = Array.from(range.getClientRects());
-    if (!rects.length) return;
+    console.log("📐 Selection rects:", rects.length);
+    
+    if (!rects.length) {
+      console.log("⚠️ No rects found");
+      return;
+    }
     
     const pageBox = wrapperRef.current!.getBoundingClientRect();
     const normRects = rects.map((r) => ({
@@ -323,27 +372,63 @@ function PageView({
       w: r.width / pageBox.width,
       h: r.height / pageBox.height,
     }));
-    setAnns((a) => [
-      ...a,
-      { id: nanoid(), page: pageNumber, type: "highlight", rects: normRects, color: "#ffeb00" },
-    ]);
+    
+    const newHighlight = { 
+      id: nanoid(), 
+      page: pageNumber, 
+      type: "highlight" as const, 
+      rects: normRects, 
+      color: "#ffeb00" 
+    };
+    
+    console.log("✅ Creating highlight:", newHighlight);
+    
+    setAnns((a) => {
+      const newAnns = [...a, newHighlight];
+      console.log("📊 Updated annotations:", newAnns);
+      return newAnns;
+    });
+    
     sel.removeAllRanges();
   };
 
   // FreeText per Klick setzen - improved with hit-test to prevent bubbling
   const onClick = (e: React.MouseEvent) => {
-    if (mode !== "freetext") return;
+    console.log("🖱️ Click event, mode:", mode, "target:", e.target);
+    
+    if (mode !== "freetext") {
+      console.log("⚠️ Not in freetext mode, skipping");
+      return;
+    }
     
     // Hit-test: Don't create new annotation if clicking on existing one
-    if ((e.target as HTMLElement).closest("[data-ann-id]")) return;
+    if ((e.target as HTMLElement).closest("[data-ann-id]")) {
+      console.log("⚠️ Clicked on existing annotation, skipping");
+      return;
+    }
     
     const pageBox = wrapperRef.current!.getBoundingClientRect();
     const x = (e.clientX - pageBox.left) / pageBox.width;
     const y = (e.clientY - pageBox.top) / pageBox.height;
-    setAnns((a) => [
-      ...a,
-      { id: nanoid(), page: pageNumber, type: "freetext", x, y, text: "Notiz", fontSize: 14, color: "#111" },
-    ]);
+    
+    const newFreeText = { 
+      id: nanoid(), 
+      page: pageNumber, 
+      type: "freetext" as const, 
+      x, 
+      y, 
+      text: "Notiz", 
+      fontSize: 14, 
+      color: "#111" 
+    };
+    
+    console.log("✅ Creating freetext:", newFreeText);
+    
+    setAnns((a) => {
+      const newAnns = [...a, newFreeText];
+      console.log("📊 Updated annotations:", newAnns);
+      return newAnns;
+    });
   };
 
   const updateFreeText = (id: string, next: Partial<FreeTextAnn>) =>
