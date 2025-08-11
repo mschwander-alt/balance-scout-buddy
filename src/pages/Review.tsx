@@ -1788,6 +1788,14 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                       trialBalanceId={trialBalanceId}
                                       accountName={selectedAccountData.account_name}
                                       accountNumber={selectedAccountData.account_number}
+                                      completedAccounts={completedAccounts}
+                                      onMarkCompleted={handleMarkCompleted}
+                                      onShowMultiAssign={(document) => {
+                                        setSelectedDocumentForMultiAssign(document);
+                                        setShowMultiAssignModal(true);
+                                      }}
+                                      selectedDocuments={selectedDocuments}
+                                      assignments={assignments}
                                     />
                                   ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
                                        doc.file_type === 'application/vnd.ms-excel' ? (
@@ -1832,47 +1840,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                <label className="text-sm font-medium text-foreground">
                                  Kommentare
                                </label>
-                               <div className="flex items-center gap-2">
-                                 {(() => {
-                                   // Count how many other accounts share documents with this account
-                                   const documentsForThisAccount = selectedDocuments.map(doc => doc.id);
-                                   const otherAccountsWithSameDocuments = new Set<string>();
-                                   
-                                   documentsForThisAccount.forEach(docId => {
-                                     assignments.forEach(assignment => {
-                                       if (assignment.matched_documents?.includes(docId) && assignment.id !== selectedAccountData.id) {
-                                         otherAccountsWithSameDocuments.add(assignment.id);
-                                       }
-                                     });
-                                   });
-                                   
-                                   const additionalAccountsCount = otherAccountsWithSameDocuments.size;
-                                   
-                                   return (
-                                     <Button 
-                                       variant="outline"
-                                       size="sm"
-                                       onClick={() => {
-                                         setSelectedDocumentForMultiAssign(selectedDocuments[0]);
-                                         setShowMultiAssignModal(true);
-                                       }}
-                                       className="flex items-center gap-2"
-                                       disabled={selectedDocuments.length === 0}
-                                     >
-                                        <Link className="h-4 w-4" />
-                                        Konten {additionalAccountsCount > 0 && `(${additionalAccountsCount})`}
-                                     </Button>
-                                   );
-                                 })()}
-                                 <Button 
-                                   variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
-                                   size="sm"
-                                   onClick={() => handleMarkCompleted(selectedAccountData.id)}
-                                   className="flex items-center gap-2"
-                                 >
-                                   <CheckCircle className="h-4 w-4" />
-                                   {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
-                                 </Button>
+                                <div className="flex items-center gap-2">
+                                  {/* Die Buttons sind jetzt in der SimplePDFViewer als Tabs implementiert */}
                                 </div>
                               </div>
                              

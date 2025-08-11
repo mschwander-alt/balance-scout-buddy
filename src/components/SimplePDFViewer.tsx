@@ -25,6 +25,12 @@ interface SimplePDFViewerProps {
   trialBalanceId?: string;
   accountName?: string;
   accountNumber?: string;
+  // Props für die echte Funktionalität aus Review.tsx
+  completedAccounts?: Set<string>;
+  onMarkCompleted?: (assignmentId: string) => void;
+  onShowMultiAssign?: (document: Document) => void;
+  selectedDocuments?: Document[];
+  assignments?: any[];
 }
 
 export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({ 
@@ -32,7 +38,13 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   assignmentId, 
   trialBalanceId, 
   accountName, 
-  accountNumber 
+  accountNumber,
+  // Echte Funktionalität aus Review.tsx
+  completedAccounts = new Set(),
+  onMarkCompleted,
+  onShowMultiAssign,
+  selectedDocuments = [],
+  assignments = []
 }) => {
   const { user } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string>('');
@@ -221,27 +233,52 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
                 </div>
               </TabsContent>
               
-              <TabsContent value="accounts" className="p-3 mt-0">{/* Weniger Padding */}
-                <div className="space-y-2">{/* Weniger Spacing */}
-                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">{/* Kleinere Padding */}
+              <TabsContent value="accounts" className="p-3 mt-0">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
                     <div>
-                      <p className="font-medium text-sm">{accountName}</p>{/* Kleinere Schrift */}
+                      <p className="font-medium text-sm">{accountName}</p>
                       <p className="text-xs text-muted-foreground">Konto {accountNumber}</p>
                     </div>
                     <Badge variant="secondary">Verknüpft</Badge>
                   </div>
+                  
+                  {/* Konten-Verknüpfungs-Button - echte Funktionalität */}
+                  {onShowMultiAssign && selectedDocuments.length > 0 && (
+                    <div className="pt-2">
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onShowMultiAssign(selectedDocuments[0])}
+                        className="flex items-center gap-2 w-full"
+                        disabled={selectedDocuments.length === 0}
+                      >
+                        <Link className="h-4 w-4" />
+                        Weiteren Konten zuweisen
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
               
-              <TabsContent value="complete" className="p-3 mt-0">{/* Weniger Padding */}
+              <TabsContent value="complete" className="p-3 mt-0">
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">{/* Kleinere Schrift */}
+                  <p className="text-xs text-muted-foreground">
                     Markieren Sie dieses Konto als vollständig geprüft, wenn alle Nachweise überprüft wurden.
                   </p>
-                  <Button className="w-full gap-2" size="sm">{/* Kleinerer Button */}
-                    <CheckCircle className="h-4 w-4" />
-                    Als vollständig markieren
-                  </Button>
+                  
+                  {/* Als vollständig markieren - echte Funktionalität */}
+                  {assignmentId && onMarkCompleted && (
+                    <Button 
+                      variant={completedAccounts.has(assignmentId) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => onMarkCompleted(assignmentId)}
+                      className="w-full gap-2"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      {completedAccounts.has(assignmentId) ? 'Vollständig' : 'Als vollständig markieren'}
+                    </Button>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
