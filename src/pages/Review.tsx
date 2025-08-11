@@ -88,7 +88,7 @@ const Review: React.FC = () => {
   const [showManualAssignModal, setShowManualAssignModal] = useState(false);
   const [selectedDocumentForAssign, setSelectedDocumentForAssign] = useState<string | null>(null);
   const [assignmentForDoc, setAssignmentForDoc] = useState<string>('');
-  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [documentPreviews, setDocumentPreviews] = useState<{[accountId: string]: string}>({});
   const [previewLoading, setPreviewLoading] = useState(false);
 const [accountComments, setAccountComments] = useState<{[key: string]: string}>({});
   const [loadedComments, setLoadedComments] = useState<{[key: string]: boolean}>({});
@@ -431,7 +431,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     }
   };
 
-  const previewDocument = async (document: Document) => {
+  const previewDocument = async (document: Document, accountId?: string) => {
     setPreviewLoading(true);
     try {
       const { data, error } = await supabase.storage
@@ -439,7 +439,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         .createSignedUrl(document.file_path, 3600);
 
       if (error) throw error;
-      setDocumentPreview(data.signedUrl);
+      if (accountId) {
+        setDocumentPreviews(prev => ({ ...prev, [accountId]: data.signedUrl }));
+      }
       return data.signedUrl;
     } catch (error: any) {
       console.error('Error getting document preview:', error);
@@ -811,14 +813,22 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       if (urlError) {
         console.error('Signed URL error:', urlError);
       } else if (signedUrlData) {
-        console.log('Setting document preview:', signedUrlData.signedUrl);
-        setDocumentPreview(signedUrlData.signedUrl);
+        console.log('Setting document preview for account:', accountId, signedUrlData.signedUrl);
+        setDocumentPreviews(prev => ({ ...prev, [accountId]: signedUrlData.signedUrl }));
       }
 
       // Weise das Dokument automatisch dem Konto zu
       try {
         await handleManualAssign(docData.id, accountId);
         console.log('Document assigned successfully to account:', accountId);
+        
+        // Mark the account as completed after successful upload and assignment
+        setCompletedAccounts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(accountId);
+          completedAccountsRef.current = newSet;
+          return newSet;
+        });
         
         // Force a fresh data reload after assignment to update status indicators
         setTimeout(async () => {
@@ -1207,7 +1217,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                             <h5 className="font-medium">Dokumentvorschau</h5>
                           </div>
                           <div className="flex-1 min-h-0">
-                            {selectedDocumentForAssign && documentPreview ? (
+                            {selectedDocumentForAssign ? (
                               <DocumentViewer 
                                 document={getUnmatchedDocuments().find(d => d.id === selectedDocumentForAssign)!}
                                 onLoad={() => {}}
@@ -1569,7 +1579,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               </CardHeader>
               <CardContent className="flex flex-col py-3 overflow-hidden" style={{height: 'calc(100vh - 12rem)'}}>
                 {selectedAccountData ? (
-                  selectedDocuments.length > 0 || documentPreview ? (
+                  selectedDocuments.length > 0 || (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
                     <div className="flex flex-col h-full">
                       {selectedDocuments.length > 0 ? (
                         <>
@@ -1634,7 +1644,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                             ))}
                           </Tabs>
                         </>
-                      ) : documentPreview ? (
+                      ) : (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
                         // Preview for newly uploaded document
                         <div className="flex-1 border rounded-lg overflow-hidden">
                           <div className="p-3 border-b bg-muted/30">
@@ -1642,7 +1652,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           </div>
                           <div className="h-full">
                             <iframe
-                              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentPreview)}`}
+                              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentPreviews[selectedAccountData.id])}`}
                               className="w-full h-full border-0"
                               title="Neu hochgeladenes Dokument"
                             />
