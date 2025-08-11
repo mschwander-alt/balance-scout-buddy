@@ -41,6 +41,8 @@ interface AccountGroup {
   assigned_member_id?: string;
   assignments: Assignment[];
   isOpen: boolean;
+  status?: 'pending' | 'matched' | 'unmatched';
+  evidence?: Document[];
 }
 
 interface Document {
@@ -184,27 +186,43 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         // Sortiere Account Groups nach created_at (Reihenfolge der Gruppierung)
         const sortedGroups = groupsData
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          .map(group => ({
-            ...group,
-            // Sortiere Assignments innerhalb der Gruppe nach Kontonummer aufsteigend
-            assignments: group.assignments
-              .map(assignment => ({
-                ...assignment,
-                match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
-                confidence_score: assignment.confidence_score || undefined,
-                matched_documents: assignment.matched_documents || undefined
-              }))
-              .sort((a, b) => {
-                // Sortiere nach Kontonummer (numerisch wenn möglich, sonst alphabetisch)
-                const aNum = parseInt(a.account_number);
-                const bNum = parseInt(b.account_number);
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                  return aNum - bNum;
-                }
-                return a.account_number.localeCompare(b.account_number);
-              }),
-            isOpen: false
-          }));
+          .map(group => {
+            // Find manually uploaded documents for this group
+            const groupDocuments = (documentsResponse || []).filter(doc => doc.account_group_id === group.id);
+            
+            // Calculate group status based on assignments and documents
+            let groupStatus: 'pending' | 'matched' | 'unmatched' = 'pending';
+            const hasMatchedAssignments = group.assignments.some(a => a.match_status === 'matched');
+            const hasManualDocuments = groupDocuments.length > 0;
+            
+            if (hasMatchedAssignments || hasManualDocuments) {
+              groupStatus = 'matched';
+            }
+            
+            return {
+              ...group,
+              status: groupStatus,
+              evidence: groupDocuments,
+              // Sortiere Assignments innerhalb der Gruppe nach Kontonummer aufsteigend
+              assignments: group.assignments
+                .map(assignment => ({
+                  ...assignment,
+                  match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+                  confidence_score: assignment.confidence_score || undefined,
+                  matched_documents: assignment.matched_documents || undefined
+                }))
+                .sort((a, b) => {
+                  // Sortiere nach Kontonummer (numerisch wenn möglich, sonst alphabetisch)
+                  const aNum = parseInt(a.account_number);
+                  const bNum = parseInt(b.account_number);
+                  if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return aNum - bNum;
+                  }
+                  return a.account_number.localeCompare(b.account_number);
+                }),
+              isOpen: false
+            };
+          });
         
         setAccountGroups(sortedGroups);
         // Nur setze assignments für Gruppen, nicht als separates Array
