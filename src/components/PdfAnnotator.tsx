@@ -9,13 +9,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import PDF.js components für v3.11.174
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+// Import PDF.js components für v4.x (latest)
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
-// Alternative Lösung: Worker-Port manuell setzen (universeller Ansatz)
+// Worker für v4.x mit .mjs (universeller Ansatz)
 const worker = new Worker(
-  new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url),
+  new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url),
   { type: "module" }
 );
 GlobalWorkerOptions.workerPort = worker;
@@ -225,7 +225,7 @@ function PageView({
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const ctx = canvas.getContext("2d")!;
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await page.render({ canvas, canvasContext: ctx, viewport }).promise;
 
       // Text layer for text selection
       const textContent = await page.getTextContent();
