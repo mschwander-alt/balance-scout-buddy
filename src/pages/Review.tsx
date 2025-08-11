@@ -834,19 +834,46 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     const erfolgsrechnungGroups: AccountGroup[] = [];
 
     groups.forEach(group => {
-      // Prüfe anhand der ersten Kontonummer in der Gruppe
-      const firstAccountNumber = group.assignments[0]?.account_number;
-      if (firstAccountNumber) {
-        const accountNum = parseInt(firstAccountNumber);
-        // Schweizer Kontenplan: 1000-2999 = Bilanz, 3000-9999 = Erfolgsrechnung
-        if (accountNum >= 1000 && accountNum <= 2999) {
-          bilanzGroups.push(group);
-        } else if (accountNum >= 3000 && accountNum <= 9999) {
-          erfolgsrechnungGroups.push(group);
-        } else {
-          // Fallback: Standardmäßig in Bilanz
-          bilanzGroups.push(group);
+      const hasBalanceSheetAccounts = group.assignments.some(assignment => {
+        const accountNumber = parseInt(assignment.account_number);
+        return accountNumber >= 1000 && accountNumber <= 2999;
+      });
+
+      const hasProfitLossAccounts = group.assignments.some(assignment => {
+        const accountNumber = parseInt(assignment.account_number);
+        return accountNumber >= 3000 && accountNumber <= 9999;
+      });
+
+      if (hasBalanceSheetAccounts && hasProfitLossAccounts) {
+        // Gemischte Gruppe: aufteilen
+        const balanceSheetAssignments = group.assignments.filter(assignment => {
+          const accountNumber = parseInt(assignment.account_number);
+          return accountNumber >= 1000 && accountNumber <= 2999;
+        });
+
+        const profitLossAssignments = group.assignments.filter(assignment => {
+          const accountNumber = parseInt(assignment.account_number);
+          return accountNumber >= 3000 && accountNumber <= 9999;
+        });
+
+        if (balanceSheetAssignments.length > 0) {
+          bilanzGroups.push({
+            ...group,
+            assignments: balanceSheetAssignments
+          });
         }
+
+        if (profitLossAssignments.length > 0) {
+          erfolgsrechnungGroups.push({
+            ...group,
+            id: `${group.id}-erf`,
+            assignments: profitLossAssignments
+          });
+        }
+      } else if (hasBalanceSheetAccounts) {
+        bilanzGroups.push(group);
+      } else if (hasProfitLossAccounts) {
+        erfolgsrechnungGroups.push(group);
       } else {
         // Fallback: Gruppen ohne Konten in Bilanz
         bilanzGroups.push(group);
@@ -856,8 +883,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     return { bilanzGroups, erfolgsrechnungGroups };
   };
 
+  // Find selected account data from all groups
   const selectedAccountData = selectedAccount 
-    ? assignments.find(a => a.id === selectedAccount)
+    ? accountGroups.flatMap(group => group.assignments).find(a => a.id === selectedAccount)
     : null;
 
   const selectedDocuments = selectedAccountData?.matched_documents
@@ -876,22 +904,18 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         body: { trial_balance_id: trialBalanceId }
       });
 
-      if (error) {
-        console.error('Analysis error:', error);
-        throw error;
-      }
-
       console.log('Analysis result:', data);
+      console.log('Analysis error:', error);
       
-      if (data.success) {
+      if (data?.success) {
         toast.success(
-          `KI-Analyse abgeschlossen! ${data.auto_assigned} Dokumente automatisch zugewiesen (${data.high_confidence_matches} sichere Treffer von ${data.total_matches} Matches gefunden)`
+          `KI-Analyse abgeschlossen! ${data.auto_assigned || 0} Dokumente automatisch zugewiesen (${data.high_confidence_matches || 0} sichere Treffer von ${data.total_matches || 0} Matches gefunden)`
         );
         
         // Reload data to show updated matches
         await loadData();
       } else {
-        throw new Error(data.error || 'Analyse fehlgeschlagen');
+        toast.warning(`KI-Analyse abgeschlossen aber mit Problemen: ${data?.error || error?.message || 'Unbekannter Fehler'}`);
       }
     } catch (error: any) {
       console.error('Error during advanced analysis:', error);
@@ -1019,20 +1043,21 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                       <SelectTrigger className="flex-1">
                                         <SelectValue placeholder="Konto auswählen..." />
                                       </SelectTrigger>
-                                      <SelectContent>
-                                        {assignments
-                                          .filter((assignment, index, self) => 
-                                            index === self.findIndex(a => 
-                                              a.account_number === assignment.account_number && 
-                                              a.account_name === assignment.account_name
-                                            )
-                                          )
-                                          .map((assignment) => (
-                                            <SelectItem key={assignment.id} value={assignment.id}>
-                                              {assignment.account_number} - {assignment.account_name}
-                                            </SelectItem>
-                                          ))}
-                                      </SelectContent>
+                                       <SelectContent>
+                                         {accountGroups
+                                           .flatMap(group => group.assignments)
+                                           .filter((assignment, index, self) => 
+                                             index === self.findIndex(a => 
+                                               a.account_number === assignment.account_number && 
+                                               a.account_name === assignment.account_name
+                                             )
+                                           )
+                                           .map((assignment) => (
+                                             <SelectItem key={assignment.id} value={assignment.id}>
+                                               {assignment.account_number} - {assignment.account_name}
+                                             </SelectItem>
+                                           ))}
+                                       </SelectContent>
                                     </Select>
                                     
                                     <Button 
@@ -1629,16 +1654,17 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                       <TableHead className="text-right">Abweichung</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {assignments
-                      .filter(assignment => {
-                        const matchesSearch = searchQuery === '' || 
-                          assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
-                        
-                        return matchesSearch && assignment.id !== selectedAccountData?.id;
-                      })
-                      .map(assignment => (
+                   <TableBody>
+                     {accountGroups
+                       .flatMap(group => group.assignments)
+                       .filter(assignment => {
+                         const matchesSearch = searchQuery === '' || 
+                           assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+                         
+                         return matchesSearch && assignment.id !== selectedAccountData?.id;
+                       })
+                       .map(assignment => (
                         <TableRow 
                           key={assignment.id}
                           className="cursor-pointer hover:bg-muted/50"
@@ -1749,18 +1775,19 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                       <TableHead className="text-right">Abweichung</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {assignments
-                      .filter(assignment => {
-                        const matchesSearch = searchQuery === '' || 
-                          assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
-                        
-                        return matchesSearch &&
-                          !assignment.matched_documents?.includes(selectedDocumentForMultiAssign?.id || '') &&
-                          assignment.id !== selectedAccountData?.id;
-                      })
-                      .map(assignment => (
+                   <TableBody>
+                     {accountGroups
+                       .flatMap(group => group.assignments)
+                       .filter(assignment => {
+                         const matchesSearch = searchQuery === '' || 
+                           assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+                         
+                         return matchesSearch &&
+                           !assignment.matched_documents?.includes(selectedDocumentForMultiAssign?.id || '') &&
+                           assignment.id !== selectedAccountData?.id;
+                       })
+                       .map(assignment => (
                         <TableRow 
                           key={assignment.id}
                           className="cursor-pointer hover:bg-muted/50"
