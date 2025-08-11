@@ -270,10 +270,19 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         // Nur setze assignments für ungrouped, nicht zusätzlich
         setAssignments([]);
       } else {
-        // No temp matches exist - load trial balance directly to avoid system overload
-        console.log('No temp matches found, loading trial balance directly...');
-        await loadTrialBalanceDirectly();
-        return;
+        // No temp matches exist, use auto-match-ungrouped instead of unified-auto-match
+        console.log('No temp matches found, using lighter auto-match...');
+        
+        const { data: matchResult, error: matchError } = await supabase.functions.invoke('auto-match-ungrouped', {
+          body: { trial_balance_id: trialBalanceId }
+        });
+
+        if (matchError) {
+          console.error('Error with auto-match-ungrouped:', matchError);
+          // Fallback to direct trial balance loading
+          await loadTrialBalanceDirectly();
+          return;
+        }
 
         // Reload temp matches after creation
         const { data: newTempMatches, error: newTempError } = await supabase
@@ -451,7 +460,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     setProgress(0);
 
     try {
-      const { data, error } = await supabase.functions.invoke('unified-auto-match', {
+      // Use the lighter auto-match-ungrouped function instead of unified-auto-match
+      const { data, error } = await supabase.functions.invoke('auto-match-ungrouped', {
         body: { trial_balance_id: trialBalanceId }
       });
 
