@@ -9,14 +9,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import PDF.js components individually to avoid conflicts
-import { getDocument, GlobalWorkerOptions, version } from "pdfjs-dist";
+// Import PDF.js components für v3.11.174
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+// WICHTIG: v3 verwendet .js, v4 würde .mjs verwenden
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.js?url";
 
-// Verwende einen Worker, der von Vite korrekt bereitgestellt wird
-// Dies verhindert CORS-Probleme und stellt sicher, dass die richtige Version verwendet wird
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
-GlobalWorkerOptions.workerSrc = workerUrl;
+// Worker selbst hosten - keine CDN-URL mehr!
+GlobalWorkerOptions.workerSrc = workerSrc;
 
 export type HighlightAnn = {
   id: string;
