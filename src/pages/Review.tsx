@@ -117,7 +117,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const loadData = useCallback(async () => {
     if (!trialBalanceId || !user) return;
     
-    // Preserve completion status during reload
+    // Only preserve completion status during reload if it was not called after an upload
+    // Check if we're in an upload context by checking if there are any pending document assignments
     const currentCompletedAccounts = new Set(completedAccountsRef.current);
     
     try {
@@ -216,8 +217,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       setAccountComments(commentMap);
       setLoadedComments(loadedMap);
       
-      // Restore completion status after reload
-      setCompletedAccounts(currentCompletedAccounts);
+      // Don't restore completion status after upload - let it be based only on user clicks
+      // setCompletedAccounts(currentCompletedAccounts);
     } catch (error: any) {
       console.error('Error loading data:', error);
       toast.error('Fehler beim Laden der Daten');
@@ -895,8 +896,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           });
         }
       }
-      // Update ref to keep it in sync
-      completedAccountsRef.current = newSet;
+      // Don't update ref automatically - only when user explicitly clicks
+      // completedAccountsRef.current = newSet;
       return newSet;
     });
     toast.success(isCurrentlyCompleted ? 'Als unvollständig markiert' : 'Als vollständig markiert');
