@@ -107,7 +107,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }, [assignmentId, user?.id, commentLoaded]);
 
   // Save comment function
-  const saveComment = async () => {
+  const handleSaveComment = async () => {
     if (!assignmentId || !user?.id || !trialBalanceId) return;
     
     setCommentLoading(true);
@@ -173,9 +173,8 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">{/* Angepasste max-height */}
-      {/* PDF Viewer with Annotations */}
-      <div className="flex-1 overflow-hidden min-h-0">{/* min-h-0 für flex-shrink */}
+    <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <PdfAnnotator
           docUrl={documentUrl}
           docId={document.id}

@@ -88,6 +88,25 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     }
   };
 
+  const loadPDFAnnotations = async () => {
+    if (!user) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('pdf_annotations')
+        .select('annotations')
+        .eq('doc_id', document.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return (data?.annotations as any[]) || [];
+    } catch (error) {
+      console.error('Error loading PDF annotations:', error);
+      return [];
+    }
+  };
+
   const loadLogoAsBase64 = async (logoPath: string): Promise<string | null> => {
     try {
       const { data, error } = await supabase.storage
@@ -109,6 +128,85 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
       console.error('Error loading logo:', error);
       return null;
     }
+  };
+
+  const generateAnnotationsPage = async (annotations: any[]): Promise<Uint8Array> => {
+    const pdf = new jsPDF();
+    
+    let currentY = 30;
+    
+    // Logo placeholder box - top right
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.5);
+    pdf.rect(150, 20, 40, 25);
+    
+    // Logo placeholder text
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(0, 0, 0);
+    pdf.text('Platzhalter', 170, 30);
+    pdf.text('Für Logo', 170, 35);
+    
+    // Load and add logo if available
+    if (companySettings.logo_path) {
+      const logoBase64 = await loadLogoAsBase64(companySettings.logo_path);
+      if (logoBase64) {
+        try {
+          pdf.addImage(logoBase64, 'JPEG', 152, 22, 36, 21);
+        } catch (error) {
+          console.error('Error adding logo to PDF:', error);
+        }
+      }
+    }
+    
+    currentY = 70;
+    
+    // Title
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('PDF Annotationen', 20, currentY);
+    currentY += 20;
+    
+    // Annotations summary
+    if (annotations.length > 0) {
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Gefundene Annotationen: ${annotations.length}`, 20, currentY);
+      currentY += 15;
+      
+      annotations.forEach((annotation, index) => {
+        if (currentY > 260) {
+          pdf.addPage();
+          currentY = 20;
+        }
+        
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`${index + 1}. ${annotation.type.toUpperCase()}`, 20, currentY);
+        currentY += 8;
+        
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Seite: ${annotation.page}`, 25, currentY);
+        currentY += 6;
+        
+        if (annotation.type === 'highlight') {
+          pdf.text(`Farbe: ${annotation.color || '#ffeb00'}`, 25, currentY);
+          pdf.text(`Bereiche: ${annotation.rects?.length || 0}`, 100, currentY);
+        } else if (annotation.type === 'freetext') {
+          pdf.text(`Text: "${annotation.text}"`, 25, currentY);
+          currentY += 6;
+          pdf.text(`Position: X:${(annotation.x * 100).toFixed(1)}%, Y:${(annotation.y * 100).toFixed(1)}%`, 25, currentY);
+        }
+        
+        currentY += 12;
+      });
+    } else {
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Keine Annotationen gefunden.', 20, currentY);
+    }
+    
+    return new Uint8Array(pdf.output('arraybuffer'));
   };
 
   const generateCommentPage = async (comments: Comment[]): Promise<Uint8Array> => {
@@ -307,7 +405,7 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     }
   };
 
-  const combinePDFs = async (commentPdf: Uint8Array, originalPdf: Uint8Array): Promise<Uint8Array> => {
+  const combinePDFs = async (commentPdf: Uint8Array, originalPdf: Uint8Array, annotationsPdf?: Uint8Array): Promise<Uint8Array> => {
     try {
       const combinedPdf = await PDFDocument.create();
       
@@ -315,6 +413,13 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
       const commentDoc = await PDFDocument.load(commentPdf);
       const commentPages = await combinedPdf.copyPages(commentDoc, commentDoc.getPageIndices());
       commentPages.forEach((page) => combinedPdf.addPage(page));
+      
+      // Add annotations page if provided
+      if (annotationsPdf) {
+        const annotationsDoc = await PDFDocument.load(annotationsPdf);
+        const annotationsPages = await combinedPdf.copyPages(annotationsDoc, annotationsDoc.getPageIndices());
+        annotationsPages.forEach((page) => combinedPdf.addPage(page));
+      }
       
       // Add original PDF pages
       const originalDoc = await PDFDocument.load(originalPdf);
@@ -330,15 +435,17 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
 
   const handleExportWithComments = async () => {
     try {
-      toast.info('PDF wird erstellt...');
+      toast.info('PDF mit Kommentaren und Annotationen wird erstellt...');
       
-      const [comments, originalPdf] = await Promise.all([
+      const [comments, annotations, originalPdf] = await Promise.all([
         loadComments(),
+        loadPDFAnnotations(),
         downloadOriginalPDF()
       ]);
       
       const commentPdf = await generateCommentPage(comments);
-      const combinedPdf = await combinePDFs(commentPdf, originalPdf);
+      const annotationsPdf = await generateAnnotationsPage(annotations);
+      const combinedPdf = await combinePDFs(commentPdf, originalPdf, annotationsPdf);
       
       // Download combined PDF
       const blob = new Blob([combinedPdf], { type: 'application/pdf' });
@@ -349,7 +456,7 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
       link.click();
       
       URL.revokeObjectURL(url);
-      toast.success('PDF mit Kommentaren heruntergeladen');
+      toast.success('PDF mit Kommentaren und Annotationen heruntergeladen');
       
     } catch (error) {
       console.error('Error exporting PDF with comments:', error);
@@ -361,13 +468,15 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     try {
       toast.info('PDF für Druck wird vorbereitet...');
       
-      const [comments, originalPdf] = await Promise.all([
+      const [comments, annotations, originalPdf] = await Promise.all([
         loadComments(),
+        loadPDFAnnotations(),
         downloadOriginalPDF()
       ]);
       
       const commentPdf = await generateCommentPage(comments);
-      const combinedPdf = await combinePDFs(commentPdf, originalPdf);
+      const annotationsPdf = await generateAnnotationsPage(annotations);
+      const combinedPdf = await combinePDFs(commentPdf, originalPdf, annotationsPdf);
       
       // Open print dialog
       const blob = new Blob([combinedPdf], { type: 'application/pdf' });
