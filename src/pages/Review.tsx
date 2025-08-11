@@ -756,6 +756,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
     setIsUploading(true);
     try {
+      console.log('Starting upload for account:', accountId);
+      
       // Erstelle eindeutigen Dateinamen
       const timestamp = Date.now();
       const fileName = `${timestamp}_${file.name}`;
@@ -767,8 +769,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         .upload(filePath, file);
 
       if (uploadError) {
+        console.error('Upload error:', uploadError);
         throw uploadError;
       }
+
+      console.log('File uploaded successfully:', uploadData);
 
       // Erstelle Database-Eintrag
       const { data: docData, error: docError } = await supabase
@@ -785,23 +790,35 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         .single();
 
       if (docError) {
+        console.error('Database insert error:', docError);
         throw docError;
       }
 
-      // Weise das Dokument automatisch dem Konto zu
-      await handleManualAssign(docData.id, accountId);
-      
-      // Lade die Daten neu, um das neue Dokument zu erhalten
-      await loadData();
-      
+      console.log('Document record created:', docData);
+
       // Lade direkt die Vorschau für das neue Dokument
       const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('account-evidence')
         .createSignedUrl(filePath, 3600);
 
-      if (!urlError && signedUrlData) {
+      if (urlError) {
+        console.error('Signed URL error:', urlError);
+      } else if (signedUrlData) {
+        console.log('Setting document preview:', signedUrlData.signedUrl);
         setDocumentPreview(signedUrlData.signedUrl);
       }
+
+      // Weise das Dokument automatisch dem Konto zu
+      try {
+        await handleManualAssign(docData.id, accountId);
+        console.log('Document assigned successfully to account:', accountId);
+      } catch (assignError) {
+        console.error('Assignment error:', assignError);
+        // Fahre trotzdem fort - das Dokument ist hochgeladen
+      }
+      
+      // Lade die Daten neu
+      await loadData();
       
       toast.success('Dokument erfolgreich hochgeladen und zugewiesen');
     } catch (error: any) {
@@ -1536,68 +1553,87 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               </CardHeader>
               <CardContent className="flex flex-col py-3 overflow-hidden" style={{height: 'calc(100vh - 12rem)'}}>
                 {selectedAccountData ? (
-                  selectedDocuments.length > 0 ? (
+                  selectedDocuments.length > 0 || documentPreview ? (
                     <div className="flex flex-col h-full">
-                       {/* Document tabs with embedded reassign icons */}
-                       <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
-                         <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
-                           {selectedDocuments.map((doc) => (
-                             <div key={doc.id} className="relative group">
-                               <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
-                                 <span className="truncate">
-                                   {doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
-                                 </span>
-                                 <TooltipProvider>
-                                   <Tooltip>
-                                     <TooltipTrigger asChild>
-                                       <Send 
-                                         className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setDocumentToReassign(doc);
-                                           setShowReassignModal(true);
-                                         }}
-                                       />
-                                     </TooltipTrigger>
-                                     <TooltipContent>
-                                       Neu zuweisen
-                                     </TooltipContent>
-                                   </Tooltip>
-                                 </TooltipProvider>
-                               </TabsTrigger>
-                             </div>
-                           ))}
-                         </TabsList>
-                        
-                        {selectedDocuments.map((doc) => (
-                          <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
-                            <div className="h-full border rounded-lg overflow-hidden">
-                              {doc.file_type === 'application/pdf' ? (
-                                <SimplePDFViewer 
-                                  document={doc} 
-                                  assignmentId={selectedAccountData.id}
-                                  trialBalanceId={trialBalanceId}
-                                  accountName={selectedAccountData.account_name}
-                                  accountNumber={selectedAccountData.account_number}
-                                />
-                              ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                                   doc.file_type === 'application/vnd.ms-excel' ? (
-                                <ExcelViewer document={doc} />
-                              ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
-                                  <FileText className="h-16 w-16 mb-4 opacity-60" />
-                                  <p className="text-center">
-                                    {doc.file_name}
-                                  </p>
-                                  <p className="text-sm text-center mt-2">
-                                    Vorschau für diesen Dateityp nicht verfügbar
-                                  </p>
+                      {selectedDocuments.length > 0 ? (
+                        <>
+                          {/* Document tabs with embedded reassign icons */}
+                          <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
+                            <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
+                              {selectedDocuments.map((doc) => (
+                                <div key={doc.id} className="relative group">
+                                  <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
+                                    <span className="truncate">
+                                      {doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
+                                    </span>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Send 
+                                            className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setDocumentToReassign(doc);
+                                              setShowReassignModal(true);
+                                            }}
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Neu zuweisen
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </TabsTrigger>
                                 </div>
-                              )}
-                            </div>
-                          </TabsContent>
-                        ))}
-                      </Tabs>
+                              ))}
+                            </TabsList>
+                            
+                            {selectedDocuments.map((doc) => (
+                              <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 overflow-hidden">
+                                <div className="h-full border rounded-lg overflow-hidden">
+                                  {doc.file_type === 'application/pdf' ? (
+                                    <SimplePDFViewer 
+                                      document={doc} 
+                                      assignmentId={selectedAccountData.id}
+                                      trialBalanceId={trialBalanceId}
+                                      accountName={selectedAccountData.account_name}
+                                      accountNumber={selectedAccountData.account_number}
+                                    />
+                                  ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                                       doc.file_type === 'application/vnd.ms-excel' ? (
+                                    <ExcelViewer document={doc} />
+                                  ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
+                                      <FileText className="h-16 w-16 mb-4 opacity-60" />
+                                      <p className="text-center">
+                                        {doc.file_name}
+                                      </p>
+                                      <p className="text-sm text-center mt-2">
+                                        Vorschau für diesen Dateityp nicht verfügbar
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </TabsContent>
+                            ))}
+                          </Tabs>
+                        </>
+                      ) : documentPreview ? (
+                        // Preview for newly uploaded document
+                        <div className="flex-1 border rounded-lg overflow-hidden">
+                          <div className="p-3 border-b bg-muted/30">
+                            <h5 className="font-medium">Neues Dokument</h5>
+                          </div>
+                          <div className="h-full">
+                            <iframe
+                              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentPreview)}`}
+                              className="w-full h-full border-0"
+                              title="Neu hochgeladenes Dokument"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                        
                         
                         {/* Kommentarfeld */}
                         <div className="mt-4 bg-muted/30 rounded-lg p-4 border">
