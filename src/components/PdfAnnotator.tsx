@@ -13,9 +13,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDocument, GlobalWorkerOptions, version } from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 
-// WICHTIG: Verwende den lokalen Worker statt externe CDNs
-// Das verhindert CORS-Probleme und Versionskonflikte
-GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.min.js';
+// Verwende einen Worker, der von Vite korrekt bereitgestellt wird
+// Dies verhindert CORS-Probleme und stellt sicher, dass die richtige Version verwendet wird
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
+GlobalWorkerOptions.workerSrc = workerUrl;
 
 export type HighlightAnn = {
   id: string;
