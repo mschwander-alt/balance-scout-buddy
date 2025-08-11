@@ -161,9 +161,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-200px)]">{/* Added max-height */}
+    <div className="h-full flex flex-col max-h-[calc(100vh-300px)]">{/* Reduzierte max-height für Footer-Platz */}
       {/* PDF Viewer with Annotations */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">{/* min-h-0 für flex-shrink */}
         <PdfAnnotator
           docUrl={documentUrl}
           docId={document.id}
@@ -171,10 +171,10 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         />
       </div>
       
-      {/* Enhanced Comment Section with Tabs */}
+      {/* Enhanced Comment Section with Tabs - immer sichtbar */}
       {assignmentId ? (
-        <div className="flex-shrink-0">{/* Prevent shrinking */}
-          <Card className="border-t-0 rounded-t-none">
+        <div className="flex-shrink-0 border-t bg-white">{/* flex-shrink-0 verhindert Komprimierung */}
+          <Card className="border-t-0 rounded-t-none shadow-sm">{/* Weniger Shadow */}
           <CardContent className="p-0">
             <Tabs defaultValue="comments" className="w-full">
               <TabsList className="grid w-full grid-cols-3 rounded-none border-b">
@@ -192,51 +192,53 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
                 </TabsTrigger>
               </TabsList>
               
-              <TabsContent value="comments" className="p-4 space-y-4 mt-0">
+              <TabsContent value="comments" className="p-4 space-y-3 mt-0 max-h-40 overflow-y-auto">
                 <Textarea
                   placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  className="min-h-[100px] resize-none"
+                  className="min-h-[80px] max-h-24 resize-none"
                 />
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={saveComment}
-                    disabled={commentLoading}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    {commentLoading ? 'Speichere...' : 'Speichern'}
-                  </Button>
-                  <PDFCommentExporter
-                    document={document}
-                    assignmentId={assignmentId}
-                    trialBalanceId={trialBalanceId}
-                    accountName={accountName}
-                    accountNumber={accountNumber}
-                  />
+                <div className="flex gap-2 items-center justify-between">
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={saveComment}
+                      disabled={commentLoading}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      {commentLoading ? 'Speichere...' : 'Speichern'}
+                    </Button>
+                    <PDFCommentExporter
+                      document={document}
+                      assignmentId={assignmentId}
+                      trialBalanceId={trialBalanceId}
+                      accountName={accountName}
+                      accountNumber={accountNumber}
+                    />
+                  </div>
                 </div>
               </TabsContent>
               
-              <TabsContent value="accounts" className="p-4 mt-0">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+              <TabsContent value="accounts" className="p-3 mt-0">{/* Weniger Padding */}
+                <div className="space-y-2">{/* Weniger Spacing */}
+                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">{/* Kleinere Padding */}
                     <div>
-                      <p className="font-medium">{accountName}</p>
-                      <p className="text-sm text-muted-foreground">Konto {accountNumber}</p>
+                      <p className="font-medium text-sm">{accountName}</p>{/* Kleinere Schrift */}
+                      <p className="text-xs text-muted-foreground">Konto {accountNumber}</p>
                     </div>
                     <Badge variant="secondary">Verknüpft</Badge>
                   </div>
                 </div>
               </TabsContent>
               
-              <TabsContent value="complete" className="p-4 mt-0">
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
+              <TabsContent value="complete" className="p-3 mt-0">{/* Weniger Padding */}
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">{/* Kleinere Schrift */}
                     Markieren Sie dieses Konto als vollständig geprüft, wenn alle Nachweise überprüft wurden.
                   </p>
-                  <Button className="w-full gap-2">
+                  <Button className="w-full gap-2" size="sm">{/* Kleinerer Button */}
                     <CheckCircle className="h-4 w-4" />
                     Als vollständig markieren
                   </Button>
