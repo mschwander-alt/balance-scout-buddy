@@ -282,44 +282,20 @@ export type Database = {
       }
       pdf_annotations: {
         Row: {
-          annotation_type: string
-          assignment_id: string
-          color: string | null
-          content: string | null
-          coordinates: Json
-          created_at: string
-          document_id: string
-          id: string
-          page_number: number
-          trial_balance_id: string
+          annotations: Json
+          doc_id: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          annotation_type?: string
-          assignment_id: string
-          color?: string | null
-          content?: string | null
-          coordinates: Json
-          created_at?: string
-          document_id: string
-          id?: string
-          page_number: number
-          trial_balance_id: string
+          annotations?: Json
+          doc_id: string
           updated_at?: string
           user_id: string
         }
         Update: {
-          annotation_type?: string
-          assignment_id?: string
-          color?: string | null
-          content?: string | null
-          coordinates?: Json
-          created_at?: string
-          document_id?: string
-          id?: string
-          page_number?: number
-          trial_balance_id?: string
+          annotations?: Json
+          doc_id?: string
           updated_at?: string
           user_id?: string
         }

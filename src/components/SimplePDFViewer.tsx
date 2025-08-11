@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PDFCommentExporter } from './PDFCommentExporter';
-import { PdfAnnotator } from './PdfAnnotator';
+import PdfAnnotator from './PdfAnnotator';
 
 interface Document {
   id: string;
@@ -81,10 +81,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
       {/* PDF Viewer with Annotations */}
       <div className="flex-1">
         <PdfAnnotator
-          documentUrl={documentUrl}
-          documentId={document.id}
-          assignmentId={assignmentId || ''}
-          trialBalanceId={trialBalanceId || ''}
+          docUrl={documentUrl}
+          docId={document.id}
+          userId="temp-user-id"
         />
       </div>
     </div>
