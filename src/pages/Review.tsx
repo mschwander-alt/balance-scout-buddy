@@ -791,8 +791,17 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       // Weise das Dokument automatisch dem Konto zu
       await handleManualAssign(docData.id, accountId);
       
-      // Lade Daten neu
+      // Lade die Daten neu, um das neue Dokument zu erhalten
       await loadData();
+      
+      // Lade direkt die Vorschau für das neue Dokument
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from('account-evidence')
+        .createSignedUrl(filePath, 3600);
+
+      if (!urlError && signedUrlData) {
+        setDocumentPreview(signedUrlData.signedUrl);
+      }
       
       toast.success('Dokument erfolgreich hochgeladen und zugewiesen');
     } catch (error: any) {
