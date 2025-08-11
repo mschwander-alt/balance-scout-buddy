@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -175,16 +175,6 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       
       if (groupsData && groupsData.length > 0) {
         // Groups exist - use existing logic
-        const allAssignments = groupsData.flatMap(group => 
-          group.assignments.map(assignment => ({
-            ...assignment,
-            account_group_id: group.id,
-            match_status: (assignment.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
-            confidence_score: assignment.confidence_score || undefined,
-            matched_documents: assignment.matched_documents || undefined
-          }))
-        );
-
         // Sortiere Account Groups nach created_at (Reihenfolge der Gruppierung)
         const sortedGroups = groupsData
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -211,7 +201,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           }));
         
         setAccountGroups(sortedGroups);
-        setAssignments(allAssignments);
+        // Nur setze assignments für Gruppen, nicht als separates Array
+        setAssignments([]);
       } else {
         // No groups exist - load from temp_account_matches or create from trial balance
         await loadTemporaryMatches();
@@ -267,7 +258,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         };
 
         setAccountGroups([virtualGroup]);
-        setAssignments(tempAssignments);
+        // Nur setze assignments für ungrouped, nicht zusätzlich
+        setAssignments([]);
       } else {
         // No temp matches exist, create them using unified auto-match
         console.log('No temp matches found, creating them...');
@@ -327,7 +319,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           };
 
           setAccountGroups([virtualGroup]);
-          setAssignments(tempAssignments);
+          // Nur setze assignments für ungrouped, nicht zusätzlich
+          setAssignments([]);
         } else {
           // Final fallback to direct trial balance loading
           await loadTrialBalanceDirectly();
@@ -422,7 +415,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       };
 
       setAccountGroups([virtualGroup]);
-      setAssignments(individualAssignments);
+      // Nur setze assignments für ungrouped, nicht zusätzlich
+      setAssignments([]);
     } catch (error) {
       console.error('Error loading trial balance directly:', error);
       toast.error('Fehler beim Laden der Saldobilanz');
@@ -524,25 +518,21 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         throw error;
       }
 
-      // Update lokaler State
-      const updatedAssignments = assignments.map(a => {
-        if (a.id === assignmentId) {
-          return {
-            ...a,
-            match_status: 'matched' as const,
-            confidence_score: 1.0,
-            matched_documents: updatedMatchedDocuments
-          };
-        }
-        return a;
-      });
-
-      setAssignments(updatedAssignments);
-      
+      // Update lokaler State nur für account groups
       setAccountGroups(prevGroups => 
         prevGroups.map(group => ({
           ...group,
-          assignments: updatedAssignments.filter(a => a.account_group_id === group.id)
+          assignments: group.assignments.map(assignment => {
+            if (assignment.id === assignmentId) {
+              return {
+                ...assignment,
+                match_status: 'matched' as const,
+                confidence_score: 1.0,
+                matched_documents: updatedMatchedDocuments
+              };
+            }
+            return assignment;
+          })
         }))
       );
 
@@ -874,6 +864,44 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     ? documents.filter(doc => selectedAccountData.matched_documents?.includes(doc.id))
     : [];
 
+  // Erweiterte KI-Analyse
+  const startAdvancedAnalysis = async () => {
+    setIsProcessing(true);
+    setProgress(0);
+
+    try {
+      console.log('Starting advanced AI analysis...');
+      
+      const { data, error } = await supabase.functions.invoke('analyze-documents', {
+        body: { trial_balance_id: trialBalanceId }
+      });
+
+      if (error) {
+        console.error('Analysis error:', error);
+        throw error;
+      }
+
+      console.log('Analysis result:', data);
+      
+      if (data.success) {
+        toast.success(
+          `KI-Analyse abgeschlossen! ${data.auto_assigned} Dokumente automatisch zugewiesen (${data.high_confidence_matches} sichere Treffer von ${data.total_matches} Matches gefunden)`
+        );
+        
+        // Reload data to show updated matches
+        await loadData();
+      } else {
+        throw new Error(data.error || 'Analyse fehlgeschlagen');
+      }
+    } catch (error: any) {
+      console.error('Error during advanced analysis:', error);
+      toast.error(`KI-Analyse fehlgeschlagen: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+      setProgress(0);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -915,6 +943,17 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               >
                 <Search className="h-3 w-3" />
                 {isProcessing ? 'Prüfung läuft...' : 'Prüfung starten'}
+              </Button>
+              
+              <Button 
+                onClick={startAdvancedAnalysis}
+                disabled={isProcessing}
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Sparkles className="h-3 w-3" />
+                {isProcessing ? 'KI-Analyse läuft...' : 'KI-Analyse'}
               </Button>
               
               <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>

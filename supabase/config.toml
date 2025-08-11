@@ -21,3 +21,6 @@ verify_jwt = false
 
 [functions.unified-auto-match]
 verify_jwt = false
+
+[functions.analyze-documents]
+verify_jwt = false
