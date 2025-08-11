@@ -7,6 +7,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle, FileText, Link } from 'lucide-react';
 
 interface Document {
   id: string;
@@ -168,37 +171,77 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         />
       </div>
       
-      {/* Comment Section */}
+      {/* Enhanced Comment Section with Tabs */}
       {assignmentId && (
         <Card className="border-t-0 rounded-t-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">
-              Kommentar zu {accountName} ({accountNumber})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Textarea
-              placeholder="Notizen und Kommentare zu diesem Konto..."
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="min-h-[80px] resize-none"
-            />
-            <div className="flex justify-between items-center">
-              <PDFCommentExporter
-                document={document}
-                assignmentId={assignmentId}
-                trialBalanceId={trialBalanceId}
-                accountName={accountName}
-                accountNumber={accountNumber}
-              />
-              <Button 
-                onClick={saveComment}
-                disabled={commentLoading}
-                size="sm"
-              >
-                {commentLoading ? 'Speichere...' : 'Kommentar speichern'}
-              </Button>
-            </div>
+          <CardContent className="p-0">
+            <Tabs defaultValue="comments" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 rounded-none border-b">
+                <TabsTrigger value="comments" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Kommentare
+                </TabsTrigger>
+                <TabsTrigger value="accounts" className="gap-2">
+                  <Link className="h-4 w-4" />
+                  Konten
+                </TabsTrigger>
+                <TabsTrigger value="complete" className="gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Als vollständig markieren
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="comments" className="p-4 space-y-4 mt-0">
+                <Textarea
+                  placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  className="min-h-[100px] resize-none"
+                />
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={saveComment}
+                    disabled={commentLoading}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    {commentLoading ? 'Speichere...' : 'Speichern'}
+                  </Button>
+                  <PDFCommentExporter
+                    document={document}
+                    assignmentId={assignmentId}
+                    trialBalanceId={trialBalanceId}
+                    accountName={accountName}
+                    accountNumber={accountNumber}
+                  />
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="accounts" className="p-4 mt-0">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div>
+                      <p className="font-medium">{accountName}</p>
+                      <p className="text-sm text-muted-foreground">Konto {accountNumber}</p>
+                    </div>
+                    <Badge variant="secondary">Verknüpft</Badge>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="complete" className="p-4 mt-0">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Markieren Sie dieses Konto als vollständig geprüft, wenn alle Nachweise überprüft wurden.
+                  </p>
+                  <Button className="w-full gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Als vollständig markieren
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}
