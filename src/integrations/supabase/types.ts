@@ -471,6 +471,14 @@ export type Database = {
         Args: { "": string }
         Returns: string
       }
+      extract_and_match_file_content: {
+        Args: {
+          trial_balance_id_param: string
+          document_id_param: string
+          target_balance_param: number
+        }
+        Returns: Json
+      }
       gtrgm_compress: {
         Args: { "": unknown }
         Returns: unknown
@@ -503,7 +511,7 @@ export type Database = {
         Args: { "": string }
         Returns: string[]
       }
-      smart_match_documents: {
+      smart_match_documents_content: {
         Args: { trial_balance_id_param: string }
         Returns: Json
       }
