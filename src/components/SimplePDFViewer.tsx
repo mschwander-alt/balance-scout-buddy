@@ -231,14 +231,6 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
                 className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full p-3 rounded-md"
               />
               <div className="flex gap-2">
-                <Button 
-                  onClick={saveComment}
-                  size="sm"
-                  disabled={!comment.trim() || commentLoading}
-                  className="flex items-center gap-2"
-                >
-                  {commentLoading ? 'Speichere...' : 'Speichern'}
-                </Button>
                 <PDFCommentExporter
                   document={document}
                   assignmentId={assignmentId}
