@@ -1,404 +1,343 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { nanoid } from 'nanoid';
-import * as pdfjsLib from 'pdfjs-dist';
-import { Button } from '@/components/ui/button';
-import { Highlighter, Type, MousePointer, ZoomIn, ZoomOut } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
+// src/components/PdfAnnotator.tsx
+// Drop‑in Annotator für Highlight & FreeText mit Persistenz in Supabase (JSON je (doc_id,user_id))
+// Voraussetzungen:
+// 1) Tabelle + RLS (siehe Chat‑Anleitung)
+// 2) Supabase Client unter "@/integrations/supabase/client"
+// 3) Vite/Next: pdfjs-dist installiert (v4.x)
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { nanoid } from "nanoid";
+import { supabase } from "@/integrations/supabase/client";
+import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist/build/pdf.mjs";
 
 // Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-interface Annotation {
+export type HighlightAnn = {
   id: string;
-  page_number: number;
-  annotation_type: 'highlight' | 'freetext';
-  coordinates: {
-    x: number;
-    y: number;
-    width?: number;
-    height?: number;
-    rects?: Array<{ x: number; y: number; w: number; h: number }>;
-  };
-  content?: string;
-  color: string;
+  page: number; // 1‑basiert
+  type: "highlight";
+  rects: { x: number; y: number; w: number; h: number }[]; // normiert 0..1 relativ zur Seite
+  color?: string; // hex
+};
+
+export type FreeTextAnn = {
+  id: string;
+  page: number;
+  type: "freetext";
+  x: number; // 0..1
+  y: number; // 0..1
+  text: string;
+  fontSize?: number;
+  color?: string;
+};
+
+export type Ann = HighlightAnn | FreeTextAnn;
+
+function useDebounced<T>(value: T, delay = 800) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
 }
 
-interface PdfAnnotatorProps {
-  documentUrl: string;
-  documentId: string;
-  assignmentId: string;
-  trialBalanceId: string;
+async function loadAnnotations(doc_id: string, user_id: string): Promise<Ann[]> {
+  const { data, error } = await supabase
+    .from("pdf_annotations")
+    .select("annotations")
+    .eq("doc_id", doc_id)
+    .eq("user_id", user_id)
+    .maybeSingle();
+  if (error) console.warn("loadAnnotations", error.message);
+  return (data?.annotations as Ann[]) || [];
+}
+
+async function saveAnnotations(doc_id: string, user_id: string, annotations: Ann[]) {
+  const { error } = await supabase
+    .from("pdf_annotations")
+    .upsert({ doc_id, user_id, annotations })
+    .single();
+  if (error) throw error;
+}
+
+export default function PdfAnnotator({
+  docUrl,
+  docId,
+  userId,
+  initialScale = 1,
+}: {
+  docUrl: string; // signierte URL aus Supabase Storage
+  docId: string; // UUID eures Dokuments
+  userId: string; // auth.uid()
   initialScale?: number;
-}
-
-export const PdfAnnotator: React.FC<PdfAnnotatorProps> = ({
-  documentUrl,
-  documentId,
-  assignmentId,
-  trialBalanceId,
-  initialScale = 1.2,
-}) => {
-  const { user } = useAuth();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [pdf, setPdf] = useState<any>(null);
-  const [pages, setPages] = useState<number>(0);
+}) {
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [pages, setPages] = useState(0);
   const [scale, setScale] = useState(initialScale);
-  const [annotations, setAnnotations] = useState<any[]>([]);
-  const [mode, setMode] = useState<'none' | 'highlight' | 'freetext'>('none');
-  const [loading, setLoading] = useState(true);
+  const [anns, setAnns] = useState<Ann[]>([]);
+  const [mode, setMode] = useState<"highlight" | "freetext" | "none">("highlight");
+  const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+  const debouncedAnns = useDebounced(anns, 700);
 
-  // Load PDF
+  // PDF laden
   useEffect(() => {
-    let cancelled = false;
-    
-    const loadPdf = async () => {
-      try {
-        setLoading(true);
-        const task = pdfjsLib.getDocument({ url: documentUrl });
-        const doc = await task.promise;
-        
-        if (!cancelled) {
-          setPdf(doc);
-          setPages(doc.numPages);
-        }
-      } catch (error) {
-        console.error('Error loading PDF:', error);
-        toast.error('Fehler beim Laden des PDFs');
-      } finally {
-        setLoading(false);
+    let cancel = false;
+    (async () => {
+      const task = getDocument({ url: docUrl });
+      const doc = await task.promise;
+      if (!cancel) {
+        setPdf(doc);
+        setPages(doc.numPages);
       }
+    })().catch(console.error);
+    return () => {
+      cancel = true;
     };
+  }, [docUrl]);
 
-    loadPdf();
-    return () => { cancelled = true; };
-  }, [documentUrl]);
-
-  // Load existing annotations
-  const loadAnnotations = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('pdf_annotations')
-        .select('*')
-        .eq('document_id', documentId)
-        .eq('assignment_id', assignmentId)
-        .eq('trial_balance_id', trialBalanceId);
-
-      if (error) throw error;
-
-      if (data) {
-        setAnnotations(data);
-      }
-    } catch (error) {
-      console.error('Error loading annotations:', error);
-    }
-  }, [documentId, assignmentId, trialBalanceId]);
-
+  // Bisherige Annotations laden
   useEffect(() => {
-    loadAnnotations();
-  }, [loadAnnotations]);
+    if (!docId || !userId) return;
+    loadAnnotations(docId, userId).then(setAnns);
+  }, [docId, userId]);
 
-  // Save annotation to database
-  const saveAnnotation = async (annotation: Omit<Annotation, 'id'>) => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('pdf_annotations')
-        .insert({
-          document_id: documentId,
-          assignment_id: assignmentId,
-          trial_balance_id: trialBalanceId,
-          user_id: user.id,
-          page_number: annotation.page_number,
-          annotation_type: annotation.annotation_type,
-          coordinates: annotation.coordinates,
-          content: annotation.content || '',
-          color: annotation.color,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setAnnotations(prev => [...prev, data]);
-      }
-    } catch (error) {
-      console.error('Error saving annotation:', error);
-      toast.error('Fehler beim Speichern der Annotation');
-    }
-  };
-
-  // Update annotation
-  const updateAnnotation = async (id: string, updates: any) => {
-    try {
-      const { error } = await supabase
-        .from('pdf_annotations')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setAnnotations(prev => 
-        prev.map(ann => ann.id === id ? { ...ann, ...updates } : ann)
-      );
-    } catch (error) {
-      console.error('Error updating annotation:', error);
-      toast.error('Fehler beim Aktualisieren der Annotation');
-    }
-  };
-
-  // Delete annotation
-  const deleteAnnotation = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('pdf_annotations')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setAnnotations(prev => prev.filter(ann => ann.id !== id));
-    } catch (error) {
-      console.error('Error deleting annotation:', error);
-      toast.error('Fehler beim Löschen der Annotation');
-    }
-  };
-
-  // Page component
-  const Page = ({ pageNumber }: { pageNumber: number }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const textRef = useRef<HTMLDivElement>(null);
-    const pageRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      if (!pdf) return;
-
-      const renderPage = async () => {
-        try {
-          const page = await pdf.getPage(pageNumber);
-          const viewport = page.getViewport({ scale });
-
-          // Render canvas
-          const canvas = canvasRef.current!;
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d')!;
-          await page.render({ canvasContext: ctx, viewport }).promise;
-
-          // Render text layer
-          const textContent = await page.getTextContent();
-          const textLayerDiv = textRef.current!;
-          textLayerDiv.innerHTML = '';
-          
-          const textLayer = new (pdfjsLib as any).TextLayer({
-            textContentSource: textContent,
-            container: textLayerDiv,
-            viewport,
-            enhanceTextSelection: true,
-          });
-          textLayer.render();
-        } catch (error) {
-          console.error('Error rendering page:', error);
-        }
-      };
-
-      renderPage();
-    }, [pdf, pageNumber, scale]);
-
-    // Handle text selection for highlights
-    const handleMouseUp = () => {
-      if (mode !== 'highlight') return;
-      
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-      
-      const range = selection.getRangeAt(0);
-      if (!pageRef.current?.contains(range.commonAncestorContainer as any)) return;
-
-      const rects = Array.from(range.getClientRects());
-      if (!rects.length) return;
-
-      const pageBox = pageRef.current!.getBoundingClientRect();
-      const normRects = rects.map(rect => ({
-        x: (rect.left - pageBox.left) / pageBox.width,
-        y: (rect.top - pageBox.top) / pageBox.height,
-        w: rect.width / pageBox.width,
-        h: rect.height / pageBox.height,
-      }));
-
-      saveAnnotation({
-        page_number: pageNumber,
-        annotation_type: 'highlight',
-        coordinates: { x: 0, y: 0, rects: normRects },
-        color: '#ffeb00',
+  // Speichern (debounced)
+  useEffect(() => {
+    if (!docId || !userId) return;
+    setSaving("saving");
+    saveAnnotations(docId, userId, debouncedAnns)
+      .then(() => setSaving("saved"))
+      .catch((e) => {
+        console.error(e);
+        setSaving("idle");
       });
+  }, [debouncedAnns, docId, userId]);
 
-      selection.removeAllRanges();
-    };
-
-    // Handle click for freetext
-    const handleClick = (e: React.MouseEvent) => {
-      if (mode !== 'freetext') return;
-      
-      const pageBox = pageRef.current!.getBoundingClientRect();
-      const x = (e.clientX - pageBox.left) / pageBox.width;
-      const y = (e.clientY - pageBox.top) / pageBox.height;
-
-      saveAnnotation({
-        page_number: pageNumber,
-        annotation_type: 'freetext',
-        coordinates: { x, y },
-        content: 'Neue Notiz',
-        color: '#000000',
-      });
-    };
-
-    // Get annotations for this page
-    const pageAnnotations = annotations.filter(ann => ann.page_number === pageNumber);
-
-    return (
-      <div 
-        className="relative mx-auto my-4 shadow-lg"
-        ref={pageRef}
-        onMouseUp={handleMouseUp}
-        onClick={handleClick}
-        style={{ width: 'fit-content' }}
-      >
-        <canvas ref={canvasRef} className="block" />
-        <div 
-          ref={textRef} 
-          className="absolute inset-0 pointer-events-none"
-          style={{ mixBlendMode: 'multiply' }}
-        />
-        <div className="absolute inset-0">
-          {pageAnnotations.map(annotation => 
-            annotation.annotation_type === 'highlight' && annotation.coordinates.rects
-              ? annotation.coordinates.rects.map((rect, i) => (
-                  <div
-                    key={`${annotation.id}-${i}`}
-                    className="absolute pointer-events-none"
-                    style={{
-                      left: `${rect.x * 100}%`,
-                      top: `${rect.y * 100}%`,
-                      width: `${rect.w * 100}%`,
-                      height: `${rect.h * 100}%`,
-                      backgroundColor: 'rgba(255, 235, 0, 0.4)',
-                    }}
-                  />
-                ))
-              : annotation.annotation_type === 'freetext' ? (
-                  <div
-                    key={annotation.id}
-                    contentEditable
-                    suppressContentEditableWarning
-                    className="absolute min-w-[100px] min-h-[20px] p-1 bg-white bg-opacity-90 border border-border rounded text-sm cursor-text"
-                    style={{
-                      left: `${annotation.coordinates.x * 100}%`,
-                      top: `${annotation.coordinates.y * 100}%`,
-                      color: annotation.color,
-                    }}
-                    onBlur={(e) => {
-                      const text = e.currentTarget.textContent || '';
-                      if (text !== annotation.content) {
-                        updateAnnotation(annotation.id, { content: text });
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Delete' && e.ctrlKey) {
-                        e.preventDefault();
-                        deleteAnnotation(annotation.id);
-                      }
-                    }}
-                  >
-                    {annotation.content}
-                  </div>
-                ) : null
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-          <p className="text-sm text-muted-foreground">PDF wird geladen...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!pdf) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <p className="text-sm text-destructive">Fehler beim Laden des PDFs</p>
-      </div>
-    );
-  }
+  if (!pdf) return <div className="p-4">PDF wird geladen …</div>;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 p-3 border-b bg-background">
-        <Button
-          variant={mode === 'none' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('none')}
-        >
-          <MousePointer className="h-4 w-4 mr-1" />
-          Auswählen
-        </Button>
-        <Button
-          variant={mode === 'highlight' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('highlight')}
-        >
-          <Highlighter className="h-4 w-4 mr-1" />
-          Markieren
-        </Button>
-        <Button
-          variant={mode === 'freetext' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('freetext')}
-        >
-          <Type className="h-4 w-4 mr-1" />
-          Text
-        </Button>
-        
-        <div className="flex-1" />
-        
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setScale(s => Math.max(0.5, s - 0.2))}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-sm min-w-[60px] text-center">
-            {Math.round(scale * 100)}%
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setScale(s => Math.min(3, s + 0.2))}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* PDF Pages */}
-      <div ref={containerRef} className="flex-1 overflow-auto bg-muted/20">
+      <Toolbar mode={mode} setMode={setMode} scale={scale} setScale={setScale} saving={saving} />
+      <div className="overflow-auto grow p-2">
         {Array.from({ length: pages }, (_, i) => (
-          <Page key={i + 1} pageNumber={i + 1} />
+          <PageView
+            key={i + 1}
+            pageNumber={i + 1}
+            pdf={pdf}
+            scale={scale}
+            mode={mode}
+            anns={anns}
+            setAnns={setAnns}
+          />
         ))}
       </div>
     </div>
   );
-};
+}
+
+function Toolbar({
+  mode,
+  setMode,
+  scale,
+  setScale,
+  saving,
+}: {
+  mode: "highlight" | "freetext" | "none";
+  setMode: (m: "highlight" | "freetext" | "none") => void;
+  scale: number;
+  setScale: (fn: (n: number) => number) => void;
+  saving: "idle" | "saving" | "saved";
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b px-3 py-2 bg-white/70 sticky top-0 z-10">
+      <button className={mode === "highlight" ? "font-semibold" : "opacity-70"} onClick={() => setMode("highlight")}>Highlight</button>
+      <button className={mode === "freetext" ? "font-semibold" : "opacity-70"} onClick={() => setMode("freetext")}>FreeText</button>
+      <button className={mode === "none" ? "font-semibold" : "opacity-70"} onClick={() => setMode("none")}>Zeiger</button>
+      <div className="ml-auto flex items-center gap-2">
+        <button onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}>−</button>
+        <span className="tabular-nums w-12 text-center">{Math.round(scale * 100)}%</span>
+        <button onClick={() => setScale((s) => Math.min(3, s + 0.2))}>+</button>
+      </div>
+      <span className="text-xs opacity-60">{saving === "saving" ? "Speichere…" : saving === "saved" ? "Gespeichert" : ""}</span>
+    </div>
+  );
+}
+
+function PageView({
+  pdf,
+  pageNumber,
+  scale,
+  mode,
+  anns,
+  setAnns,
+}: {
+  pdf: PDFDocumentProxy;
+  pageNumber: number;
+  scale: number;
+  mode: "highlight" | "freetext" | "none";
+  anns: Ann[];
+  setAnns: React.Dispatch<React.SetStateAction<Ann[]>>;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  const pageAnns = useMemo(() => anns.filter((a) => a.page === pageNumber), [anns, pageNumber]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale });
+
+      const canvas = canvasRef.current!;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d")!;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      // Text layer for text selection
+      const textContent = await page.getTextContent();
+      const textLayerDiv = textRef.current!;
+      textLayerDiv.innerHTML = "";
+      
+      // Simple text layer without PDF.js TextLayer component
+      textLayerDiv.style.position = "absolute";
+      textLayerDiv.style.left = "0";
+      textLayerDiv.style.top = "0";
+      textLayerDiv.style.right = "0";
+      textLayerDiv.style.bottom = "0";
+      textLayerDiv.style.overflow = "hidden";
+      textLayerDiv.style.opacity = "0.2";
+      textLayerDiv.style.lineHeight = "1.0";
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, pageNumber, scale]);
+
+  // Highlight durch Textauswahl
+  const onMouseUp = () => {
+    if (mode !== "highlight") return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) return;
+    const rects = Array.from(range.getClientRects());
+    if (!rects.length) return;
+    const pageBox = wrapperRef.current!.getBoundingClientRect();
+    const normRects = rects.map((r) => ({
+      x: (r.left - pageBox.left) / pageBox.width,
+      y: (r.top - pageBox.top) / pageBox.height,
+      w: r.width / pageBox.width,
+      h: r.height / pageBox.height,
+    }));
+    setAnns((a) => [
+      ...a,
+      { id: nanoid(), page: pageNumber, type: "highlight", rects: normRects, color: "#ffeb00" },
+    ]);
+    sel.removeAllRanges();
+  };
+
+  // FreeText per Klick setzen
+  const onClick = (e: React.MouseEvent) => {
+    if (mode !== "freetext") return;
+    const pageBox = wrapperRef.current!.getBoundingClientRect();
+    const x = (e.clientX - pageBox.left) / pageBox.width;
+    const y = (e.clientY - pageBox.top) / pageBox.height;
+    setAnns((a) => [
+      ...a,
+      { id: nanoid(), page: pageNumber, type: "freetext", x, y, text: "Notiz", fontSize: 14, color: "#111" },
+    ]);
+  };
+
+  const updateFreeText = (id: string, next: Partial<FreeTextAnn>) =>
+    setAnns((all) => all.map((x) => (x.id === id ? ({ ...x, ...next } as Ann) : x)));
+
+  const removeAnn = (id: string) => setAnns((all) => all.filter((x) => x.id !== id));
+
+  return (
+    <div
+      className="relative mx-auto my-4 bg-white shadow"
+      ref={wrapperRef}
+      onMouseUp={onMouseUp}
+      onClick={onClick}
+      style={{ width: "fit-content" }}
+    >
+      <canvas ref={canvasRef} />
+      {/* Textlayer */}
+      <div ref={textRef} className="absolute left-0 top-0 pointer-events-none" style={{ inset: 0 }} />
+      {/* Annotation‑Overlay */}
+      <div className="absolute left-0 top-0" style={{ inset: 0 }}>
+        {pageAnns.map((a) =>
+          a.type === "highlight" ? (
+            <React.Fragment key={a.id}>
+              {a.rects.map((r, i) => (
+                <div
+                  key={`${a.id}-${i}`}
+                  style={{
+                    position: "absolute",
+                    left: `${r.x * 100}%`,
+                    top: `${r.y * 100}%`,
+                    width: `${r.w * 100}%`,
+                    height: `${r.h * 100}%`,
+                    background: "rgba(255,235,0,0.45)",
+                    borderRadius: 2,
+                  }}
+                />
+              ))}
+              {mode === "none" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeAnn(a.id);
+                  }}
+                  className="absolute right-1 top-1 text-xs bg-white/80 px-1 rounded"
+                >
+                  ×
+                </button>
+              )}
+            </React.Fragment>
+          ) : (
+            <div
+              key={a.id}
+              contentEditable
+              suppressContentEditableWarning
+              onBlur={(e) => updateFreeText(a.id, { text: e.currentTarget.textContent || "" })}
+              style={{
+                position: "absolute",
+                left: `${a.x * 100}%`,
+                top: `${a.y * 100}%`,
+                padding: "2px 6px",
+                background: "rgba(255,255,255,0.85)",
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                fontSize: `${(a.fontSize || 14) * scale}px`, // zoom‑aware
+                color: a.color || "#111",
+                cursor: "text",
+                minWidth: 24,
+                outline: "none",
+              }}
+            >
+              {a.text}
+              {mode === "none" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeAnn(a.id);
+                  }}
+                  className="ml-2 text-xs opacity-70"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
