@@ -639,14 +639,21 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
 
       for (const assignmentId of selectedAccountsForAssign) {
-        // Find assignment from all groups
+        // Find assignment from all groups or from ungrouped assignments
         let assignment = null;
-        for (const group of accountGroups) {
-          const found = group.assignments.find(a => a.id === assignmentId);
-          if (found) {
-            assignment = found;
-            break;
+        
+        if (accountGroups.length > 0 && accountGroups[0].id !== 'no-group') {
+          // Search in grouped assignments
+          for (const group of accountGroups) {
+            const found = group.assignments.find(a => a.id === assignmentId);
+            if (found) {
+              assignment = found;
+              break;
+            }
           }
+        } else {
+          // Search in ungrouped assignments
+          assignment = assignments.find(a => a.id === assignmentId);
         }
         if (!assignment) continue;
 
@@ -2139,6 +2146,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     </TableRow>
                   </TableHeader>
                    <TableBody>
+                     {/* Show grouped accounts */}
                      {accountGroups
                        .flatMap(group => group.assignments)
                        .filter(assignment => {
@@ -2194,9 +2202,67 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                               {formatCurrency(assignment.current_year_balance - assignment.previous_year_balance)}
                             </span>
                           </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
+                         </TableRow>
+                       ))}
+                     
+                     {/* Show ungrouped accounts (temp_account_matches) - when no groups exist */}
+                     {accountGroups.length === 0 && assignments
+                       .filter(assignment => {
+                         const matchesSearch = searchQuery === '' || 
+                           assignment.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           assignment.account_name.toLowerCase().includes(searchQuery.toLowerCase());
+                         
+                         return matchesSearch &&
+                           !assignment.matched_documents?.includes(selectedDocumentForMultiAssign?.id || '') &&
+                           assignment.id !== selectedAccountData?.id;
+                       })
+                       .map(assignment => (
+                         <TableRow 
+                           key={`temp-${assignment.id}`}
+                           className="cursor-pointer hover:bg-muted/50"
+                           onClick={() => {
+                             const newSelection = new Set(selectedAccountsForAssign);
+                             if (newSelection.has(assignment.id)) {
+                               newSelection.delete(assignment.id);
+                             } else {
+                               newSelection.add(assignment.id);
+                             }
+                             setSelectedAccountsForAssign(newSelection);
+                           }}
+                         >
+                           <TableCell>
+                             <input
+                               type="checkbox"
+                               checked={selectedAccountsForAssign.has(assignment.id)}
+                               onChange={() => {}} // Handled by parent onClick
+                               className="rounded"
+                             />
+                           </TableCell>
+                           <TableCell>
+                             <div>
+                               <div className="font-medium text-sm">
+                                 {assignment.account_number} - {assignment.account_name}
+                               </div>
+                             </div>
+                           </TableCell>
+                           <TableCell className="text-right font-medium">
+                             {formatCurrency(assignment.current_year_balance)}
+                           </TableCell>
+                           <TableCell className="text-right">
+                             {formatCurrency(assignment.previous_year_balance || 0)}
+                           </TableCell>
+                           <TableCell className="text-right">
+                             <span className={
+                               ((assignment.current_year_balance || 0) - (assignment.previous_year_balance || 0)) >= 0
+                                 ? 'text-green-600'
+                                 : 'text-red-600'
+                             }>
+                               {formatCurrency((assignment.current_year_balance || 0) - (assignment.previous_year_balance || 0))}
+                             </span>
+                           </TableCell>
+                         </TableRow>
+                       ))}
+                   </TableBody>
                 </Table>
               </div>
             </div>
