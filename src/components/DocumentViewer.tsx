@@ -49,14 +49,18 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       
       if (data?.signedUrl) {
         console.log('Got fresh signed URL for:', document.file_name);
-        setFileUrl(data.signedUrl);
+        // Convert relative URL to absolute URL
+        const fullUrl = data.signedUrl.startsWith('http') 
+          ? data.signedUrl 
+          : `https://szrpyhwjqftwxhaagcds.supabase.co/storage/v1${data.signedUrl}`;
+        setFileUrl(fullUrl);
         
         // Handle Excel files
         if (document.file_type.includes('spreadsheet') || 
             document.file_type.includes('excel') ||
             document.file_name.endsWith('.xlsx') ||
             document.file_name.endsWith('.xls')) {
-          await loadExcelData(data.signedUrl);
+          await loadExcelData(fullUrl);
         }
         
         onLoad?.();
