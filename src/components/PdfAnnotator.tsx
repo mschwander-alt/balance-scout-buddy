@@ -116,6 +116,8 @@ export default function PdfAnnotator({
   const [scale, setScale] = useState(initialScale);
   const [anns, setAnns] = useState<Ann[]>([]);
   const [mode, setMode] = useState<"highlight" | "freetext" | "none">("highlight");
+  
+  console.log("🎯 Current mode:", mode); // Debug current mode
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const debouncedAnns = useDebounced(anns, 700);
 
@@ -206,11 +208,37 @@ function Toolbar({
   setScale: (fn: (n: number) => number) => void;
   saving: "idle" | "saving" | "saved";
 }) {
+  console.log("🔧 Toolbar mode change:", { currentMode: mode });
+  
   return (
     <div className="flex items-center gap-3 border-b px-3 py-2 bg-white/70 sticky top-0 z-10">
-      <button className={mode === "highlight" ? "font-semibold" : "opacity-70"} onClick={() => setMode("highlight")}>Highlight</button>
-      <button className={mode === "freetext" ? "font-semibold" : "opacity-70"} onClick={() => setMode("freetext")}>FreeText</button>
-      <button className={mode === "none" ? "font-semibold" : "opacity-70"} onClick={() => setMode("none")}>Zeiger</button>
+      <button 
+        className={mode === "highlight" ? "font-semibold bg-blue-100 px-2 py-1 rounded" : "opacity-70"} 
+        onClick={() => {
+          console.log("🎯 Setting mode to highlight");
+          setMode("highlight");
+        }}
+      >
+        Highlight
+      </button>
+      <button 
+        className={mode === "freetext" ? "font-semibold bg-blue-100 px-2 py-1 rounded" : "opacity-70"} 
+        onClick={() => {
+          console.log("🎯 Setting mode to freetext");
+          setMode("freetext");
+        }}
+      >
+        FreeText
+      </button>
+      <button 
+        className={mode === "none" ? "font-semibold bg-blue-100 px-2 py-1 rounded" : "opacity-70"} 
+        onClick={() => {
+          console.log("🎯 Setting mode to none");
+          setMode("none");
+        }}
+      >
+        Zeiger
+      </button>
       <div className="ml-auto flex items-center gap-2">
         <button onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}>−</button>
         <span className="tabular-nums w-12 text-center">{Math.round(scale * 100)}%</span>
@@ -285,9 +313,54 @@ function PageView({
 
         if (cancelled) return;
 
-        // Clear and setup text layer - safely
+        // KRITISCH: Echte TextLayer mit PDF-Text für Selektion erstellen
         if (textLayerDiv.parentNode) {
-          textLayerDiv.textContent = ""; // Safer than innerHTML
+          textLayerDiv.textContent = ""; // Clear previous content
+          
+          // Get actual text content from PDF
+          try {
+            const textContent = await page.getTextContent();
+            
+            // Create text spans for selection (simplified approach)
+            textContent.items.forEach((item, index) => {
+              if ('str' in item && item.str.trim()) {
+                const span = document.createElement('span');
+                span.textContent = item.str + ' ';
+                span.style.position = 'absolute';
+                
+                // Use transform matrix for positioning (simplified)
+                const transform = item.transform;
+                if (transform && transform.length >= 6) {
+                  span.style.left = `${transform[4]}px`;
+                  span.style.top = `${viewport.height - transform[5] - 12}px`; // Flip Y
+                  span.style.fontSize = `${transform[0] || 12}px`;
+                }
+                
+                span.style.whiteSpace = 'nowrap';
+                span.style.userSelect = 'text';
+                span.style.pointerEvents = 'auto';
+                textLayerDiv.appendChild(span);
+              }
+            });
+            
+            console.log("✅ TextLayer populated with", textContent.items.length, "text items");
+            
+          } catch (textError) {
+            console.warn("⚠️ Could not load text content:", textError);
+            // Fallback: Create dummy selectable text
+            const fallbackSpan = document.createElement('span');
+            fallbackSpan.textContent = 'Selectable PDF text area';
+            fallbackSpan.style.position = 'absolute';
+            fallbackSpan.style.top = '50%';
+            fallbackSpan.style.left = '50%';
+            fallbackSpan.style.transform = 'translate(-50%, -50%)';
+            fallbackSpan.style.userSelect = 'text';
+            fallbackSpan.style.pointerEvents = 'auto';
+            fallbackSpan.style.opacity = '0.3';
+            textLayerDiv.appendChild(fallbackSpan);
+          }
+          
+          // Apply TextLayer styles
           textLayerDiv.style.position = "absolute";
           textLayerDiv.style.left = "0";
           textLayerDiv.style.top = "0";
