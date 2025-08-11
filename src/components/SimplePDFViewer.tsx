@@ -34,6 +34,8 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   accountName, 
   accountNumber 
 }) => {
+  console.log('SimplePDFViewer Props:', { assignmentId, trialBalanceId, accountName, accountNumber });
+  
   const { user } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -172,7 +174,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
       </div>
       
       {/* Enhanced Comment Section with Tabs */}
-      {assignmentId && (
+      {assignmentId ? (
+        <div>
+          <p style={{background: 'yellow', padding: '5px'}}>DEBUG: Comment section rendering with assignmentId: {assignmentId}</p>
         <Card className="border-t-0 rounded-t-none">
           <CardContent className="p-0">
             <Tabs defaultValue="comments" className="w-full">
@@ -244,6 +248,11 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
             </Tabs>
           </CardContent>
         </Card>
+        </div>
+      ) : (
+        <div style={{background: 'red', color: 'white', padding: '10px'}}>
+          DEBUG: No assignmentId provided - Comment section not shown
+        </div>
       )}
     </div>
   );
