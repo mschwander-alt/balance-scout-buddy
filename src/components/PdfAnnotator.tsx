@@ -218,56 +218,82 @@ function PageView({
 
   useEffect(() => {
     let cancelled = false;
+    let currentCanvas: HTMLCanvasElement | null = null;
+    let currentTextDiv: HTMLDivElement | null = null;
+    
     (async () => {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale });
-      
-      // HiDPI/Retina support - fix for coordinate drift
-      const outputScale = window.devicePixelRatio || 1;
+      try {
+        const page = await pdf.getPage(pageNumber);
+        const viewport = page.getViewport({ scale });
+        
+        // HiDPI/Retina support - fix for coordinate drift
+        const outputScale = window.devicePixelRatio || 1;
 
-      const canvas = canvasRef.current!;
-      const ctx = canvas.getContext("2d")!;
-      
-      // Set physical resolution for HiDPI displays
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
-      
-      // Set visible CSS size
-      canvas.style.width = `${viewport.width}px`;
-      canvas.style.height = `${viewport.height}px`;
-      
-      // Render with proper transform for HiDPI
-      await page.render({ 
-        canvas, 
-        canvasContext: ctx, 
-        viewport,
-        transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined
-      }).promise;
+        const canvas = canvasRef.current;
+        const textLayerDiv = textRef.current;
+        
+        if (!canvas || !textLayerDiv || cancelled) return;
+        
+        // Store references for cleanup
+        currentCanvas = canvas;
+        currentTextDiv = textLayerDiv;
+        
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        
+        // Set physical resolution for HiDPI displays
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        
+        // Set visible CSS size
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        
+        // Render with proper transform for HiDPI
+        await page.render({ 
+          canvas, 
+          canvasContext: ctx, 
+          viewport,
+          transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined
+        }).promise;
 
-      // Text layer for text selection - KRITISCH: muss selektierbar sein
-      const textLayerDiv = textRef.current!;
-      textLayerDiv.innerHTML = "";
-      textLayerDiv.style.position = "absolute";
-      textLayerDiv.style.left = "0";
-      textLayerDiv.style.top = "0";
-      textLayerDiv.style.width = `${viewport.width}px`;
-      textLayerDiv.style.height = `${viewport.height}px`;
-      textLayerDiv.style.overflow = "hidden";
-      textLayerDiv.style.userSelect = "text"; // ENABLE text selection
-      textLayerDiv.style.pointerEvents = "auto"; // ENABLE mouse events
-      textLayerDiv.style.opacity = "0.2";
-      textLayerDiv.style.lineHeight = "1.0";
-      
-      // Ensure wrapper has exact CSS size for coordinate calculations
-      if (wrapperRef.current) {
-        wrapperRef.current.style.width = `${viewport.width}px`;
-        wrapperRef.current.style.height = `${viewport.height}px`;
+        if (cancelled) return;
+
+        // Clear and setup text layer - safely
+        if (textLayerDiv.parentNode) {
+          textLayerDiv.textContent = ""; // Safer than innerHTML
+          textLayerDiv.style.position = "absolute";
+          textLayerDiv.style.left = "0";
+          textLayerDiv.style.top = "0";
+          textLayerDiv.style.width = `${viewport.width}px`;
+          textLayerDiv.style.height = `${viewport.height}px`;
+          textLayerDiv.style.overflow = "hidden";
+          textLayerDiv.style.userSelect = "text";
+          textLayerDiv.style.pointerEvents = "auto";
+          textLayerDiv.style.opacity = "0.2";
+          textLayerDiv.style.lineHeight = "1.0";
+        }
+        
+        // Ensure wrapper has exact CSS size for coordinate calculations
+        const wrapper = wrapperRef.current;
+        if (wrapper && !cancelled) {
+          wrapper.style.width = `${viewport.width}px`;
+          wrapper.style.height = `${viewport.height}px`;
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("PDF rendering error:", error);
+        }
       }
-      
-      if (cancelled) return;
     })();
+    
     return () => {
       cancelled = true;
+      // Cleanup: Reset to default state without removing from DOM
+      if (currentTextDiv && currentTextDiv.parentNode) {
+        currentTextDiv.textContent = "";
+        currentTextDiv.style.cssText = ""; // Reset all styles
+      }
     };
   }, [pdf, pageNumber, scale]);
 
@@ -331,19 +357,28 @@ function PageView({
       ref={wrapperRef}
       onMouseUp={onMouseUp}
       onClick={onClick}
-      style={{ width: "fit-content" }}
+      style={{ width: "fit-content", minHeight: "200px" }} // Prevent layout shift
     >
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} style={{ display: "block" }} />
       {/* TextLayer - MUSS selektierbar sein für Highlights */}
       <div 
         ref={textRef} 
-        className="absolute left-0 top-0 pointer-events-auto select-text" 
-        style={{ inset: 0, userSelect: 'text', pointerEvents: 'auto' }} 
+        className="absolute left-0 top-0" 
+        style={{ 
+          inset: 0, 
+          userSelect: 'text', 
+          pointerEvents: 'auto',
+          zIndex: 1 
+        }} 
       />
       {/* Annotation‑Overlay - NICHT selektierbar, damit TextLayer funktioniert */}
       <div 
         className="absolute left-0 top-0" 
-        style={{ inset: 0, pointerEvents: 'none' }} // KRITISCH: pointer-events none
+        style={{ 
+          inset: 0, 
+          pointerEvents: 'none',
+          zIndex: 2 
+        }}
       >
         {pageAnns.map((a) =>
           a.type === "highlight" ? (
