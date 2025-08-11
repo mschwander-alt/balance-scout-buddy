@@ -183,31 +183,70 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         />
       </div>
       
-      {/* Comment Section - einfache Darstellung wie bei Excel */}
+      {/* Comment Section - identisch zur Excel-Ansicht */}
       {assignmentId ? (
-        <div className="flex-shrink-0 border-t bg-white p-4 space-y-4">
-          <div className="space-y-2">
-            <textarea 
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Kommentar hinzufügen..."
-              className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm min-h-20 max-h-40 overflow-y-auto"
-            />
-            <div className="flex gap-2">
-              <Button 
-                onClick={saveComment}
-                size="sm"
-                disabled={!comment.trim() || commentLoading}
-              >
-                {commentLoading ? 'Speichere...' : 'Speichern'}
-              </Button>
-              <PDFCommentExporter
-                document={document}
-                assignmentId={assignmentId}
-                trialBalanceId={trialBalanceId}
-                accountName={accountName}
-                accountNumber={accountNumber}
+        <div className="flex-shrink-0 mt-4 bg-muted/30 rounded-lg p-4 border">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">
+                Kommentare
+              </label>
+              <div className="flex items-center gap-2">
+                {/* Konten Button - identisch zur Excel-Ansicht */}
+                {onShowMultiAssign && selectedDocuments.length > 0 && (
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onShowMultiAssign(selectedDocuments[0]);
+                    }}
+                    className="flex items-center gap-2"
+                    disabled={selectedDocuments.length === 0}
+                  >
+                    <Link className="h-4 w-4" />
+                    Konten
+                  </Button>
+                )}
+                {/* Als vollständig markieren Button - identisch zur Excel-Ansicht */}
+                {assignmentId && onMarkCompleted && (
+                  <Button 
+                    variant={completedAccounts.has(assignmentId) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => onMarkCompleted(assignmentId)}
+                    className="flex items-center gap-2"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {completedAccounts.has(assignmentId) ? 'Vollständig' : 'Als vollständig markieren'}
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            {/* Kommentarfeld - identisch zur Excel-Ansicht */}
+            <div className="flex-shrink-0 border-t pt-4 space-y-2">
+              <textarea 
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
+                className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full p-3 rounded-md"
               />
+              <div className="flex gap-2">
+                <Button 
+                  onClick={saveComment}
+                  size="sm"
+                  disabled={!comment.trim() || commentLoading}
+                  className="flex items-center gap-2"
+                >
+                  {commentLoading ? 'Speichere...' : 'Speichern'}
+                </Button>
+                <PDFCommentExporter
+                  document={document}
+                  assignmentId={assignmentId}
+                  trialBalanceId={trialBalanceId}
+                  accountName={accountName}
+                  accountNumber={accountNumber}
+                />
+              </div>
             </div>
           </div>
         </div>
