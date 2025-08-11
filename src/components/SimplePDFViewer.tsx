@@ -34,8 +34,6 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   accountName, 
   accountNumber 
 }) => {
-  console.log('SimplePDFViewer Props:', { assignmentId, trialBalanceId, accountName, accountNumber });
-  
   const { user } = useAuth();
   const [documentUrl, setDocumentUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -163,9 +161,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col max-h-[calc(100vh-200px)]">{/* Added max-height */}
       {/* PDF Viewer with Annotations */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-hidden">
         <PdfAnnotator
           docUrl={documentUrl}
           docId={document.id}
@@ -175,9 +173,8 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
       
       {/* Enhanced Comment Section with Tabs */}
       {assignmentId ? (
-        <div>
-          <p style={{background: 'yellow', padding: '5px'}}>DEBUG: Comment section rendering with assignmentId: {assignmentId}</p>
-        <Card className="border-t-0 rounded-t-none">
+        <div className="flex-shrink-0">{/* Prevent shrinking */}
+          <Card className="border-t-0 rounded-t-none">
           <CardContent className="p-0">
             <Tabs defaultValue="comments" className="w-full">
               <TabsList className="grid w-full grid-cols-3 rounded-none border-b">
@@ -247,13 +244,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
               </TabsContent>
             </Tabs>
           </CardContent>
-        </Card>
+          </Card>
         </div>
-      ) : (
-        <div style={{background: 'red', color: 'white', padding: '10px'}}>
-          DEBUG: No assignmentId provided - Comment section not shown
-        </div>
-      )}
+      ) : null}
     </div>
   );
 };
