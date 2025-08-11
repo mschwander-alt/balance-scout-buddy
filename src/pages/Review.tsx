@@ -495,10 +495,26 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
   const handleManualAssign = async (documentId: string, assignmentId: string) => {
     try {
-      const assignment = assignments.find(a => a.id === assignmentId);
+      // Find assignment from all groups
+      let assignment = null;
+      for (const group of accountGroups) {
+        const found = group.assignments.find(a => a.id === assignmentId);
+        if (found) {
+          assignment = found;
+          break;
+        }
+      }
+      
       const document = documents.find(d => d.id === documentId);
       
-      if (!assignment || !document) return;
+      if (!assignment || !document) {
+        toast.error('Konto oder Dokument nicht gefunden');
+        return;
+      }
+
+      // Bestimme die richtige Tabelle basierend auf der Gruppierung
+      const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
+      const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
 
       // Update in der Datenbank
       const updatedMatchedDocuments = assignment.matched_documents 
@@ -506,7 +522,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         : [documentId];
 
       const { error } = await supabase
-        .from('account_group_assignments')
+        .from(tableName)
         .update({
           match_status: 'matched',
           confidence_score: 1.0, // Manuelle Zuweisung = 100% Vertrauen
@@ -518,7 +534,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         throw error;
       }
 
-      // Update lokaler State nur für account groups
+      // Update lokaler State für account groups
       setAccountGroups(prevGroups => 
         prevGroups.map(group => ({
           ...group,
@@ -555,7 +571,15 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
 
       for (const assignmentId of selectedAccountsForAssign) {
-        const assignment = assignments.find(a => a.id === assignmentId);
+        // Find assignment from all groups
+        let assignment = null;
+        for (const group of accountGroups) {
+          const found = group.assignments.find(a => a.id === assignmentId);
+          if (found) {
+            assignment = found;
+            break;
+          }
+        }
         if (!assignment) continue;
 
         const updatedMatchedDocuments = assignment.matched_documents 
@@ -610,7 +634,15 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
       // Weise neuen Konten zu
       for (const assignmentId of selectedAccountsForAssign) {
-        const assignment = assignments.find(a => a.id === assignmentId);
+        // Find assignment from all groups
+        let assignment = null;
+        for (const group of accountGroups) {
+          const found = group.assignments.find(a => a.id === assignmentId);
+          if (found) {
+            assignment = found;
+            break;
+          }
+        }
         if (!assignment) continue;
 
         const updatedMatchedDocuments = assignment.matched_documents 
