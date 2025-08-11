@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2 } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2, Upload } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -99,6 +99,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [searchQuery, setSearchQuery] = useState('');
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [documentToReassign, setDocumentToReassign] = useState<Document | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -747,6 +748,59 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     
     // Auto-save nach 1 Sekunde
     debouncedSaveComment(assignmentId, value);
+  };
+
+  // Upload function for documents
+  const handleDocumentUpload = async (file: File, accountId: string) => {
+    if (!user || !trialBalanceId) return;
+
+    setIsUploading(true);
+    try {
+      // Erstelle eindeutigen Dateinamen
+      const timestamp = Date.now();
+      const fileName = `${timestamp}_${file.name}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      // Upload zu Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('account-evidence')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Erstelle Database-Eintrag
+      const { data: docData, error: docError } = await supabase
+        .from('account_evidence')
+        .insert({
+          trial_balance_id: trialBalanceId,
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          file_type: file.type
+        })
+        .select()
+        .single();
+
+      if (docError) {
+        throw docError;
+      }
+
+      // Weise das Dokument automatisch dem Konto zu
+      await handleManualAssign(docData.id, accountId);
+      
+      // Lade Daten neu
+      await loadData();
+      
+      toast.success('Dokument erfolgreich hochgeladen und zugewiesen');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Fehler beim Hochladen: ' + error.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleMarkCompleted = (assignmentId: string) => {
@@ -1621,12 +1675,46 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           </div>
                        </div>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Keine Nachweise für dieses Konto gefunden</p>
-                    </div>
-                  )
+                   ) : (
+                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                       <p className="mb-4">Keine Nachweise für dieses Konto gefunden</p>
+                       <div className="space-y-3">
+                         <p className="text-sm">Möchten Sie ein neues Dokument für dieses Konto hochladen?</p>
+                         <div className="flex justify-center">
+                           <input
+                             type="file"
+                             id="document-upload"
+                             accept=".pdf,.xlsx,.xls"
+                             style={{ display: 'none' }}
+                             onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if (file && selectedAccountData) {
+                                 handleDocumentUpload(file, selectedAccountData.id);
+                               }
+                             }}
+                           />
+                           <Button
+                             variant="outline"
+                             size="sm"
+                             onClick={() => document.getElementById('document-upload')?.click()}
+                             disabled={isUploading || !selectedAccountData}
+                             className="flex items-center gap-2"
+                           >
+                             {isUploading ? (
+                               <Loader2 className="h-4 w-4 animate-spin" />
+                             ) : (
+                               <Upload className="h-4 w-4" />
+                             )}
+                             {isUploading ? 'Wird hochgeladen...' : 'Dokument hochladen'}
+                           </Button>
+                         </div>
+                         <p className="text-xs text-muted-foreground">
+                           Unterstützte Formate: PDF, Excel (.xlsx, .xls)
+                         </p>
+                       </div>
+                     </div>
+                   )
                 ) : (
                   <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
