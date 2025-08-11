@@ -6,7 +6,7 @@ import { FileText, Download, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DocumentViewerProps {
-  document: {
+  document?: {
     id: string;
     file_name: string;
     file_path: string;
@@ -22,6 +22,20 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onLoad, 
   onError 
 }) => {
+  // Early return if document is not provided
+  if (!document) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-60" />
+          <h3 className="text-lg font-medium mb-2">Kein Dokument ausgewählt</h3>
+          <p className="text-sm text-muted-foreground">
+            Bitte wählen Sie ein Dokument aus, um es anzuzeigen.
+          </p>
+        </div>
+      </div>
+    );
+  }
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [excelData, setExcelData] = useState<any[][]>([]);
   const [excelSheets, setExcelSheets] = useState<string[]>([]);
