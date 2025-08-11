@@ -220,27 +220,47 @@ function PageView({
     (async () => {
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale });
+      
+      // HiDPI/Retina support - fix for coordinate drift
+      const outputScale = window.devicePixelRatio || 1;
 
       const canvas = canvasRef.current!;
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
       const ctx = canvas.getContext("2d")!;
-      await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+      
+      // Set physical resolution for HiDPI displays
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      
+      // Set visible CSS size
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+      
+      // Render with proper transform for HiDPI
+      await page.render({ 
+        canvas, 
+        canvasContext: ctx, 
+        viewport,
+        transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined
+      }).promise;
 
-      // Text layer for text selection
-      const textContent = await page.getTextContent();
+      // Text layer for text selection - match exact canvas CSS size
       const textLayerDiv = textRef.current!;
       textLayerDiv.innerHTML = "";
-      
-      // Simple text layer without PDF.js TextLayer component
       textLayerDiv.style.position = "absolute";
       textLayerDiv.style.left = "0";
       textLayerDiv.style.top = "0";
-      textLayerDiv.style.right = "0";
-      textLayerDiv.style.bottom = "0";
+      textLayerDiv.style.width = `${viewport.width}px`;
+      textLayerDiv.style.height = `${viewport.height}px`;
       textLayerDiv.style.overflow = "hidden";
       textLayerDiv.style.opacity = "0.2";
       textLayerDiv.style.lineHeight = "1.0";
+      
+      // Ensure wrapper has exact CSS size for coordinate calculations
+      if (wrapperRef.current) {
+        wrapperRef.current.style.width = `${viewport.width}px`;
+        wrapperRef.current.style.height = `${viewport.height}px`;
+      }
+      
       if (cancelled) return;
     })();
     return () => {
@@ -248,15 +268,25 @@ function PageView({
     };
   }, [pdf, pageNumber, scale]);
 
-  // Highlight durch Textauswahl
+  // Throttle for preventing double highlights
+  let lastHighlightTime = 0;
+
+  // Highlight durch Textauswahl - improved with guards
   const onMouseUp = () => {
     if (mode !== "highlight") return;
+    
+    // Guard against double highlights
+    const now = Date.now();
+    if (now - lastHighlightTime < 200) return;
+    lastHighlightTime = now;
+    
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
+    if (!sel || sel.type !== "Range" || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) return;
     const rects = Array.from(range.getClientRects());
     if (!rects.length) return;
+    
     const pageBox = wrapperRef.current!.getBoundingClientRect();
     const normRects = rects.map((r) => ({
       x: (r.left - pageBox.left) / pageBox.width,
@@ -271,9 +301,13 @@ function PageView({
     sel.removeAllRanges();
   };
 
-  // FreeText per Klick setzen
+  // FreeText per Klick setzen - improved with hit-test to prevent bubbling
   const onClick = (e: React.MouseEvent) => {
     if (mode !== "freetext") return;
+    
+    // Hit-test: Don't create new annotation if clicking on existing one
+    if ((e.target as HTMLElement).closest("[data-ann-id]")) return;
+    
     const pageBox = wrapperRef.current!.getBoundingClientRect();
     const x = (e.clientX - pageBox.left) / pageBox.width;
     const y = (e.clientY - pageBox.top) / pageBox.height;
@@ -333,8 +367,11 @@ function PageView({
           ) : (
             <div
               key={a.id}
+              data-ann-id={a.id} // Add data attribute for hit-testing
               contentEditable
               suppressContentEditableWarning
+              onMouseDown={(e) => e.stopPropagation()} // Prevent bubbling
+              onClick={(e) => e.stopPropagation()} // Prevent bubbling
               onBlur={(e) => updateFreeText(a.id, { text: e.currentTarget.textContent || "" })}
               style={{
                 position: "absolute",
