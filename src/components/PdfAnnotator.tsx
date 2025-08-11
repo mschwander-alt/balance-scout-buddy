@@ -8,10 +8,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist";
 
-// Set up PDF.js worker
-GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+// Set up PDF.js worker to match the installed version
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 export type HighlightAnn = {
   id: string;
@@ -86,7 +86,7 @@ export default function PdfAnnotator({
   if (!userId || userId === '') {
     return <div className="p-4">Benutzer nicht authentifiziert</div>;
   }
-  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [pages, setPages] = useState(0);
   const [scale, setScale] = useState(initialScale);
   const [anns, setAnns] = useState<Ann[]>([]);
@@ -98,13 +98,22 @@ export default function PdfAnnotator({
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const task = getDocument({ url: docUrl });
-      const doc = await task.promise;
-      if (!cancel) {
-        setPdf(doc);
-        setPages(doc.numPages);
+      try {
+        const loadingTask = pdfjsLib.getDocument({ url: docUrl });
+        const doc = await loadingTask.promise;
+        if (!cancel) {
+          setPdf(doc);
+          setPages(doc.numPages);
+        }
+      } catch (error) {
+        console.error("PDF loading error:", error);
+        if (!cancel) {
+          // Handle PDF loading error gracefully
+          setPdf(null);
+          setPages(0);
+        }
       }
-    })().catch(console.error);
+    })();
     return () => {
       cancel = true;
     };
@@ -128,7 +137,7 @@ export default function PdfAnnotator({
       });
   }, [debouncedAnns, docId, userId]);
 
-  if (!pdf) return <div className="p-4">PDF wird geladen …</div>;
+  if (!pdf) return <div className="p-4 text-center">PDF wird geladen …</div>;
 
   return (
     <div className="flex flex-col h-full">
@@ -186,7 +195,7 @@ function PageView({
   anns,
   setAnns,
 }: {
-  pdf: PDFDocumentProxy;
+  pdf: pdfjsLib.PDFDocumentProxy;
   pageNumber: number;
   scale: number;
   mode: "highlight" | "freetext" | "none";
