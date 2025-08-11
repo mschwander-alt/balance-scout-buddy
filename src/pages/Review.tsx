@@ -546,11 +546,28 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         throw error;
       }
 
-      // Update lokaler State für account groups
-      setAccountGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          assignments: group.assignments.map(assignment => {
+      // Update lokaler State - both account groups and assignments
+      if (isUsingGroups) {
+        setAccountGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            assignments: group.assignments.map(assignment => {
+              if (assignment.id === assignmentId) {
+                return {
+                  ...assignment,
+                  match_status: 'matched' as const,
+                  confidence_score: 1.0,
+                  matched_documents: updatedMatchedDocuments
+                };
+              }
+              return assignment;
+            })
+          }))
+        );
+      } else {
+        // Update assignments state for temp matches
+        setAssignments(prevAssignments => 
+          prevAssignments.map(assignment => {
             if (assignment.id === assignmentId) {
               return {
                 ...assignment,
@@ -561,8 +578,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             }
             return assignment;
           })
-        }))
-      );
+        );
+      }
 
       toast.success('Dokument erfolgreich zugewiesen');
       setSelectedDocumentForAssign(null);
@@ -608,8 +625,46 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           .eq('id', assignmentId);
       }
 
-      // Aktualisiere lokalen State
-      await loadData();
+      // Aktualisiere lokalen State - both account groups and assignments
+      if (isUsingGroups) {
+        setAccountGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            assignments: group.assignments.map(assignment => {
+              if (selectedAccountsForAssign.has(assignment.id)) {
+                const updatedMatchedDocuments = assignment.matched_documents 
+                  ? [...assignment.matched_documents, selectedDocumentForMultiAssign.id]
+                  : [selectedDocumentForMultiAssign.id];
+                return {
+                  ...assignment,
+                  match_status: 'matched' as const,
+                  confidence_score: 1.0,
+                  matched_documents: updatedMatchedDocuments
+                };
+              }
+              return assignment;
+            })
+          }))
+        );
+      } else {
+        // Update assignments state for temp matches
+        setAssignments(prevAssignments => 
+          prevAssignments.map(assignment => {
+            if (selectedAccountsForAssign.has(assignment.id)) {
+              const updatedMatchedDocuments = assignment.matched_documents 
+                ? [...assignment.matched_documents, selectedDocumentForMultiAssign.id]
+                : [selectedDocumentForMultiAssign.id];
+              return {
+                ...assignment,
+                match_status: 'matched' as const,
+                confidence_score: 1.0,
+                matched_documents: updatedMatchedDocuments
+              };
+            }
+            return assignment;
+          })
+        );
+      }
       
       toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konten zugewiesen`);
       setSearchQuery('');
@@ -671,8 +726,40 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           .eq('id', assignmentId);
       }
 
-      // Aktualisiere lokalen State
-      await loadData();
+      // Aktualisiere lokalen State - similar to multi-assign
+      if (isUsingGroups) {
+        await loadData(); // Keep loadData for groups as it's more complex
+      } else {
+        // Update assignments state for temp matches
+        setAssignments(prevAssignments => 
+          prevAssignments.map(assignment => {
+            // Remove from current assignment
+            if (assignment.id === selectedAccountData.id) {
+              const updatedMatchedDocuments = assignment.matched_documents?.filter(
+                docId => docId !== documentToReassign.id
+              ) || [];
+              return {
+                ...assignment,
+                matched_documents: updatedMatchedDocuments.length > 0 ? updatedMatchedDocuments : undefined,
+                match_status: updatedMatchedDocuments.length > 0 ? 'matched' as const : 'pending' as const
+              };
+            }
+            // Add to new assignments
+            if (selectedAccountsForAssign.has(assignment.id)) {
+              const updatedMatchedDocuments = assignment.matched_documents 
+                ? [...assignment.matched_documents, documentToReassign.id]
+                : [documentToReassign.id];
+              return {
+                ...assignment,
+                match_status: 'matched' as const,
+                confidence_score: 1.0,
+                matched_documents: updatedMatchedDocuments
+              };
+            }
+            return assignment;
+          })
+        );
+      }
       
       toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konto${selectedAccountsForAssign.size > 1 ? 'en' : ''} verschoben`);
       setSearchQuery('');
@@ -833,11 +920,31 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           )
         );
         
-        // Force a fresh data reload after assignment to update status indicators
-        // Don't trigger auto-match as it causes system overload
-        setTimeout(async () => {
-          await loadData();
-        }, 100);
+        // Update local state instead of full reload to prevent system overload
+        const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
+        if (!isUsingGroups) {
+          // Update assignments state for temp matches
+          setAssignments(prevAssignments => 
+            prevAssignments.map(assignment => {
+              if (assignment.id === accountId) {
+                const updatedMatchedDocuments = assignment.matched_documents 
+                  ? [...assignment.matched_documents, docData.id]
+                  : [docData.id];
+                return {
+                  ...assignment,
+                  match_status: 'matched' as const,
+                  matched_documents: updatedMatchedDocuments
+                };
+              }
+              return assignment;
+            })
+          );
+        } else {
+          // For groups, still use loadData but with a delay
+          setTimeout(async () => {
+            await loadData();
+          }, 100);
+        }
         
       } catch (assignError) {
         console.error('Assignment error:', assignError);
