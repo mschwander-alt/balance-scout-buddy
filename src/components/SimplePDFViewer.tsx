@@ -80,7 +80,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
       {/* PDF Viewer */}
       <div className="flex-1">
         <iframe
-          src={documentUrl}
+          src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
           className="w-full h-full border-0"
           title={document.file_name}
         />

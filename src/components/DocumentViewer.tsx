@@ -221,7 +221,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
         {isPDF && fileUrl ? (
           <div className="h-full w-full">
             <iframe
-              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(fileUrl)}`}
+              src={fileUrl}
               className="w-full h-full border-0"
               title={document.file_name}
             />
