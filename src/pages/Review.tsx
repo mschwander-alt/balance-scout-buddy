@@ -51,6 +51,7 @@ interface Document {
   file_path: string;
   file_type: string;
   file_size: number;
+  account_group_id?: string;
 }
 
 interface TrialBalanceData {
@@ -113,7 +114,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         });
       }
     });
-    return documents.filter(doc => !matchedDocumentIds.has(doc.id));
+    
+    // Filter out documents that are either in matched_documents or have been manually assigned to a group
+    return documents.filter(doc => 
+      !matchedDocumentIds.has(doc.id) && !doc.account_group_id
+    );
   }, [documents, assignments]);
 
   const loadData = useCallback(async () => {
