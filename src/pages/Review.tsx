@@ -107,6 +107,19 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
+    
+    // Collect matched documents from account groups
+    accountGroups.forEach(group => {
+      group.assignments.forEach(assignment => {
+        if (assignment.matched_documents) {
+          assignment.matched_documents.forEach(docId => {
+            matchedDocumentIds.add(docId);
+          });
+        }
+      });
+    });
+    
+    // Also collect matched documents from assignments (for temp_account_matches)
     assignments.forEach(assignment => {
       if (assignment.matched_documents) {
         assignment.matched_documents.forEach(docId => {
@@ -115,11 +128,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       }
     });
     
-    // Filter out documents that are either in matched_documents or have been manually assigned to a group
+    // Filter out documents that are either matched or have been manually assigned to a group
     return documents.filter(doc => 
       !matchedDocumentIds.has(doc.id) && !doc.account_group_id
     );
-  }, [documents, assignments]);
+  }, [documents, assignments, accountGroups]);
 
   const loadData = useCallback(async () => {
     if (!trialBalanceId || !user) return;
@@ -587,8 +600,25 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         }))
       );
 
-      // Also update documents list to ensure unmatched documents list is updated
-      setDocuments(prevDocs => [...prevDocs]);
+      // Also update assignments array for temp_account_matches if it's being used
+      setAssignments(prevAssignments => 
+        prevAssignments.map(assignment => {
+          if (assignment.id === assignmentId) {
+            return {
+              ...assignment,
+              match_status: 'matched' as const,
+              confidence_score: 1.0,
+              matched_documents: updatedMatchedDocuments
+            };
+          }
+          return assignment;
+        })
+      );
+
+      // Force refresh the unmatched documents list
+      setUnmatchedDocuments(prevUnmatched => 
+        prevUnmatched.filter(doc => doc.id !== documentId)
+      );
 
       toast.success('Dokument erfolgreich zugewiesen');
       setSelectedDocumentForAssign(null);
@@ -895,32 +925,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
       // Weise das Dokument automatisch dem Konto zu
       try {
+        // Add document to documents list first so handleManualAssign can find it
+        setDocuments(prevDocs => [...prevDocs, docData]);
+        
         await handleManualAssign(docData.id, accountId);
         console.log('Document assigned successfully to account:', accountId);
-        
-        // Update local state instead of full reload to prevent system overload
-        // ALWAYS update accountGroups since that's what the UI uses
-        setAccountGroups(prevGroups => 
-          prevGroups.map(group => ({
-            ...group,
-            assignments: group.assignments.map(assignment => {
-              if (assignment.id === accountId) {
-                const updatedMatchedDocuments = assignment.matched_documents 
-                  ? [...assignment.matched_documents, docData.id]
-                  : [docData.id];
-                return {
-                  ...assignment,
-                  match_status: 'matched' as const,
-                  matched_documents: updatedMatchedDocuments
-                };
-              }
-              return assignment;
-            })
-          }))
-        );
-        
-        // Update documents list to include the new document
-        setDocuments(prevDocs => [...prevDocs, docData]);
         
       } catch (assignError) {
         console.error('Assignment error:', assignError);
