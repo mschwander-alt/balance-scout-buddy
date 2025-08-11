@@ -12,11 +12,13 @@ import { supabase } from "@/integrations/supabase/client";
 // Import PDF.js components für v3.11.174
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-// WICHTIG: v3 verwendet .js, v4 würde .mjs verwenden
-import workerSrc from "pdfjs-dist/build/pdf.worker.min.js?url";
 
-// Worker selbst hosten - keine CDN-URL mehr!
-GlobalWorkerOptions.workerSrc = workerSrc;
+// Alternative Lösung: Worker-Port manuell setzen (universeller Ansatz)
+const worker = new Worker(
+  new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url),
+  { type: "module" }
+);
+GlobalWorkerOptions.workerPort = worker;
 
 export type HighlightAnn = {
   id: string;
