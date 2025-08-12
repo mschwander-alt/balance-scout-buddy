@@ -30,84 +30,47 @@ interface MatchResult {
   confidence: number;
 }
 
-// 1) Robuste PDF-Text Extraktion mit mehreren Fallback-Strategien
-async function extractPdfText(bytes: Uint8Array) {
-  // Strategie 1: unpdf Library (wenn verfügbar)
-  try {
-    const doc = await getDocumentProxy(bytes);
-    if (doc && typeof doc.getPage === 'function') {
-      const { text, pages } = await extractText(doc, { mergePages: false });
-      if (pages && Array.isArray(pages)) {
-        const pageTexts = pages.map(p => p?.text || '');
-        const full = pageTexts.join("\n\n");
-        const hasText = /\p{L}|\p{N}/u.test(full);
-        
-        if (hasText && full.length > 20) {
-          console.log('PDF extraction successful with unpdf');
-          return { text: full, pages: pageTexts, hasText: true };
-        }
-      }
+// 1) Verbesserte PDF-Text Extraktion mit Zeilen-Gruppierung
+async function extractPdfLines(bytes: Uint8Array) {
+  const doc = await getDocumentProxy(bytes);
+  const pages: string[][] = [];
+  let hasText = false;
+
+  const clean = (s: string) =>
+    s
+      .replace(/\u00A0|\u202F|\u2007/g, " ")   // NBSP/NNBSP -> Space
+      .replace(/[−–—]/g, "-")                 // verschiedene Minus
+      .replace(/·|•/g, ".")                   // OCR-Punkte
+      .replace(/\s+/g, " ")
+      .trim();
+
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc: any = await page.getTextContent();
+    if (tc.items?.length) hasText = true;
+
+    // items nach y gruppieren (Toleranz in PDF-User-Units)
+    const rows = new Map<number, { y: number; items: { x: number; str: string }[] }>();
+    const tol = 2; // Toleranz in PDF-Einheiten
+    for (const it of tc.items as any[]) {
+      const x = it.transform[4], y = it.transform[5];
+      // nächstliegende Zeile finden
+      let key: number | null = null;
+      for (const k of rows.keys()) if (Math.abs(k - y) < tol) { key = k; break; }
+      const k = key ?? y;
+      if (!rows.has(k)) rows.set(k, { y: k, items: [] });
+      rows.get(k)!.items.push({ x, str: clean(it.str) });
     }
-  } catch (error) {
-    console.log('unpdf extraction failed, trying fallback:', error.message);
+
+    // sortiere Zeilen nach y (oben->unten) und Items nach x
+    const lines = Array.from(rows.values())
+      .sort((a, b) => b.y - a.y)
+      .map(r => r.items.sort((a, b) => a.x - b.x).map(i => i.str).join(" ").trim())
+      .filter(Boolean);
+
+    pages.push(lines);
   }
-
-  // Strategie 2: Einfache Text-Suche in PDF-Bytes
-  try {
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const rawText = textDecoder.decode(bytes);
-    
-    // Extrahiere Text zwischen PDF-Streams
-    const textMatches = rawText.match(/BT\s*(.*?)\s*ET/gs) || [];
-    const extractedTexts = textMatches
-      .map(match => {
-        // Entferne PDF-Kommandos und extrahiere nur Text
-        return match
-          .replace(/BT|ET/g, '')
-          .replace(/\/\w+\s+\d+(?:\.\d+)?\s+Tf/g, '') // Font commands
-          .replace(/\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s+Td/g, '') // Position commands
-          .replace(/\(\s*(.*?)\s*\)\s*Tj/g, '$1') // Text drawing commands
-          .replace(/\[\s*(.*?)\s*\]\s*TJ/g, '$1') // Array text commands
-          .trim();
-      })
-      .filter(text => text.length > 0);
-
-    if (extractedTexts.length > 0) {
-      const fullText = extractedTexts.join('\n');
-      const hasText = /\p{L}|\p{N}/u.test(fullText);
-      
-      if (hasText) {
-        console.log('PDF extraction successful with fallback method');
-        return { text: fullText, pages: extractedTexts, hasText: true };
-      }
-    }
-  } catch (error) {
-    console.log('Fallback extraction failed:', error.message);
-  }
-
-  // Strategie 3: Rohe Byte-Suche nach lesbarem Text
-  try {
-    const textDecoder = new TextDecoder('utf-8', { fatal: false });
-    const rawText = textDecoder.decode(bytes);
-    
-    // Suche nach lesbaren Text-Segmenten
-    const readableText = rawText
-      .replace(/[^\x20-\x7E\s]/g, ' ') // Nur druckbare ASCII-Zeichen
-      .replace(/\s+/g, ' ')
-      .split(' ')
-      .filter(word => word.length > 2 && /[a-zA-Z]/.test(word))
-      .join(' ');
-
-    if (readableText.length > 50) {
-      console.log('PDF extraction with raw byte parsing');
-      return { text: readableText, pages: [readableText], hasText: true };
-    }
-  } catch (error) {
-    console.log('Raw byte extraction failed:', error.message);
-  }
-
-  console.log('All PDF extraction methods failed');
-  return { text: '', pages: [''], hasText: false };
+  return { hasText, pages }; // pages: string[][page][line]
 }
 
 // 2) OCR fallback using Google Vision API
@@ -143,107 +106,96 @@ async function ocrPdf(bytes: Uint8Array): Promise<string> {
   }
 }
 
-// 3) Swiss/German number parser
-const NUM_RE = /(?:\(|-)?\s*(?:CHF\s*)?((?:\d{1,3}(?:[.'\s]\d{3})*|\d+)(?:[.,]\d{2})?)(?:\s*\))?/g;
+// 3) Robuste Schweizer/Deutsche Zahlen-Erkennung
+const NUM_RE = /(?:\(|−|-)?\s*(?:CHF|SFr\.?|Fr\.?\s*)?((?:\d{1,3}(?:[.'\s]\d{3})*|\d+)(?:[.,]\d{2}|[.–-])?)(?:\s*\))?/g;
 
 function parseNumberCH(raw: string): number | null {
-  const s = raw
-    .replace(/\s+/g, "")
-    .replace(/^CHF/i, "")
-    .replace(/'/g, "")
-    .replace(/(\d)[.](?=\d{3}\b)/g, "$1") // 1.234.567 -> 1234567 (thousand separators)
-    .replace(/,(\d{2})$/, ".$1"); // ,cc -> .cc
-  
-  const neg = /^\(|-/.test(raw);
+  const neg = /^\s*[\(-]|−-/.test(raw) || /-\s*$/.test(raw);
+  let s = raw.replace(/\s+/g, "").replace(/^CHF|^SFr\.?|^Fr\.?/i, "").replace(/'/g, "");
+  s = s.replace(/([.,])(\d{2})$/, (_m, sep, c) => "." + c) // Dezimal
+       .replace(/[.–-]$/, ".00");                         // 100.– / 100.- -> 100.00
+  // Punkte als Tausender
+  s = s.replace(/(\d)[.](?=\d{3}\b)/g, "$1");
   const v = Number(s);
-  if (!isFinite(v)) return null;
-  return neg ? -v : v;
+  return isFinite(v) ? (neg ? -v : v) : null;
 }
 
-// 4) Context-based search for balance values
-function findSaldoValues(textByPage: string[], year: number): Hit[] {
+// 4) Kontext-sensitives Suchen nach Saldo-Werten (zeilen-basiert)
+function findSaldoValuesFromLines(pageLines: string[][], year: number): Hit[] {
   const hits: Hit[] = [];
-  const KEY_RE = new RegExp(
-    `\\b(Saldo(?:bilanz)?|Saldo\\s*Vor(?:trag)?|Saldo\\s*Buchungsjahr|Saldo\\s*${year}|Bilanz|Balance|Total|Summe)\\b`,
-    "i"
-  );
+  const KEY = new RegExp(`\\b(Saldo(?:bilanz)?|Saldo\\s*Vor(?:trag)?|Saldo\\s*Buchungsjahr|Saldo\\s*${year}|Bilanz|Balance|Total|Summe)\\b`, "i");
 
-  textByPage.forEach((pageText, idx) => {
-    const lines = pageText.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (!KEY_RE.test(line)) continue;
-
-      // Take the last number in the line (typical: ... Soll Haben Saldo)
-      let last: Hit | null = null;
-      for (const m of line.matchAll(NUM_RE)) {
-        const raw = m[0];
-        const n = parseNumberCH(raw);
-        if (n != null) last = { page: idx + 1, line, value: n, raw };
-      }
-      if (last) hits.push(last);
-
-      // If line only has header, search in next line
-      if (KEY_RE.test(line) && !NUM_RE.test(line) && lines[i + 1]) {
-        for (const m of lines[i + 1].matchAll(NUM_RE)) {
+  pageLines.forEach((lines, pIdx) => {
+    lines.forEach((line, i) => {
+      const srcs = [line];
+      if (KEY.test(line) && lines[i + 1]) srcs.push(lines[i + 1]); // nächste Zeile als Fallback
+      for (const src of srcs) {
+        let last: Hit | null = null;
+        for (const m of src.matchAll(NUM_RE)) {
           const n = parseNumberCH(m[0]);
-          if (n != null) {
-            hits.push({ 
-              page: idx + 1, 
-              line: lines[i + 1], 
-              value: n, 
-              raw: m[0] 
-            });
-          }
+          if (n != null) last = { page: pIdx + 1, line: src, value: n, raw: m[0] };
         }
+        if (last) hits.push(last);
       }
-    }
+    });
   });
-
   return hits;
 }
 
-// 5) Unified text extraction with OCR fallback
-async function getTextSmart(bytes: Uint8Array) {
-  const { text, pages, hasText } = await extractPdfText(bytes);
-  if (hasText && text.length > 50) {
-    return { text, pages, method: 'pdf-extract' };
+// 5) Verbessertes Scoring mit Kontext-Bonus
+function scoreMatch(hit: Hit, exp: number, konto?: string) {
+  const tol = Math.max(0.05, 0.002 * Math.abs(exp)); // dynamische Toleranz (0.2%)
+  const diff = Math.abs(hit.value - Math.abs(exp));
+  let conf = Math.max(0, 1 - diff / (Math.abs(exp) + 1));
+  
+  // Bonus wenn Kontonummer in derselben Zeile vorkommt
+  if (konto && new RegExp(`\\b${konto}\\b`).test(hit.line)) {
+    conf += 0.15;
   }
   
-  console.log('PDF has no extractable text, trying OCR...');
-  const ocr = await ocrPdf(bytes);
-  return { text: ocr, pages: [ocr], method: 'ocr' };
+  return { diff, conf: Math.min(1, conf), ok: diff <= tol };
 }
 
-// 6) Match balances against expected values
-function matchSaldos(
-  hits: Hit[],
-  expected: ExpectedSaldo[],
-  tolerance = 0.05
-): MatchResult[] {
+// 6) Verbessertes Matching mit dynamischem Scoring
+function matchSaldos(hits: Hit[], expected: ExpectedSaldo[]): MatchResult[] {
   return expected.map(exp => {
-    let best: Hit | null = null;
-    let bestDiff = Infinity;
+    let best: { h: Hit; diff: number; conf: number } | null = null;
     
     for (const hit of hits) {
-      const diff = Math.abs(hit.value - Math.abs(exp.wert));
-      if (diff < bestDiff) {
-        best = hit;
-        bestDiff = diff;
+      const score = scoreMatch(hit, exp.wert, exp.konto);
+      if (!best || score.diff < best.diff) {
+        best = { h: hit, diff: score.diff, conf: score.conf };
       }
     }
-    
-    const confidence = best ? Math.max(0, 1 - (bestDiff / Math.abs(exp.wert))) : 0;
     
     return {
       konto: exp.konto,
       expected: exp.wert,
-      hit: best,
-      diff: best ? bestDiff : null,
-      confidence: confidence
+      hit: best?.h ?? null,
+      diff: best?.diff ?? null,
+      confidence: best?.conf ?? 0
     };
   });
+}
+
+// 7) Verbesserte Text-Extraktion mit Fallback auf OCR
+async function getTextSmart(bytes: Uint8Array) {
+  // 1) Versuche digitale PDF-Extraktion
+  try {
+    const { pages: pageLines, hasText } = await extractPdfLines(bytes);
+    if (hasText) {
+      console.log('PDF extraction successful with line-based method');
+      return { pageLines, method: "pdfjs" };
+    }
+  } catch (e) { 
+    console.log("pdfjs extract failed", e); 
+  }
+
+  // 2) Fallback auf OCR
+  console.log('PDF has no extractable text, trying OCR...');
+  const ocrText = await ocrPdf(bytes);
+  const pageLines = ocrText ? [ocrText.split(/\r?\n/).map(s => s.trim()).filter(Boolean)] : [[]];
+  return { pageLines, method: "ocr" };
 }
 
 serve(async (req) => {
@@ -348,18 +300,18 @@ serve(async (req) => {
         const bytes = new Uint8Array(await fileData.arrayBuffer());
 
         // Extract text using improved method
-        const { pages, method } = await getTextSmart(bytes);
+        const { pageLines, method } = await getTextSmart(bytes);
         console.log(`Text extraction method for ${doc.file_name}: ${method}`);
 
-        // Find balance values in context
-        const hits = findSaldoValues(pages, currentYear);
+        // Find balance values in context using improved line-based search
+        const hits = findSaldoValuesFromLines(pageLines, currentYear);
         console.log(`Found ${hits.length} potential balance values in ${doc.file_name}`);
 
         if (hits.length === 0) continue;
 
-        // Match against expected balances
-        const matches = matchSaldos(hits, expectedSaldos, 0.05);
-        const goodMatches = matches.filter(m => m.confidence > 0.7);
+        // Match against expected balances with improved scoring
+        const matches = matchSaldos(hits, expectedSaldos);
+        const goodMatches = matches.filter(m => m.confidence > 0.75); // Höhere Schwelle für bessere Qualität
 
         console.log(`Found ${goodMatches.length} high-confidence matches in ${doc.file_name}`);
 
