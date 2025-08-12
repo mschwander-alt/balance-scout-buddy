@@ -30,18 +30,84 @@ interface MatchResult {
   confidence: number;
 }
 
-// 1) Digital PDF → Text extraction
+// 1) Robuste PDF-Text Extraktion mit mehreren Fallback-Strategien
 async function extractPdfText(bytes: Uint8Array) {
+  // Strategie 1: unpdf Library (wenn verfügbar)
   try {
     const doc = await getDocumentProxy(bytes);
-    const { text, pages } = await extractText(doc, { mergePages: false });
-    const full = pages.map(p => p.text).join("\n\n");
-    const hasText = /\p{L}|\p{N}/u.test(full);
-    return { text: full, pages: pages.map(p => p.text), hasText };
+    if (doc && typeof doc.getPage === 'function') {
+      const { text, pages } = await extractText(doc, { mergePages: false });
+      if (pages && Array.isArray(pages)) {
+        const pageTexts = pages.map(p => p?.text || '');
+        const full = pageTexts.join("\n\n");
+        const hasText = /\p{L}|\p{N}/u.test(full);
+        
+        if (hasText && full.length > 20) {
+          console.log('PDF extraction successful with unpdf');
+          return { text: full, pages: pageTexts, hasText: true };
+        }
+      }
+    }
   } catch (error) {
-    console.error('PDF text extraction failed:', error);
-    return { text: '', pages: [''], hasText: false };
+    console.log('unpdf extraction failed, trying fallback:', error.message);
   }
+
+  // Strategie 2: Einfache Text-Suche in PDF-Bytes
+  try {
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const rawText = textDecoder.decode(bytes);
+    
+    // Extrahiere Text zwischen PDF-Streams
+    const textMatches = rawText.match(/BT\s*(.*?)\s*ET/gs) || [];
+    const extractedTexts = textMatches
+      .map(match => {
+        // Entferne PDF-Kommandos und extrahiere nur Text
+        return match
+          .replace(/BT|ET/g, '')
+          .replace(/\/\w+\s+\d+(?:\.\d+)?\s+Tf/g, '') // Font commands
+          .replace(/\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s+Td/g, '') // Position commands
+          .replace(/\(\s*(.*?)\s*\)\s*Tj/g, '$1') // Text drawing commands
+          .replace(/\[\s*(.*?)\s*\]\s*TJ/g, '$1') // Array text commands
+          .trim();
+      })
+      .filter(text => text.length > 0);
+
+    if (extractedTexts.length > 0) {
+      const fullText = extractedTexts.join('\n');
+      const hasText = /\p{L}|\p{N}/u.test(fullText);
+      
+      if (hasText) {
+        console.log('PDF extraction successful with fallback method');
+        return { text: fullText, pages: extractedTexts, hasText: true };
+      }
+    }
+  } catch (error) {
+    console.log('Fallback extraction failed:', error.message);
+  }
+
+  // Strategie 3: Rohe Byte-Suche nach lesbarem Text
+  try {
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    const rawText = textDecoder.decode(bytes);
+    
+    // Suche nach lesbaren Text-Segmenten
+    const readableText = rawText
+      .replace(/[^\x20-\x7E\s]/g, ' ') // Nur druckbare ASCII-Zeichen
+      .replace(/\s+/g, ' ')
+      .split(' ')
+      .filter(word => word.length > 2 && /[a-zA-Z]/.test(word))
+      .join(' ');
+
+    if (readableText.length > 50) {
+      console.log('PDF extraction with raw byte parsing');
+      return { text: readableText, pages: [readableText], hasText: true };
+    }
+  } catch (error) {
+    console.log('Raw byte extraction failed:', error.message);
+  }
+
+  console.log('All PDF extraction methods failed');
+  return { text: '', pages: [''], hasText: false };
 }
 
 // 2) OCR fallback using Google Vision API
