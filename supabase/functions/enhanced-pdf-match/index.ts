@@ -175,16 +175,35 @@ function findSaldoValuesFromLines(pageLines: string[][], year: number): Hit[] {
 
 // 5) Verbessertes Scoring mit Kontext-Bonus
 function scoreMatch(hit: Hit, exp: number, konto?: string) {
-  const tol = Math.max(0.05, 0.002 * Math.abs(exp)); // dynamische Toleranz (0.2%)
-  const diff = Math.abs(hit.value - Math.abs(exp));
-  let conf = Math.max(0, 1 - diff / (Math.abs(exp) + 1));
+  const expectedAbs = Math.abs(exp);
+  const hitAbs = Math.abs(hit.value);
+  
+  // Verwende relative Toleranz basierend auf der Größe der erwarteten Zahl
+  const relativeTol = expectedAbs * 0.02; // 2% Toleranz
+  const absoluteTol = Math.max(1, relativeTol); // Mindestens 1 CHF Toleranz
+  
+  const diff = Math.abs(hitAbs - expectedAbs);
+  
+  // Scoring: Perfekte Matches bekommen höchste Punkte
+  let conf = 0;
+  if (diff <= absoluteTol) {
+    conf = Math.max(0.8, 1 - (diff / absoluteTol) * 0.2); // 80-100% für gute Matches
+  } else {
+    // Zu große Abweichungen bekommen sehr niedrige Scores
+    conf = Math.max(0, 0.5 - (diff / expectedAbs)); // Sehr niedrig für schlechte Matches
+  }
   
   // Bonus wenn Kontonummer in derselben Zeile vorkommt
   if (konto && new RegExp(`\\b${konto}\\b`).test(hit.line)) {
     conf += 0.15;
   }
   
-  return { diff, conf: Math.min(1, conf), ok: diff <= tol };
+  return { 
+    diff, 
+    conf: Math.min(1, conf), 
+    ok: diff <= absoluteTol,
+    reason: `Expected: ${expectedAbs}, Found: ${hitAbs}, Diff: ${diff.toFixed(2)}, Tolerance: ${absoluteTol.toFixed(2)}`
+  };
 }
 
 // 6) Verbessertes Matching mit Unique-Assignment-Logik
@@ -393,16 +412,23 @@ serve(async (req) => {
 
         // Match against expected balances with improved scoring
         const matches = matchSaldos(hits, expectedSaldos);
-        const goodMatches = matches.filter(m => m.confidence > 0.75); // Höhere Schwelle für bessere Qualität
+        const goodMatches = matches.filter(m => m.confidence > 0.8 && m.hit); // Viel höhere Schwelle für präzise Matches
+        
+        console.log(`Found ${goodMatches.length} high-confidence matches in ${doc.file_name}:`, 
+          goodMatches.map(m => `${m.konto}: ${m.confidence.toFixed(3)}`));
 
-        console.log(`Found ${goodMatches.length} high-confidence matches in ${doc.file_name}`);
-
-        // Update database with matches
+        // Update database with matches - NUR die besten Matches pro Dokument
+        const processedAccounts = new Set<string>();
+        
         for (const match of goodMatches) {
-          if (!match.hit || !match.hit.value) continue;
-
+          if (!match.hit || !match.hit.value || processedAccounts.has(match.konto)) continue;
+          
           const expectedSaldo = expectedSaldos.find(e => e.konto === match.konto);
           if (!expectedSaldo?.accountId) continue;
+          
+          console.log(`Matching account ${match.konto} with confidence ${match.confidence.toFixed(3)}: Expected ${expectedSaldo.wert}, Found ${match.hit.value}`);
+          
+          processedAccounts.add(match.konto);
 
           if (accountGroups && accountGroups.length > 0) {
             // Update grouped accounts
