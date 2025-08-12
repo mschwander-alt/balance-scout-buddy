@@ -32,45 +32,68 @@ interface MatchResult {
 
 // 1) Verbesserte PDF-Text Extraktion mit Zeilen-Gruppierung
 async function extractPdfLines(bytes: Uint8Array) {
-  const doc = await getDocumentProxy(bytes);
-  const pages: string[][] = [];
-  let hasText = false;
-
-  const clean = (s: string) =>
-    s
-      .replace(/\u00A0|\u202F|\u2007/g, " ")   // NBSP/NNBSP -> Space
-      .replace(/[−–—]/g, "-")                 // verschiedene Minus
-      .replace(/·|•/g, ".")                   // OCR-Punkte
-      .replace(/\s+/g, " ")
-      .trim();
-
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const tc: any = await page.getTextContent();
-    if (tc.items?.length) hasText = true;
-
-    // items nach y gruppieren (Toleranz in PDF-User-Units)
-    const rows = new Map<number, { y: number; items: { x: number; str: string }[] }>();
-    const tol = 2; // Toleranz in PDF-Einheiten
-    for (const it of tc.items as any[]) {
-      const x = it.transform[4], y = it.transform[5];
-      // nächstliegende Zeile finden
-      let key: number | null = null;
-      for (const k of rows.keys()) if (Math.abs(k - y) < tol) { key = k; break; }
-      const k = key ?? y;
-      if (!rows.has(k)) rows.set(k, { y: k, items: [] });
-      rows.get(k)!.items.push({ x, str: clean(it.str) });
+  try {
+    const doc = await getDocumentProxy(bytes);
+    if (!doc || typeof doc.getPage !== 'function') {
+      return { hasText: false, pages: [] };
     }
 
-    // sortiere Zeilen nach y (oben->unten) und Items nach x
-    const lines = Array.from(rows.values())
-      .sort((a, b) => b.y - a.y)
-      .map(r => r.items.sort((a, b) => a.x - b.x).map(i => i.str).join(" ").trim())
-      .filter(Boolean);
+    const pages: string[][] = [];
+    let hasText = false;
 
-    pages.push(lines);
+    const clean = (s: string) =>
+      s
+        .replace(/\u00A0|\u202F|\u2007/g, " ")   // NBSP/NNBSP -> Space
+        .replace(/[−–—]/g, "-")                 // verschiedene Minus
+        .replace(/·|•/g, ".")                   // OCR-Punkte
+        .replace(/\s+/g, " ")
+        .trim();
+
+    for (let p = 1; p <= doc.numPages; p++) {
+      try {
+        const page = await doc.getPage(p);
+        const tc: any = await page.getTextContent();
+        if (tc.items?.length) hasText = true;
+
+        // items nach y gruppieren (Toleranz in PDF-User-Units)
+        const rows = new Map<number, { y: number; items: { x: number; str: string }[] }>();
+        const tol = 2; // Toleranz in PDF-Einheiten
+        
+        for (const it of tc.items as any[]) {
+          if (!it.transform || it.transform.length < 6) continue;
+          const x = it.transform[4], y = it.transform[5];
+          
+          // nächstliegende Zeile finden
+          let key: number | null = null;
+          for (const k of rows.keys()) {
+            if (Math.abs(k - y) < tol) { 
+              key = k; 
+              break; 
+            }
+          }
+          const k = key ?? y;
+          if (!rows.has(k)) rows.set(k, { y: k, items: [] });
+          rows.get(k)!.items.push({ x, str: clean(it.str || '') });
+        }
+
+        // sortiere Zeilen nach y (oben->unten) und Items nach x
+        const lines = Array.from(rows.values())
+          .sort((a, b) => b.y - a.y)
+          .map(r => r.items.sort((a, b) => a.x - b.x).map(i => i.str).join(" ").trim())
+          .filter(Boolean);
+
+        pages.push(lines);
+      } catch (pageError) {
+        console.log(`Error processing page ${p}:`, pageError);
+        pages.push([]);
+      }
+    }
+    
+    return { hasText, pages }; // pages: string[][page][line]
+  } catch (error) {
+    console.log('extractPdfLines failed:', error);
+    return { hasText: false, pages: [] };
   }
-  return { hasText, pages }; // pages: string[][page][line]
 }
 
 // 2) OCR fallback using Google Vision API
