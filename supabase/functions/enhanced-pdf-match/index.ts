@@ -138,7 +138,8 @@ async function ocrPdf(bytes: Uint8Array): Promise<string> {
 }
 
 // 3) Robuste Schweizer/Deutsche Zahlen-Erkennung
-const NUM_RE = /(?:\(|−|-)?\s*(?:CHF|SFr\.?|Fr\.?\s*)?((?:\d{1,3}(?:[.'\s]\d{3})*|\d+)(?:[.,]\d{2}|[.–-])?)(?:\s*\))?/g;
+const MONEY_RE = /(?<!\w)(?:\(|−|-)?\s*(?:CFr\.?|Fr\.?\s*)?((?:\d{1,3}(?:[.'\s]\d{3})*|\d+)(?:[.,]\d{2}|[.–-]))\s*(?:\))?(?!\w)/g;
+
 
 function parseNumberCH(raw: string): number | null {
   const neg = /^\s*[\(-]|−-/.test(raw) || /-\s*$/.test(raw);

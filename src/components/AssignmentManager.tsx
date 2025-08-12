@@ -21,7 +21,7 @@ interface AccountGroup {
   name: string;
   description?: string;
   assigned_member_id?: string;
-  assigned_member?: TeamMember;
+  assigned_member?: TeamMember | null;
   status: 'pending' | 'in_progress' | 'completed' | 'reviewed';
   account_count: number;
   is_temp?: boolean; // For temp account matches
@@ -35,7 +35,7 @@ interface AssignmentManagerProps {
 const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentManagerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [accountGroups, setAccountGroups] = useState<AccountGroup[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,11 +43,29 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trialBalanceId]);
 
+  /** Einmaliger Trigger des verbesserten PDF-Matchings */
+  async function runEnhancedMatch() {
+    console.info('[match] invoking enhanced-pdf-match', { trialBalanceId });
+    const { data, error } = await supabase.functions.invoke('enhanced-pdf-match', {
+      body: { trial_balance_id: trialBalanceId },
+      headers: { 'x-debug': '1' }, // Debug aktiv; kann später entfernt werden
+    });
+
+    if (error) {
+      console.error('[match] enhanced-pdf-match error', error);
+      throw error;
+    }
+    console.info('[match] enhanced-pdf-match response', data);
+    return data;
+  }
+
   const loadData = async () => {
+    setIsLoading(true);
     try {
-      // First, check if we have account groups
+      // 1) Prüfe, ob Account-Gruppen existieren
       const { data: groupsData, error: groupsError } = await supabase
         .from('account_groups')
         .select(`
@@ -63,7 +81,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
       let groups: AccountGroup[] = [];
 
       if (groupsData && groupsData.length > 0) {
-        // We have account groups, use them
+        // Wir haben echte Gruppen
         groups = groupsData.map(group => ({
           id: group.id,
           name: group.name,
@@ -72,10 +90,10 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
           assigned_member: group.assigned_member,
           status: group.status as AccountGroup['status'],
           account_count: group.account_group_assignments?.length || 0,
-          is_temp: false
+          is_temp: false,
         }));
       } else {
-        // No account groups, check for temp matches and create them if needed
+        // 2) Keine Gruppen → temp_account_matches prüfen
         const { data: tempMatchesData, error: tempError } = await supabase
           .from('temp_account_matches')
           .select('*')
@@ -84,16 +102,11 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
         if (tempError) throw tempError;
 
+        // Wenn gar keine temp matches existieren: verbessertes Matching starten und danach nochmal laden
         if (!tempMatchesData || tempMatchesData.length === 0) {
-          // No temp matches exist, create them using the unified auto-match function
           try {
-            const { data: matchResult, error: matchError } = await supabase.functions.invoke('unified-auto-match', {
-              body: { trial_balance_id: trialBalanceId }
-            });
+            await runEnhancedMatch();
 
-            if (matchError) throw matchError;
-
-            // Reload temp matches after creation
             const { data: newTempMatchesData, error: newTempError } = await supabase
               .from('temp_account_matches')
               .select('*')
@@ -101,21 +114,20 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
               .order('account_number', { ascending: true });
 
             if (newTempError) throw newTempError;
-            
+
             if (newTempMatchesData && newTempMatchesData.length > 0) {
-              // Load team members for assigned temp matches
               const tempMatchesWithMembers = await Promise.all(
                 newTempMatchesData.map(async (match) => {
-                  let assignedMember = null;
+                  let assignedMember: TeamMember | null = null;
                   if (match.assigned_member_id) {
                     const { data: memberData } = await supabase
                       .from('team_members')
                       .select('*')
                       .eq('id', match.assigned_member_id)
                       .single();
-                    assignedMember = memberData;
+                    assignedMember = memberData as TeamMember | null;
                   }
-                  
+
                   return {
                     id: match.id,
                     name: `${match.account_number} - ${match.account_name}`,
@@ -124,35 +136,41 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                     assigned_member: assignedMember,
                     status: (match.match_status === 'assigned' ? 'in_progress' : 'pending') as AccountGroup['status'],
                     account_count: 1,
-                    is_temp: true
-                  };
+                    is_temp: true,
+                  } as AccountGroup;
                 })
               );
-              
               groups = tempMatchesWithMembers;
+            } else {
+              // Noch immer nichts? Dann nüchtern informieren.
+              toast({
+                title: 'Keine Konten gefunden',
+                description:
+                  'Es wurden keine temporären Konten angelegt. Bitte prüfen Sie, ob die Saldobilanz korrekt importiert wurde.',
+              });
             }
-          } catch (error) {
-            console.error('Error creating temp matches:', error);
+          } catch (error: any) {
+            console.error('Error running enhanced-pdf-match:', error);
             toast({
-              title: "Fehler beim Erstellen der temporären Zuordnungen",
-              description: "Die Konten konnten nicht geladen werden.",
-              variant: "destructive",
+              title: 'Fehler beim Starten des Abgleichs',
+              description: error?.message ?? 'Die Funktion enhanced-pdf-match konnte nicht ausgeführt werden.',
+              variant: 'destructive',
             });
           }
-        } else if (tempMatchesData && tempMatchesData.length > 0) {
-          // Load team members for existing temp matches
+        } else {
+          // Es gibt bereits temp matches → anreichern
           const tempMatchesWithMembers = await Promise.all(
             tempMatchesData.map(async (match) => {
-              let assignedMember = null;
+              let assignedMember: TeamMember | null = null;
               if (match.assigned_member_id) {
                 const { data: memberData } = await supabase
                   .from('team_members')
                   .select('*')
                   .eq('id', match.assigned_member_id)
                   .single();
-                assignedMember = memberData;
+                assignedMember = memberData as TeamMember | null;
               }
-              
+
               return {
                 id: match.id,
                 name: `${match.account_number} - ${match.account_name}`,
@@ -161,32 +179,31 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                 assigned_member: assignedMember,
                 status: (match.match_status === 'assigned' ? 'in_progress' : 'pending') as AccountGroup['status'],
                 account_count: 1,
-                is_temp: true
-              };
+                is_temp: true,
+              } as AccountGroup;
             })
           );
-          
+
           groups = tempMatchesWithMembers;
         }
       }
 
       setAccountGroups(groups);
 
-      // Load team members
+      // 3) Team-Mitglieder laden
       const { data: membersData, error: membersError } = await supabase
         .from('team_members')
         .select('*')
         .order('name', { ascending: true });
 
       if (membersError) throw membersError;
-      setTeamMembers(membersData || []);
-
+      setTeamMembers((membersData as TeamMember[]) || []);
     } catch (error: any) {
       console.error('Error loading assignment data:', error);
       toast({
-        title: "Fehler beim Laden der Zuordnungen",
+        title: 'Fehler beim Laden der Zuordnungen',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -194,38 +211,31 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
   };
 
   const handleAssignmentChange = (groupId: string, memberId: string) => {
-    // Convert "unassigned" back to empty string for database
-    const actualMemberId = memberId === "unassigned" ? "" : memberId;
-    setPendingAssignments(prev => ({
-      ...prev,
-      [groupId]: actualMemberId
-    }));
+    const actualMemberId = memberId === 'unassigned' ? '' : memberId;
+    setPendingAssignments(prev => ({ ...prev, [groupId]: actualMemberId }));
   };
 
   const saveAssignment = async (groupId: string) => {
     const memberId = pendingAssignments[groupId];
     const group = accountGroups.find(g => g.id === groupId);
-    
+
     try {
       let error;
-      
       if (group?.is_temp) {
-        // Update temp_account_matches table
         const { error: tempError } = await supabase
           .from('temp_account_matches')
           .update({
             assigned_member_id: memberId || null,
-            match_status: memberId ? 'assigned' : 'pending'
+            match_status: memberId ? 'assigned' : 'pending',
           })
           .eq('id', groupId);
         error = tempError;
       } else {
-        // Update account_groups table
         const { error: groupError } = await supabase
           .from('account_groups')
           .update({
             assigned_member_id: memberId || null,
-            status: memberId ? 'pending' : 'pending'
+            status: memberId ? 'pending' : 'pending',
           })
           .eq('id', groupId);
         error = groupError;
@@ -234,11 +244,10 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
       if (error) throw error;
 
       toast({
-        title: "Zuordnung gespeichert",
-        description: memberId ? "Team-Mitglied wurde zugeordnet" : "Zuordnung wurde entfernt",
+        title: 'Zuordnung gespeichert',
+        description: memberId ? 'Team-Mitglied wurde zugeordnet' : 'Zuordnung wurde entfernt',
       });
 
-      // Remove from pending and reload data
       setPendingAssignments(prev => {
         const updated = { ...prev };
         delete updated[groupId];
@@ -247,13 +256,12 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
 
       loadData();
       onAssignmentsUpdated?.();
-
     } catch (error: any) {
       console.error('Error saving assignment:', error);
       toast({
-        title: "Fehler beim Speichern",
+        title: 'Fehler beim Speichern',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
     }
   };
@@ -265,43 +273,40 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
     try {
       for (const [groupId, memberId] of updates) {
         const group = accountGroups.find(g => g.id === groupId);
-        
+
         if (group?.is_temp) {
-          // Update temp_account_matches table
           await supabase
             .from('temp_account_matches')
             .update({
               assigned_member_id: memberId || null,
-              match_status: memberId ? 'assigned' : 'pending'
+              match_status: memberId ? 'assigned' : 'pending',
             })
             .eq('id', groupId);
         } else {
-          // Update account_groups table
           await supabase
             .from('account_groups')
             .update({
               assigned_member_id: memberId || null,
-              status: memberId ? 'pending' : 'pending'
+              status: memberId ? 'pending' : 'pending',
             })
             .eq('id', groupId);
         }
       }
 
       toast({
-        title: "Bulk-Zuordnung abgeschlossen",
+        title: 'Bulk-Zuordnung abgeschlossen',
         description: `${updates.length} Gruppierungen wurden aktualisiert`,
       });
 
       setPendingAssignments({});
       loadData();
       onAssignmentsUpdated?.();
-
     } catch (error: any) {
       console.error('Error in bulk assignment:', error);
       toast({
-        title: "Fehler bei Bulk-Zuordnung",
+        title: 'Fehler bei Bulk-Zuordnung',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
     }
   };
@@ -326,14 +331,14 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
       pending: 'secondary',
       in_progress: 'outline',
       completed: 'default',
-      reviewed: 'default'
+      reviewed: 'default',
     } as const;
 
     const labels = {
       pending: 'Ausstehend',
       in_progress: 'In Bearbeitung',
       completed: 'Abgeschlossen',
-      reviewed: 'Geprüft'
+      reviewed: 'Geprüft',
     };
 
     return <Badge variant={variants[status]}>{labels[status]}</Badge>;
@@ -345,7 +350,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
     const unassigned = total - assigned;
     const byMember = teamMembers.map(member => ({
       member,
-      count: accountGroups.filter(g => g.assigned_member_id === member.id).length
+      count: accountGroups.filter(g => g.assigned_member_id === member.id).length,
     }));
 
     return { total, assigned, unassigned, byMember };
@@ -407,9 +412,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                   <span className="font-medium">{member.name}</span>
                   <span className="text-sm text-muted-foreground">({member.role})</span>
                 </div>
-                <Badge variant={count > 0 ? "default" : "secondary"}>
-                  {count} Gruppen
-                </Badge>
+                <Badge variant={count > 0 ? 'default' : 'secondary'}>{count} Gruppen</Badge>
               </div>
             ))}
           </div>
@@ -478,9 +481,11 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={pendingAssignments[group.id] !== undefined 
-                          ? (pendingAssignments[group.id] || "unassigned")
-                          : (group.assigned_member_id || "unassigned")}
+                        value={
+                          pendingAssignments[group.id] !== undefined
+                            ? (pendingAssignments[group.id] || 'unassigned')
+                            : (group.assigned_member_id || 'unassigned')
+                        }
                         onValueChange={(value) => handleAssignmentChange(group.id, value)}
                       >
                         <SelectTrigger className="w-full">
@@ -501,9 +506,7 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
                         <Button
                           size="sm"
                           onClick={() => saveAssignment(group.id)}
-                          disabled={
-                            (pendingAssignments[group.id] || "") === (group.assigned_member_id || "")
-                          }
+                          disabled={(pendingAssignments[group.id] || '') === (group.assigned_member_id || '')}
                         >
                           Speichern
                         </Button>
