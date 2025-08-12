@@ -238,8 +238,11 @@ function jsonResponse(obj: unknown, status = 200) {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  console.log(`Request method: ${req.method}, URL: ${req.url}`);
+  
+  // Handle CORS preflight requests FIRST
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response(null, { 
       status: 200,
       headers: corsHeaders 
@@ -247,7 +250,11 @@ serve(async (req) => {
   }
 
   try {
-    const { trial_balance_id } = await req.json();
+    console.log('Processing request body...');
+    const body = await req.json();
+    console.log('Request body received:', body);
+    
+    const { trial_balance_id } = body;
     
     if (!trial_balance_id) {
       throw new Error('trial_balance_id is required');
