@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0';
 import { extractText, getDocumentProxy } from "npm:unpdf";
+import { encode as base64encode } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,8 +105,14 @@ async function ocrPdf(bytes: Uint8Array): Promise<string> {
     return '';
   }
 
+  // Check file size limits (Vision API has ~20MB limit)
+  if (bytes.byteLength > 9_000_000) {
+    console.warn(`PDF too large for OCR: ${bytes.byteLength} bytes`);
+    return '';
+  }
+
   try {
-    const base64 = btoa(String.fromCharCode(...bytes));
+    const base64 = base64encode(bytes);
     const res = await fetch(
       `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
       {
@@ -219,6 +226,14 @@ async function getTextSmart(bytes: Uint8Array) {
   const ocrText = await ocrPdf(bytes);
   const pageLines = ocrText ? [ocrText.split(/\r?\n/).map(s => s.trim()).filter(Boolean)] : [[]];
   return { pageLines, method: "ocr" };
+}
+
+// Helper function for JSON responses
+function jsonResponse(obj: unknown, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
 serve(async (req) => {
@@ -370,12 +385,22 @@ serve(async (req) => {
           totalMatches++;
         }
 
+        // Limit details to prevent large responses
+        const trimmedMatches = goodMatches.slice(0, 20).map(m => ({
+          konto: m.konto,
+          expected: m.expected,
+          diff: m.diff,
+          confidence: m.confidence,
+          page: m.hit?.page,
+          snippet: m.hit ? m.hit.line.slice(0, 150) : null
+        }));
+
         allMatches.push({
           document: doc.file_name,
           method,
           hits: hits.length,
           matches: goodMatches.length,
-          details: goodMatches
+          details: trimmedMatches
         });
 
       } catch (error) {
@@ -383,24 +408,23 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({
+    return jsonResponse({
       success: true,
       total_documents: documents.length,
       total_matches: totalMatches,
       expected_accounts: expectedSaldos.length,
       details: allMatches
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('Enhanced PDF matching error:', error);
-    return new Response(JSON.stringify({
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    
+    return jsonResponse({
       success: false,
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+      error: errorMessage,
+      stack: stack
+    }, 500);
   }
 });
