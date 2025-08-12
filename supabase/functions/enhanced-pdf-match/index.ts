@@ -187,26 +187,58 @@ function scoreMatch(hit: Hit, exp: number, konto?: string) {
   return { diff, conf: Math.min(1, conf), ok: diff <= tol };
 }
 
-// 6) Verbessertes Matching mit dynamischem Scoring
+// 6) Verbessertes Matching mit Unique-Assignment-Logik
 function matchSaldos(hits: Hit[], expected: ExpectedSaldo[]): MatchResult[] {
-  return expected.map(exp => {
-    let best: { h: Hit; diff: number; conf: number } | null = null;
-    
+  const usedHits = new Set<Hit>();
+  const results: MatchResult[] = [];
+  
+  // Erste alle möglichen Kombinationen bewerten
+  const candidates: Array<{exp: ExpectedSaldo; hit: Hit; score: ReturnType<typeof scoreMatch>}> = [];
+  
+  for (const exp of expected) {
     for (const hit of hits) {
       const score = scoreMatch(hit, exp.wert, exp.konto);
-      if (!best || score.diff < best.diff) {
-        best = { h: hit, diff: score.diff, conf: score.conf };
+      if (score.conf > 0.5) { // Nur sinnvolle Matches
+        candidates.push({ exp, hit, score });
       }
     }
-    
-    return {
-      konto: exp.konto,
-      expected: exp.wert,
-      hit: best?.h ?? null,
-      diff: best?.diff ?? null,
-      confidence: best?.conf ?? 0
-    };
-  });
+  }
+  
+  // Sortiere nach Confidence absteigend
+  candidates.sort((a, b) => b.score.conf - a.score.conf);
+  
+  // Weise die besten Matches zu (greedy), aber jeder Hit nur einmal
+  const assignedAccounts = new Set<string>();
+  
+  for (const candidate of candidates) {
+    if (!usedHits.has(candidate.hit) && !assignedAccounts.has(candidate.exp.konto)) {
+      usedHits.add(candidate.hit);
+      assignedAccounts.add(candidate.exp.konto);
+      
+      results.push({
+        konto: candidate.exp.konto,
+        expected: candidate.exp.wert,
+        hit: candidate.hit,
+        diff: candidate.score.diff,
+        confidence: candidate.score.conf
+      });
+    }
+  }
+  
+  // Füge nicht-gematchte Konten hinzu
+  for (const exp of expected) {
+    if (!assignedAccounts.has(exp.konto)) {
+      results.push({
+        konto: exp.konto,
+        expected: exp.wert,
+        hit: null,
+        diff: null,
+        confidence: 0
+      });
+    }
+  }
+  
+  return results;
 }
 
 // 7) Verbesserte Text-Extraktion mit Fallback auf OCR
