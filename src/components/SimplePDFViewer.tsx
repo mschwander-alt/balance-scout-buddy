@@ -284,10 +284,10 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         <div className="flex-shrink-0 mt-4 bg-muted/30 rounded-lg p-4 border">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-xs font-medium text-foreground">
                 Kommentare
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {/* Konten Button - identisch zur Excel-Ansicht */}
                 {onShowMultiAssign && selectedDocuments.length > 0 && (
                   <Button 
@@ -296,10 +296,10 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
                     onClick={() => {
                       onShowMultiAssign(selectedDocuments[0]);
                     }}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1 text-xs h-7 px-2"
                     disabled={selectedDocuments.length === 0}
                   >
-                    <Link className="h-4 w-4" />
+                    <Link className="h-3 w-3" />
                     Konten
                   </Button>
                 )}
@@ -309,9 +309,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
                     variant={completedAccounts.has(assignmentId) ? "default" : "outline"}
                     size="sm"
                     onClick={() => onMarkCompleted(assignmentId)}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1 text-xs h-7 px-2"
                   >
-                    <CheckCircle className="h-4 w-4" />
+                    <CheckCircle className="h-3 w-3" />
                     {completedAccounts.has(assignmentId) ? 'Vollständig' : 'Als vollständig markieren'}
                   </Button>
                 )}
@@ -319,12 +319,12 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
             </div>
             
             {/* Kommentarfeld - identisch zur Excel-Ansicht */}
-            <div className="flex-shrink-0 border-t pt-4 space-y-2">
+            <div className="flex-shrink-0 border-t pt-3 space-y-2">
               <textarea 
                 value={comment}
                 onChange={(e) => handleCommentChange(e.target.value)}
                 placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
-                className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full p-3 rounded-md"
+                className="min-h-[140px] max-h-[240px] resize-none bg-background border-input w-full p-3 rounded-md text-sm"
               />
               <div className="flex gap-2">
                 <PDFCommentExporter

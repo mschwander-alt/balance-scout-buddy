@@ -543,14 +543,14 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <Button
         size="sm"
         variant="outline"
         onClick={handleExportWithComments}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1 text-xs h-7 px-2"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-3 w-3" />
         Speichern
       </Button>
       
@@ -558,9 +558,9 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
         size="sm"
         variant="outline"
         onClick={handlePrintWithComments}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1 text-xs h-7 px-2"
       >
-        <Printer className="h-4 w-4" />
+        <Printer className="h-3 w-3" />
         Drucken
       </Button>
     </div>
