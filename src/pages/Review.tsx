@@ -2054,19 +2054,35 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                             </Button>
                           </div>
                           
-                          <div className="space-y-2">
-                            <Textarea
-                              placeholder="Notizen und Anmerkungen zu diesem Konto..."
-                              value={accountComments[selectedAccountData.id] || ""}
-                              onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
-                              className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
-                            />
-                            {loadedComments[selectedAccountData.id] && (
-                              <p className="text-xs text-muted-foreground">
-                                ✓ Kommentar gespeichert
-                              </p>
-                            )}
-                          </div>
+                           <div className="space-y-2">
+                             <Textarea
+                               placeholder="Notizen und Anmerkungen zu diesem Konto..."
+                               value={accountComments[selectedAccountData.id] || ""}
+                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                               className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                             />
+                             {loadedComments[selectedAccountData.id] && (
+                               <p className="text-xs text-muted-foreground">
+                                 ✓ Kommentar gespeichert
+                               </p>
+                             )}
+                             
+                             {/* Save and Print buttons for accounts without documents */}
+                             <div className="pt-4 border-t">
+                               <PDFCommentExporter
+                                 document={{
+                                   id: 'no-document',
+                                   file_name: 'Kein Nachweis',
+                                   file_path: '',
+                                   file_type: 'none'
+                                 }}
+                                 assignmentId={selectedAccountData.id}
+                                 trialBalanceId={trialBalanceId}
+                                 accountName={selectedAccountData.account_name}
+                                 accountNumber={selectedAccountData.account_number}
+                               />
+                             </div>
+                           </div>
                         </div>
                       </div>
                     )
