@@ -238,9 +238,9 @@ function Toolbar({
   };
 
   return (
-    <div className="flex items-center gap-3 border-b px-3 py-2 bg-white/70 sticky top-0 z-10">
+    <div className="flex items-center gap-2 border-b px-2 py-1 bg-white/70 sticky top-0 z-10">
       <button 
-        className={mode === "highlight" ? "font-semibold bg-foreground text-background px-2 py-1 rounded" : "px-2 py-1 rounded border hover:bg-muted"} 
+        className={mode === "highlight" ? "font-semibold bg-foreground text-background px-1.5 py-0.5 rounded text-xs" : "px-1.5 py-0.5 rounded border hover:bg-muted text-xs"} 
         onClick={() => {
           console.log("🎯 Setting mode to highlight");
           setMode("highlight");
@@ -249,7 +249,7 @@ function Toolbar({
         Highlight
       </button>
       <button 
-        className={mode === "freetext" ? "font-semibold bg-foreground text-background px-2 py-1 rounded" : "px-2 py-1 rounded border hover:bg-muted"} 
+        className={mode === "freetext" ? "font-semibold bg-foreground text-background px-1.5 py-0.5 rounded text-xs" : "px-1.5 py-0.5 rounded border hover:bg-muted text-xs"} 
         onClick={() => {
           console.log("🎯 Setting mode to freetext");
           setMode("freetext");
@@ -258,7 +258,7 @@ function Toolbar({
         FreeText
       </button>
       <button 
-        className={mode === "none" ? "font-semibold bg-foreground text-background px-2 py-1 rounded" : "px-2 py-1 rounded border hover:bg-muted"} 
+        className={mode === "none" ? "font-semibold bg-foreground text-background px-1.5 py-0.5 rounded text-xs" : "px-1.5 py-0.5 rounded border hover:bg-muted text-xs"} 
         onClick={() => {
           console.log("🎯 Setting mode to none");
           setMode("none");
@@ -270,23 +270,23 @@ function Toolbar({
       {/* Manual save button */}
       <button 
         onClick={handleManualSave}
-        className="p-2 border rounded hover:bg-muted flex items-center justify-center"
+        className="p-1.5 border rounded hover:bg-muted flex items-center justify-center"
         title="Annotationen speichern"
       >
-        <Save size={16} />
+        <Save size={12} />
       </button>
       
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1">
         <button 
           onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}
-          className="px-2 py-1 border rounded hover:bg-muted"
+          className="px-1.5 py-0.5 border rounded hover:bg-muted text-xs"
         >
           −
         </button>
-        <span className="tabular-nums w-12 text-center">{Math.round(scale * 100)}%</span>
+        <span className="tabular-nums w-10 text-center text-xs">{Math.round(scale * 100)}%</span>
         <button 
           onClick={() => setScale((s) => Math.min(3, s + 0.2))}
-          className="px-2 py-1 border rounded hover:bg-muted"
+          className="px-1.5 py-0.5 border rounded hover:bg-muted text-xs"
         >
           +
         </button>

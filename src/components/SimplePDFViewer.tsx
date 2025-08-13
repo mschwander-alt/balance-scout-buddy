@@ -239,22 +239,22 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   return (
     <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
       {/* Toggle Button - übergeordnet platziert */}
-      <div className="flex-shrink-0 pb-2 pl-3 pt-1 flex justify-end">
+      <div className="flex-shrink-0 pb-1 pl-3 pt-1 flex justify-end">
         <Button
           variant={viewerMode === 'annotator' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setViewerMode(viewerMode === 'annotator' ? 'pdfjs' : 'annotator')}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1 text-xs h-7 px-2"
           title={viewerMode === 'annotator' ? 'Zu PDF.js Viewer wechseln' : 'Zurück zum Annotator'}
         >
           {viewerMode === 'annotator' ? (
             <>
-              <ToggleRight className="h-4 w-4" />
+              <ToggleRight className="h-3 w-3" />
               PDF.js Viewer
             </>
           ) : (
             <>
-              <ToggleLeft className="h-4 w-4" />
+              <ToggleLeft className="h-3 w-3" />
               Annotator
             </>
           )}
