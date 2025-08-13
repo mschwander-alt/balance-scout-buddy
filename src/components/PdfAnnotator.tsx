@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
-import { Save } from "lucide-react";
+import { Save, ToggleRight } from "lucide-react";
 
 // Import PDF.js components für v4.x (latest) + CSS für TextLayer
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
@@ -97,17 +97,23 @@ async function saveAnnotations(doc_id: string, user_id: string, annotations: Ann
   console.log("✅ Annotations saved successfully");
 }
 
+interface PdfAnnotatorProps {
+  docUrl: string;
+  docId: string;
+  userId: string;
+  initialScale?: number;
+  viewerMode?: 'annotator' | 'pdfjs';
+  onToggleViewer?: () => void;
+}
+
 export default function PdfAnnotator({
   docUrl,
   docId,
   userId,
   initialScale = 1,
-}: {
-  docUrl: string; // signierte URL aus Supabase Storage
-  docId: string; // UUID eures Dokuments
-  userId: string; // auth.uid()
-  initialScale?: number;
-}) {
+  viewerMode,
+  onToggleViewer,
+}: PdfAnnotatorProps) {
   // Early return if user not authenticated
   if (!userId || userId === '') {
     return <div className="p-4">Benutzer nicht authentifiziert</div>;
@@ -187,6 +193,7 @@ export default function PdfAnnotator({
         docId={docId}
         userId={userId}
         anns={anns}
+        onToggleViewer={onToggleViewer}
       />
       <div className="overflow-auto grow p-2">
         {Array.from({ length: pages }, (_, i) => (
@@ -214,6 +221,7 @@ function Toolbar({
   docId,
   userId,
   anns,
+  onToggleViewer,
 }: {
   mode: "highlight" | "freetext" | "none";
   setMode: (m: "highlight" | "freetext" | "none") => void;
@@ -223,6 +231,7 @@ function Toolbar({
   docId: string;
   userId: string;
   anns: Ann[];
+  onToggleViewer?: () => void;
 }) {
   console.log("🔧 Toolbar mode change:", { currentMode: mode });
   
@@ -273,6 +282,17 @@ function Toolbar({
       >
         <Save size={16} />
       </button>
+      
+      {/* PDF Viewer Toggle Button */}
+      {onToggleViewer && (
+        <button 
+          onClick={onToggleViewer}
+          className="p-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 flex items-center justify-center"
+          title="Ansicht PDF Viewer"
+        >
+          <ToggleRight size={16} />
+        </button>
+      )}
       
       <div className="ml-auto flex items-center gap-2">
         <button onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}>−</button>
