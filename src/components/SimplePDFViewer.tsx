@@ -237,7 +237,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
+    <div className="h-full flex flex-col max-h-[calc(100vh-200px)]">
       {/* Toggle Button - übergeordnet platziert */}
       <div className="flex-shrink-0 pb-1 pl-3 pt-1 flex justify-end">
         <Button
@@ -279,10 +279,10 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         )}
       </div>
       
-      {/* Comment Section - identisch zur Excel-Ansicht */}
+      {/* Comment Section - kompakter für mehr PDF-Platz */}
       {assignmentId ? (
-        <div className="flex-shrink-0 mt-4 bg-muted/30 rounded-lg p-4 border">
-          <div className="space-y-3">
+        <div className="flex-shrink-0 mt-2 bg-muted/30 rounded-lg p-3 border">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-medium text-foreground">
                 Kommentare
@@ -318,13 +318,13 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
               </div>
             </div>
             
-            {/* Kommentarfeld - identisch zur Excel-Ansicht */}
-            <div className="flex-shrink-0 border-t pt-3 space-y-2">
+            {/* Kommentarfeld - kompakter */}
+            <div className="flex-shrink-0 border-t pt-2 space-y-1">
               <textarea 
                 value={comment}
                 onChange={(e) => handleCommentChange(e.target.value)}
                 placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
-                className="min-h-[140px] max-h-[240px] resize-none bg-background border-input w-full p-3 rounded-md text-sm"
+                className="min-h-[80px] max-h-[120px] resize-none bg-background border-input w-full p-2 rounded-md text-sm"
               />
               <div className="flex gap-2">
                 <PDFCommentExporter
