@@ -238,18 +238,39 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
 
   return (
     <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
+      {/* Toggle Button - übergeordnet platziert */}
+      <div className="flex-shrink-0 pb-2 flex justify-end">
+        <Button
+          variant={viewerMode === 'annotator' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setViewerMode(viewerMode === 'annotator' ? 'pdfjs' : 'annotator')}
+          className="flex items-center gap-2"
+          title={viewerMode === 'annotator' ? 'Zu PDF.js Viewer wechseln' : 'Zurück zum Annotator'}
+        >
+          {viewerMode === 'annotator' ? (
+            <>
+              <ToggleRight className="h-4 w-4" />
+              PDF.js Viewer
+            </>
+          ) : (
+            <>
+              <ToggleLeft className="h-4 w-4" />
+              Annotator
+            </>
+          )}
+        </Button>
+      </div>
+      
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewerMode === 'annotator' ? (
           <PdfAnnotator
             docUrl={documentUrl}
             docId={document.id}
             userId={user?.id || ''}
-            viewerMode={viewerMode}
-            onToggleViewer={() => setViewerMode(viewerMode === 'annotator' ? 'pdfjs' : 'annotator')}
           />
         ) : (
           <iframe
-            src={`/pdfjs-dist/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
+            src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
             className="w-full h-full border rounded"
             title="PDF.js Viewer"
           />

@@ -102,8 +102,6 @@ interface PdfAnnotatorProps {
   docId: string;
   userId: string;
   initialScale?: number;
-  viewerMode?: 'annotator' | 'pdfjs';
-  onToggleViewer?: () => void;
 }
 
 export default function PdfAnnotator({
@@ -111,8 +109,6 @@ export default function PdfAnnotator({
   docId,
   userId,
   initialScale = 1,
-  viewerMode,
-  onToggleViewer,
 }: PdfAnnotatorProps) {
   // Early return if user not authenticated
   if (!userId || userId === '') {
@@ -193,7 +189,6 @@ export default function PdfAnnotator({
         docId={docId}
         userId={userId}
         anns={anns}
-        onToggleViewer={onToggleViewer}
       />
       <div className="overflow-auto grow p-2">
         {Array.from({ length: pages }, (_, i) => (
@@ -221,7 +216,6 @@ function Toolbar({
   docId,
   userId,
   anns,
-  onToggleViewer,
 }: {
   mode: "highlight" | "freetext" | "none";
   setMode: (m: "highlight" | "freetext" | "none") => void;
@@ -231,7 +225,6 @@ function Toolbar({
   docId: string;
   userId: string;
   anns: Ann[];
-  onToggleViewer?: () => void;
 }) {
   console.log("🔧 Toolbar mode change:", { currentMode: mode });
   
@@ -282,17 +275,6 @@ function Toolbar({
       >
         <Save size={16} />
       </button>
-      
-      {/* PDF Viewer Toggle Button */}
-      {onToggleViewer && (
-        <button 
-          onClick={() => onToggleViewer()}
-          className="p-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 flex items-center justify-center"
-          title="Ansicht PDF Viewer"
-        >
-          <ToggleRight size={16} />
-        </button>
-      )}
       
       <div className="ml-auto flex items-center gap-2">
         <button onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}>−</button>
