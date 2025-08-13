@@ -237,7 +237,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-240px)]">
+    <div className="h-full flex flex-col max-h-[calc(100vh-248px)]">
       {/* Toggle Button - übergeordnet platziert */}
       <div className="flex-shrink-0 pb-1 pl-3 pt-1 flex justify-end">
         <Button
