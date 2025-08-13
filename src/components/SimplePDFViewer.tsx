@@ -239,7 +239,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   return (
     <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
       {/* Toggle Button - übergeordnet platziert */}
-      <div className="flex-shrink-0 pb-2 flex justify-end">
+      <div className="flex-shrink-0 pb-2 pl-1 pt-1 flex justify-end">
         <Button
           variant={viewerMode === 'annotator' ? 'default' : 'outline'}
           size="sm"
