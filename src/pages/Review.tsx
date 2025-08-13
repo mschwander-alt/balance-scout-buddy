@@ -629,6 +629,66 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     }
   };
 
+  const handleUnmatchAll = async () => {
+    try {
+      setIsProcessing(true);
+      
+      // Bestimme die richtige Tabelle basierend auf der Gruppierung
+      const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
+      
+      if (isUsingGroups) {
+        // Clear all matched documents from account_group_assignments for this trial balance
+        // First get all group IDs for this trial balance
+        const groupIds = accountGroups.filter(g => g.id !== 'no-group').map(g => g.id);
+        
+        if (groupIds.length > 0) {
+          const { error } = await supabase
+            .from('account_group_assignments')
+            .update({
+              matched_documents: null,
+              match_status: 'pending'
+            })
+            .in('account_group_id', groupIds);
+          
+          if (error) throw error;
+        }
+      } else {
+        // Clear all matched documents from temp_account_matches
+        const { error } = await supabase
+          .from('temp_account_matches')
+          .update({
+            matched_documents: null,
+            match_status: 'pending'
+          })
+          .eq('trial_balance_id', trialBalanceId);
+        
+        if (error) throw error;
+      }
+      
+      // Clear all document group associations 
+      const { error: documentError } = await supabase
+        .from('account_evidence')
+        .update({ account_group_id: null })
+        .eq('trial_balance_id', trialBalanceId);
+      
+      if (documentError) throw documentError;
+      
+      toast.success('Alle Zuordnungen wurden entfernt');
+      
+      // Reload data to reflect changes
+      await loadData();
+      
+      // Update unmatched documents list
+      setUnmatchedDocuments(getUnmatchedDocuments());
+      
+    } catch (error: any) {
+      console.error('Error during unmatch all:', error);
+      toast.error('Fehler beim Entfernen der Zuordnungen');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Funktion für Mehrfachzuweisung
   const handleMultiAssign = async () => {
     if (!selectedDocumentForMultiAssign || selectedAccountsForAssign.size === 0) return;
@@ -1287,6 +1347,17 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               >
                 <Sparkles className="h-3 w-3" />
                 {isProcessing ? 'KI-Analyse läuft...' : 'KI-Analyse'}
+              </Button>
+              
+              <Button 
+                onClick={handleUnmatchAll}
+                disabled={isProcessing}
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <XCircle className="h-3 w-3" />
+                Unmatch All
               </Button>
               
               <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>
