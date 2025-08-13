@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2, Upload } from 'lucide-react';
+import { Calculator } from '@/components/Calculator';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
@@ -2413,6 +2414,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         </Dialog>
 
       </div>
+      
+      {/* Floating Calculator */}
+      <Calculator />
     </TooltipProvider>
   );
 };
