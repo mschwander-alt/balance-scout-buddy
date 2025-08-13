@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, FileText, Link } from 'lucide-react';
+import { CheckCircle, FileText, Link, ToggleLeft, ToggleRight } from 'lucide-react';
 
 // Debounce utility function
 const debounce = (func: (...args: any[]) => void, delay: number) => {
@@ -62,6 +62,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   const [comment, setComment] = useState<string>('');
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentLoaded, setCommentLoaded] = useState(false);
+  const [viewerMode, setViewerMode] = useState<'annotator' | 'pdfjs'>('annotator');
 
   // Load document URL
   useEffect(() => {
@@ -237,12 +238,47 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
 
   return (
     <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
+      {/* Viewer Mode Toggle */}
+      <div className="flex-shrink-0 mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">
+            PDF Viewer:
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewerMode(viewerMode === 'annotator' ? 'pdfjs' : 'annotator')}
+            className="flex items-center gap-2"
+          >
+            {viewerMode === 'annotator' ? (
+              <>
+                <ToggleLeft className="h-4 w-4" />
+                Annotator
+              </>
+            ) : (
+              <>
+                <ToggleRight className="h-4 w-4" />
+                PDF.js Viewer
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+      
       <div className="flex-1 min-h-0 overflow-hidden">
-        <PdfAnnotator
-          docUrl={documentUrl}
-          docId={document.id}
-          userId={user?.id || ''}
-        />
+        {viewerMode === 'annotator' ? (
+          <PdfAnnotator
+            docUrl={documentUrl}
+            docId={document.id}
+            userId={user?.id || ''}
+          />
+        ) : (
+          <iframe
+            src={`/pdfjs-dist/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
+            className="w-full h-full border rounded"
+            title="PDF.js Viewer"
+          />
+        )}
       </div>
       
       {/* Comment Section - identisch zur Excel-Ansicht */}
