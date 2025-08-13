@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { supabase } from "@/integrations/supabase/client";
+import { Save } from "lucide-react";
 
 // Import PDF.js components für v4.x (latest) + CSS für TextLayer
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
@@ -267,10 +268,10 @@ function Toolbar({
       {/* Manual save button */}
       <button 
         onClick={handleManualSave}
-        className="px-3 py-1 bg-green-100 text-green-800 rounded text-sm font-medium hover:bg-green-200"
+        className="p-2 bg-green-100 text-green-800 rounded hover:bg-green-200 flex items-center justify-center"
         title="Annotationen speichern"
       >
-        💾 Speichern
+        <Save size={16} />
       </button>
       
       <div className="ml-auto flex items-center gap-2">
