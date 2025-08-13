@@ -261,7 +261,8 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         </Button>
       </div>
       
-      <div className="flex-1 min-h-0 overflow-hidden">
+      {/* PDF Viewer Container - Vollhöhe für beide Modi */}
+      <div className="flex-1 min-h-0 h-full">
         {viewerMode === 'annotator' ? (
           <PdfAnnotator
             docUrl={documentUrl}
@@ -271,8 +272,9 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         ) : (
           <iframe
             src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
-            className="w-full h-full border rounded"
+            className="w-full h-full min-h-[600px] border rounded"
             title="PDF.js Viewer"
+            style={{ height: '100%' }}
           />
         )}
       </div>
