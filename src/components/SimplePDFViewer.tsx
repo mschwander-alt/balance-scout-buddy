@@ -239,13 +239,13 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   return (
     <div className="h-full flex flex-col max-h-[calc(100vh-280px)]">
       {/* Viewer Mode Toggle */}
-      <div className="flex-shrink-0 mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">
+      <div className="flex-shrink-0 mb-3 p-3 bg-muted/50 border-b">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-foreground">
             PDF Viewer:
           </span>
           <Button
-            variant="outline"
+            variant={viewerMode === 'annotator' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewerMode(viewerMode === 'annotator' ? 'pdfjs' : 'annotator')}
             className="flex items-center gap-2"
@@ -253,12 +253,12 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
             {viewerMode === 'annotator' ? (
               <>
                 <ToggleLeft className="h-4 w-4" />
-                Annotator
+                Annotator (Aktiv)
               </>
             ) : (
               <>
                 <ToggleRight className="h-4 w-4" />
-                PDF.js Viewer
+                PDF.js Viewer (Aktiv)
               </>
             )}
           </Button>

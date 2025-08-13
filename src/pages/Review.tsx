@@ -1858,7 +1858,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                             
                             {selectedDocuments.map((doc) => (
                               <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 flex flex-col">
-                                <div className="flex-1 flex flex-col border rounded-lg overflow-hidden">{/* Removed overflow-hidden from parent */}
+                                <div className="flex-1 flex flex-col border rounded-lg">{/* Removed overflow-hidden to show toggle */}
                                   {doc.file_type === 'application/pdf' ? (
                                     <SimplePDFViewer 
                                       document={doc} 
