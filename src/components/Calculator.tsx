@@ -231,17 +231,6 @@ export const Calculator: React.FC = () => {
         </Card>
       )}
 
-      {/* Button in Header (keep for convenience) */}
-      <Button 
-        variant="outline" 
-        size="sm"
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2"
-        title="Taschenrechner öffnen"
-      >
-        <CalculatorIcon className="h-4 w-4" />
-        Rechner
-      </Button>
     </>
   );
 };
