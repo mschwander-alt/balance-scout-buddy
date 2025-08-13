@@ -177,7 +177,16 @@ export default function PdfAnnotator({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar mode={mode} setMode={setMode} scale={scale} setScale={setScale} saving={saving} />
+      <Toolbar 
+        mode={mode} 
+        setMode={setMode} 
+        scale={scale} 
+        setScale={setScale} 
+        saving={saving} 
+        docId={docId}
+        userId={userId}
+        anns={anns}
+      />
       <div className="overflow-auto grow p-2">
         {Array.from({ length: pages }, (_, i) => (
           <PageView
@@ -201,15 +210,30 @@ function Toolbar({
   scale,
   setScale,
   saving,
+  docId,
+  userId,
+  anns,
 }: {
   mode: "highlight" | "freetext" | "none";
   setMode: (m: "highlight" | "freetext" | "none") => void;
   scale: number;
   setScale: (fn: (n: number) => number) => void;
   saving: "idle" | "saving" | "saved";
+  docId: string;
+  userId: string;
+  anns: Ann[];
 }) {
   console.log("🔧 Toolbar mode change:", { currentMode: mode });
   
+  const handleManualSave = async () => {
+    try {
+      await saveAnnotations(docId, userId, anns);
+      console.log("🔄 Manual save completed");
+    } catch (error) {
+      console.error("❌ Manual save failed:", error);
+    }
+  };
+
   return (
     <div className="flex items-center gap-3 border-b px-3 py-2 bg-white/70 sticky top-0 z-10">
       <button 
@@ -239,6 +263,16 @@ function Toolbar({
       >
         Zeiger
       </button>
+      
+      {/* Manual save button */}
+      <button 
+        onClick={handleManualSave}
+        className="px-3 py-1 bg-green-100 text-green-800 rounded text-sm font-medium hover:bg-green-200"
+        title="Annotationen speichern"
+      >
+        💾 Speichern
+      </button>
+      
       <div className="ml-auto flex items-center gap-2">
         <button onClick={() => setScale((s) => Math.max(0.5, s - 0.2))}>−</button>
         <span className="tabular-nums w-12 text-center">{Math.round(scale * 100)}%</span>
