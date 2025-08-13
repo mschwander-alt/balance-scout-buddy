@@ -426,10 +426,30 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
 
   const handleExportWithComments = async () => {
     try {
-      toast.info('PDF mit Kommentaren und Annotationen wird erstellt...');
+      toast.info('PDF mit Kommentaren wird erstellt...');
       
-      const [comments, annotations, originalPdf] = await Promise.all([
-        loadComments(),
+      const comments = await loadComments();
+      
+      // Check if this is an account without documents
+      if (document.file_type === 'none' || document.id === 'no-document') {
+        // Generate only comment page for accounts without documents
+        const commentPdf = await generateCommentPage(comments);
+        
+        // Download comment PDF
+        const blob = new Blob([commentPdf], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = window.document.createElement('a');
+        link.href = url;
+        link.download = `${accountNumber}_${accountName}_Kommentare.pdf`;
+        link.click();
+        
+        URL.revokeObjectURL(url);
+        toast.success('PDF mit Kommentaren heruntergeladen');
+        return;
+      }
+      
+      // Original logic for accounts with documents
+      const [annotations, originalPdf] = await Promise.all([
         loadPDFAnnotations(),
         downloadOriginalPDF()
       ]);
@@ -460,8 +480,35 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
     try {
       toast.info('PDF für Druck wird vorbereitet...');
       
-      const [comments, annotations, originalPdf] = await Promise.all([
-        loadComments(),
+      const comments = await loadComments();
+      
+      // Check if this is an account without documents
+      if (document.file_type === 'none' || document.id === 'no-document') {
+        // Generate only comment page for accounts without documents
+        const commentPdf = await generateCommentPage(comments);
+        
+        // Open print dialog for comment PDF
+        const blob = new Blob([commentPdf], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url);
+        
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
+        
+        // Clean up after some time
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 5000);
+        
+        toast.success('Druckdialog geöffnet');
+        return;
+      }
+      
+      // Original logic for accounts with documents
+      const [annotations, originalPdf] = await Promise.all([
         loadPDFAnnotations(),
         downloadOriginalPDF()
       ]);
