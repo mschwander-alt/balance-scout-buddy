@@ -286,7 +286,7 @@ function Toolbar({
       {/* PDF Viewer Toggle Button */}
       {onToggleViewer && (
         <button 
-          onClick={onToggleViewer}
+          onClick={() => onToggleViewer()}
           className="p-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 flex items-center justify-center"
           title="Ansicht PDF Viewer"
         >
