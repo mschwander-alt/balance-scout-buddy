@@ -1,88 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calculator as CalculatorIcon, Copy, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Calculator as CalculatorIcon, Copy, History, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Safe mathematical expression evaluator
+const safeEval = (expression: string): number | null => {
+  try {
+    // Remove spaces and replace common operators
+    const cleaned = expression
+      .replace(/\s+/g, '')
+      .replace(/×/g, '*')
+      .replace(/÷/g, '/')
+      .replace(/,/g, '.');
+    
+    // Check if expression contains only allowed characters
+    if (!/^[\d+\-*/().]+$/.test(cleaned)) {
+      return null;
+    }
+    
+    // Evaluate the expression safely using Function constructor
+    const result = Function(`"use strict"; return (${cleaned})`)();
+    
+    return typeof result === 'number' && isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+};
+
 export const Calculator: React.FC = () => {
-  const [display, setDisplay] = useState('0');
-  const [previousValue, setPreviousValue] = useState<number | null>(null);
-  const [operator, setOperator] = useState<string | null>(null);
-  const [waitingForOperand, setWaitingForOperand] = useState(false);
+  const [input, setInput] = useState('');
+  const [result, setResult] = useState<number | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const inputNumber = (num: string) => {
-    if (waitingForOperand) {
-      setDisplay(num);
-      setWaitingForOperand(false);
+  // Focus input when dialog opens
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
+  const handleCalculate = () => {
+    if (!input.trim()) return;
+    
+    const calculated = safeEval(input);
+    if (calculated !== null) {
+      setResult(calculated);
+      const historyEntry = `${input} = ${calculated}`;
+      setHistory(prev => [historyEntry, ...prev.slice(0, 9)]); // Keep last 10 calculations
+      toast.success('Berechnung erfolgreich');
     } else {
-      setDisplay(display === '0' ? num : display + num);
+      toast.error('Ungültige mathematische Formel');
     }
   };
 
-  const inputDot = () => {
-    if (waitingForOperand) {
-      setDisplay('0.');
-      setWaitingForOperand(false);
-    } else if (display.indexOf('.') === -1) {
-      setDisplay(display + '.');
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleCalculate();
+    } else if (e.key === 'Escape') {
+      setInput('');
+      setResult(null);
     }
   };
 
-  const clear = () => {
-    setDisplay('0');
-    setPreviousValue(null);
-    setOperator(null);
-    setWaitingForOperand(false);
-  };
-
-  const performCalculation = (nextOperator?: string) => {
-    const inputValue = parseFloat(display);
-
-    if (previousValue === null) {
-      setPreviousValue(inputValue);
-    } else if (operator) {
-      const currentValue = previousValue || 0;
-      let result = currentValue;
-
-      switch (operator) {
-        case '+':
-          result = currentValue + inputValue;
-          break;
-        case '-':
-          result = currentValue - inputValue;
-          break;
-        case '*':
-          result = currentValue * inputValue;
-          break;
-        case '/':
-          result = inputValue !== 0 ? currentValue / inputValue : 0;
-          break;
-        case '=':
-          result = inputValue;
-          break;
-        default:
-          return;
+  const copyResult = async () => {
+    if (result !== null) {
+      try {
+        await navigator.clipboard.writeText(result.toString());
+        toast.success('Ergebnis in Zwischenablage kopiert');
+      } catch {
+        toast.error('Fehler beim Kopieren');
       }
-
-      setDisplay(String(result));
-      setPreviousValue(result);
-    }
-
-    setWaitingForOperand(true);
-    setOperator(nextOperator || null);
-  };
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(display);
-      toast.success('Ergebnis in Zwischenablage kopiert');
-    } catch (error) {
-      toast.error('Fehler beim Kopieren');
     }
   };
 
-  const buttonStyle = "h-12 text-lg font-medium transition-colors hover:bg-muted/80";
-  const operatorStyle = "h-12 text-lg font-medium bg-primary/10 hover:bg-primary/20 text-primary";
+  const copyToInput = (value: string) => {
+    setInput(value);
+    setResult(null);
+    inputRef.current?.focus();
+  };
+
+  const clearAll = () => {
+    setInput('');
+    setResult(null);
+    setHistory([]);
+    inputRef.current?.focus();
+  };
 
   return (
     <Dialog>
@@ -97,7 +103,7 @@ export const Calculator: React.FC = () => {
           Rechner
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[320px]">
+      <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalculatorIcon className="h-5 w-5" />
@@ -106,157 +112,112 @@ export const Calculator: React.FC = () => {
         </DialogHeader>
         
         <div className="space-y-4">
-          {/* Display */}
-          <div className="relative">
-            <div className="bg-muted/50 border rounded-lg p-4 text-right">
-              <div className="text-2xl font-mono font-bold text-foreground truncate">
-                {display}
-              </div>
-            </div>
-            <div className="absolute top-2 right-2 flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={copyToClipboard}
-                className="h-6 w-6 p-0"
-                title="Kopieren"
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
+          {/* Input Field */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Mathematische Formel eingeben:</label>
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="z.B. 123 + 456 * 0.19"
+              className="font-mono text-lg"
+              autoComplete="off"
+            />
+            <div className="text-xs text-muted-foreground">
+              Unterstützt: +, -, *, /, Klammern. Enter = Berechnen, Esc = Löschen
             </div>
           </div>
 
-          {/* Calculator Grid */}
-          <div className="grid grid-cols-4 gap-2">
-            {/* Row 1 */}
-            <Button
-              variant="outline"
-              onClick={clear}
-              className={`${buttonStyle} col-span-2 bg-destructive/10 hover:bg-destructive/20 text-destructive`}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Löschen
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <Button onClick={handleCalculate} className="flex-1">
+              Berechnen
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => performCalculation('/')}
-              className={operatorStyle}
+            <Button 
+              variant="outline" 
+              onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center gap-1"
             >
-              ÷
+              <History className="h-4 w-4" />
+              Verlauf
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => performCalculation('*')}
-              className={operatorStyle}
+            <Button 
+              variant="outline" 
+              onClick={clearAll}
+              className="flex items-center gap-1"
             >
-              ×
+              <Trash2 className="h-4 w-4" />
             </Button>
+          </div>
 
-            {/* Row 2 */}
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('7')}
-              className={buttonStyle}
-            >
-              7
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('8')}
-              className={buttonStyle}
-            >
-              8
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('9')}
-              className={buttonStyle}
-            >
-              9
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => performCalculation('-')}
-              className={operatorStyle}
-            >
-              −
-            </Button>
+          {/* Result Display */}
+          {result !== null && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ergebnis:</label>
+              <div className="relative">
+                <div className="bg-muted/50 border rounded-lg p-4 flex items-center justify-between">
+                  <span className="text-xl font-mono font-bold text-foreground">
+                    {result.toLocaleString('de-DE')}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyResult}
+                    className="flex items-center gap-1"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Kopieren
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
-            {/* Row 3 */}
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('4')}
-              className={buttonStyle}
-            >
-              4
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('5')}
-              className={buttonStyle}
-            >
-              5
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('6')}
-              className={buttonStyle}
-            >
-              6
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => performCalculation('+')}
-              className={operatorStyle}
-            >
-              +
-            </Button>
+          {/* History */}
+          {showHistory && history.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Verlauf:</label>
+              <div className="max-h-32 overflow-y-auto space-y-1 border rounded-lg p-2 bg-muted/20">
+                {history.map((entry, index) => {
+                  const [calculation, result] = entry.split(' = ');
+                  return (
+                    <div 
+                      key={index}
+                      className="flex items-center justify-between text-sm hover:bg-muted/50 p-1 rounded cursor-pointer"
+                      onClick={() => copyToInput(calculation)}
+                      title="Klicken zum Wiederverwenden"
+                    >
+                      <span className="font-mono text-xs">{calculation}</span>
+                      <span className="font-bold text-primary">{result}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-            {/* Row 4 */}
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('1')}
-              className={buttonStyle}
-            >
-              1
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('2')}
-              className={buttonStyle}
-            >
-              2
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('3')}
-              className={buttonStyle}
-            >
-              3
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => performCalculation('=')}
-              className={`${operatorStyle} row-span-2 h-auto`}
-            >
-              =
-            </Button>
-
-            {/* Row 5 */}
-            <Button
-              variant="outline"
-              onClick={() => inputNumber('0')}
-              className={`${buttonStyle} col-span-2`}
-            >
-              0
-            </Button>
-            <Button
-              variant="outline"
-              onClick={inputDot}
-              className={buttonStyle}
-            >
-              ,
-            </Button>
+          {/* Quick Examples */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Schnellzugriff:</label>
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              {[
+                '1000 * 0.19',
+                '(500 + 300) * 0.07',
+                '1500 / 12',
+                '250 * 1.2'
+              ].map((example, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyToInput(example)}
+                  className="text-xs h-8 justify-start font-mono"
+                >
+                  {example}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </DialogContent>
