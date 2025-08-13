@@ -1996,46 +1996,80 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           </div>
                        </div>
                     </div>
-                   ) : (
-                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                       <p className="mb-4">Keine Nachweise für dieses Konto gefunden</p>
-                       <div className="space-y-3">
-                         <p className="text-sm">Möchten Sie ein neues Dokument für dieses Konto hochladen?</p>
-                         <div className="flex justify-center">
-                           <input
-                             type="file"
-                             id="document-upload"
-                             accept=".pdf,.xlsx,.xls"
-                             style={{ display: 'none' }}
-                             onChange={(e) => {
-                               const file = e.target.files?.[0];
-                               if (file && selectedAccountData) {
-                                 handleDocumentUpload(file, selectedAccountData.id);
-                               }
-                             }}
-                           />
-                           <Button
-                             variant="outline"
-                             size="sm"
-                             onClick={() => document.getElementById('document-upload')?.click()}
-                             disabled={isUploading || !selectedAccountData}
-                             className="flex items-center gap-2"
-                           >
-                             {isUploading ? (
-                               <Loader2 className="h-4 w-4 animate-spin" />
-                             ) : (
-                               <Upload className="h-4 w-4" />
-                             )}
-                             {isUploading ? 'Wird hochgeladen...' : 'Dokument hochladen'}
-                           </Button>
-                         </div>
-                         <p className="text-xs text-muted-foreground">
-                           Unterstützte Formate: PDF, Excel (.xlsx, .xls)
-                         </p>
-                       </div>
-                     </div>
-                   )
+                    ) : (
+                      <div className="h-full flex flex-col">
+                        <div className="text-center py-8 text-muted-foreground flex flex-col items-center justify-center flex-1">
+                          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p className="mb-4">Keine Nachweise für dieses Konto gefunden</p>
+                          <div className="space-y-3">
+                            <p className="text-sm">Möchten Sie ein neues Dokument für dieses Konto hochladen?</p>
+                            <div className="flex justify-center">
+                              <input
+                                type="file"
+                                id="document-upload"
+                                accept=".pdf,.xlsx,.xls"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file && selectedAccountData) {
+                                    handleDocumentUpload(file, selectedAccountData.id);
+                                  }
+                                }}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => document.getElementById('document-upload')?.click()}
+                                disabled={isUploading || !selectedAccountData}
+                                className="flex items-center gap-2"
+                              >
+                                {isUploading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Upload className="h-4 w-4" />
+                                )}
+                                {isUploading ? 'Wird hochgeladen...' : 'Dokument hochladen'}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Unterstützte Formate: PDF, Excel (.xlsx, .xls)
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Kommentar- und Aktionsbereich für Konten ohne Nachweise */}
+                        <div className="flex-shrink-0 border-t bg-background p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium">
+                              Konto-Aktionen
+                            </label>
+                            <Button 
+                              variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                              className="flex items-center gap-2"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Textarea
+                              placeholder="Notizen und Anmerkungen zu diesem Konto..."
+                              value={accountComments[selectedAccountData.id] || ""}
+                              onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                              className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                            />
+                            {loadedComments[selectedAccountData.id] && (
+                              <p className="text-xs text-muted-foreground">
+                                ✓ Kommentar gespeichert
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
                 ) : (
                   <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
