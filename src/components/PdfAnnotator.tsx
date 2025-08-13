@@ -393,10 +393,19 @@ function PageView({
     
     return () => {
       cancelled = true;
-      // Cleanup: Reset to default state without removing from DOM
-      if (currentTextDiv && currentTextDiv.parentNode) {
-        currentTextDiv.textContent = "";
-        currentTextDiv.style.cssText = ""; // Reset all styles
+      // Safer cleanup: Check if elements still exist before manipulation
+      try {
+        if (currentTextDiv && currentTextDiv.parentNode && currentTextDiv.isConnected) {
+          // Clear children instead of textContent to avoid DOM conflicts
+          while (currentTextDiv.firstChild) {
+            currentTextDiv.removeChild(currentTextDiv.firstChild);
+          }
+          // Reset styles safely
+          currentTextDiv.removeAttribute('style');
+        }
+      } catch (error) {
+        // Silently ignore cleanup errors - DOM might already be cleaned up
+        console.debug('PDF cleanup ignored:', error);
       }
     };
   }, [pdf, pageNumber, scale]);
