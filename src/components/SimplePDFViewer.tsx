@@ -279,8 +279,8 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         )}
       </div>
       
-      {/* Comment Section - kompakter für mehr PDF-Platz */}
-      {assignmentId ? (
+      {/* Comment Section - nur im Annotator Modus */}
+      {assignmentId && viewerMode === 'annotator' ? (
         <div className="flex-shrink-0 mt-2 bg-muted/30 rounded-lg p-3 border">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
