@@ -23,6 +23,11 @@ const UploadTrialBalance = ({ onUploadSuccess }: UploadTrialBalanceProps) => {
     setIsUploading(true);
     
     try {
+      // Validate file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error(`${file.name} ist zu groß. Maximale Dateigröße: 50MB`);
+      }
+
       // Validate file type
       const allowedTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx

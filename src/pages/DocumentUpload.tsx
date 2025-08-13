@@ -171,7 +171,27 @@ const DocumentUpload = () => {
       'application/msword': ['.doc'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
     },
-    disabled: uploading
+    disabled: uploading,
+    maxSize: 50 * 1024 * 1024, // 50MB limit
+    onDropRejected: (rejectedFiles) => {
+      rejectedFiles.forEach(({ file, errors }) => {
+        errors.forEach(({ code, message }) => {
+          if (code === 'file-too-large') {
+            toast({
+              title: "Datei zu groß",
+              description: `${file.name} ist zu groß. Maximale Dateigröße: 50MB`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Ungültige Datei",
+              description: message,
+              variant: "destructive",
+            });
+          }
+        });
+      });
+    }
   });
 
   const downloadDocument = async (document: UploadedDocument) => {
