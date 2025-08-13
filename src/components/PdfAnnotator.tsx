@@ -284,8 +284,8 @@ function PageView({
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale });
       
-      // HiDPI/Retina korrekt rendern - KRITISCH für gleiche CSS-Größen
-      const dpr = window.devicePixelRatio || 1;
+      // HiDPI/Retina korrekt rendern - IMPROVED für bessere Qualität
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); // Limit to 2x for better performance
 
       const canvas = canvasRef.current;
       const textLayerDiv = textRef.current;
@@ -296,28 +296,34 @@ function PageView({
       currentCanvas = canvas;
       currentTextDiv = textLayerDiv;
       
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { alpha: false });
       if (!ctx) return;
       
-      // Set physical resolution for HiDPI displays
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
+      // IMPROVED: Better scaling for crisp rendering
+      const scaledViewport = page.getViewport({ scale: scale * dpr });
       
-      // Set visible CSS size - EXAKT gleich für alle Layer
-      canvas.style.width = `${viewport.width}px`;
-      canvas.style.height = `${viewport.height}px`;
+      // Set physical resolution for crisp display
+      canvas.width = Math.floor(scaledViewport.width);
+      canvas.height = Math.floor(scaledViewport.height);
+      
+      // Set visible CSS size - IMPROVED precision
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+      
+      // IMPROVED: Better quality rendering
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
         
-      // Render with proper transform for HiDPI
+      // Render with optimized viewport
       await page.render({ 
         canvas,
         canvasContext: ctx, 
-        viewport,
-        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined
+        viewport: scaledViewport
       }).promise;
 
       if (cancelled) return;
 
-        // KRITISCH: Prüfe ob PDF Text hat (Scan vs echtes PDF)
+        // ÄNDERUNG: Immer Rectangle-Highlight ermöglichen (statt Text-Selektion)
         if (textLayerDiv.parentNode) {
           textLayerDiv.textContent = ""; // Clear previous content
           
@@ -325,57 +331,16 @@ function PageView({
           try {
             const textContent = await page.getTextContent();
             const hasActualText = (textContent.items?.length ?? 0) > 0;
-            setHasText(hasActualText);
             
-            console.log("📄 PDF Text check:", { 
-              hasText: hasActualText, 
-              itemCount: textContent.items.length,
-              type: hasActualText ? "Text-PDF" : "Scan/Image-PDF"
-            });
+            // WICHTIG: Setze immer hasText = false für Rectangle-Highlighting
+            setHasText(false);
             
-            if (hasActualText) {
-              // Text-PDF: Echte TextLayer mit selektierbaren Spans erstellen
-              textContent.items.forEach((item, index) => {
-                if ('str' in item && item.str.trim()) {
-                  const span = document.createElement('span');
-                  span.textContent = item.str + ' ';
-                  span.style.position = 'absolute';
-                  
-                  // Use transform matrix for positioning
-                  const transform = item.transform;
-                  if (transform && transform.length >= 6) {
-                    span.style.left = `${transform[4]}px`;
-                    span.style.top = `${viewport.height - transform[5] - 12}px`; // Flip Y
-                    span.style.fontSize = `${Math.abs(transform[0]) || 12}px`;
-                  }
-                  
-                  span.style.whiteSpace = 'nowrap';
-                  span.style.userSelect = 'text';
-                  span.style.pointerEvents = 'auto';
-                  textLayerDiv.appendChild(span);
-                }
-              });
-              console.log("✅ TextLayer populated with", textContent.items.length, "text items");
-            } else {
-              // Scan-PDF: Keine sichtbare Info, aber Box-Highlight aktiviert
-              console.log("📝 Scan-PDF detected: Box-Highlight mode activated (silent)");
-            }
+            console.log("📄 PDF forcing rectangle mode for all PDFs");
             
-          } catch (textError) {
-            console.warn("⚠️ Could not load text content:", textError);
-            setHasText(false); // Fallback zu Scan-Modus
+          } catch (err) {
+            console.warn("⚠️ TextContent error:", err);
+            setHasText(false);
           }
-          
-          // Apply TextLayer styles - EXAKT gleiche CSS-Größe wie Canvas
-          textLayerDiv.style.position = "absolute";
-          textLayerDiv.style.left = "0";
-          textLayerDiv.style.top = "0";
-          textLayerDiv.style.width = `${viewport.width}px`;
-          textLayerDiv.style.height = `${viewport.height}px`;
-          textLayerDiv.style.overflow = "hidden";
-          textLayerDiv.style.userSelect = hasText ? "text" : "none";
-          textLayerDiv.style.opacity = "0.2";
-          textLayerDiv.style.lineHeight = "1.0";
         }
         
         // Wrapper EXAKT gleiche CSS-Größe für Koordinaten-Berechnung
@@ -419,11 +384,11 @@ function PageView({
     };
   };
 
-  // MouseDown: Drag-Start für Scan-PDFs
+  // MouseDown: Drag-Start für Rectangle-Highlighting (alle PDFs)
   const onMouseDown = (e: React.MouseEvent) => {
-    console.log("🖱️ Mouse down, mode:", mode, "hasText:", hasText);
+    console.log("🖱️ Mouse down, mode:", mode);
     
-    if (mode !== "highlight" || hasText) return;
+    if (mode !== "highlight") return;
     
     // Hit-test: Nicht auf bestehende Annotations starten
     if ((e.target as HTMLElement).closest("[data-ann-id]")) return;
@@ -453,8 +418,8 @@ function PageView({
       return;
     }
 
-    // 1) Fallback: Box-Highlight für Scan-PDFs
-    if (!hasText && drag) {
+    // VEREINFACHT: Immer Box-Highlight verwenden
+    if (drag) {
       const x = Math.min(drag.x0, drag.x1);
       const y = Math.min(drag.y0, drag.y1);
       const w = Math.abs(drag.x1 - drag.x0);
@@ -486,63 +451,7 @@ function PageView({
       return;
     }
 
-    // 2) Normal: Text-Selection für echte Text-PDFs
-    if (hasText) {
-      requestAnimationFrame(() => {
-        const sel = window.getSelection();
-        console.log("📝 Text selection:", { 
-          sel, 
-          type: sel?.type, 
-          rangeCount: sel?.rangeCount,
-          isCollapsed: sel?.isCollapsed 
-        });
-        
-        if (!sel || sel.isCollapsed || sel.type !== "Range" || sel.rangeCount === 0) {
-          console.log("⚠️ No valid text range selection");
-          return;
-        }
-        
-        const range = sel.getRangeAt(0);
-        if (!wrapperRef.current?.contains(range.commonAncestorContainer as any)) {
-          console.log("⚠️ Selection not in wrapper");
-          return;
-        }
-        
-        const pageBox = wrapperRef.current!.getBoundingClientRect();
-        const rects = Array.from(range.getClientRects())
-          .filter(r => r.width > 1 && r.height > 1) // Filter garbage rects
-          .map(r => ({
-            x: (r.left - pageBox.left) / pageBox.width,
-            y: (r.top - pageBox.top) / pageBox.height,
-            w: r.width / pageBox.width,
-            h: r.height / pageBox.height,
-          }));
-        
-        console.log("📐 Valid text selection rects:", rects.length);
-        
-        if (rects.length) {
-          const newHighlight = {
-            id: nanoid(),
-            page: pageNumber,
-            type: "highlight" as const,
-            rects,
-            color: "#ffeb00"
-          };
-          
-          console.log("✅ Creating text highlight:", newHighlight);
-          
-          setAnns(a => {
-            const newAnns = [...a, newHighlight];
-            console.log("📊 Updated annotations:", newAnns);
-            return newAnns;
-          });
-        }
-        
-        sel.removeAllRanges();
-      });
-    }
-    
-    // Reset drag state
+    // Text-Selektion ist jetzt deaktiviert - nur Rectangle-Highlighting
     setDrag(null);
   };
 
@@ -598,16 +507,17 @@ function PageView({
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onClick={onClick}
-      style={{ width: "fit-content", minHeight: "200px", cursor: mode === "highlight" && !hasText ? "crosshair" : "default" }}
+      style={{ width: "fit-content", minHeight: "200px", cursor: mode === "highlight" ? "crosshair" : "default" }}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
-      {/* TextLayer - AKTIVIERT für Selektion */}
+      {/* TextLayer - DEAKTIVIERT für Rectangle-Highlighting */}
       <div 
         ref={textRef} 
         className="absolute left-0 top-0" 
         style={{ 
           inset: 0, 
-          userSelect: 'text'  // KEIN pointer-events: none!
+          pointerEvents: 'none', // Deaktiviert für Rectangle-Mode
+          userSelect: 'none'
         }} 
       />
       {/* Annotation‑Overlay - PASSIV, fängt keine Events ab */}
@@ -618,8 +528,8 @@ function PageView({
           pointerEvents: 'none'  // KRITISCH: komplett passiv
         }}
       >
-        {/* Temporäres Drag-Rechteck für Scan-PDFs */}
-        {drag && !hasText && mode === "highlight" && (
+        {/* Temporäres Drag-Rechteck - IMMER verfügbar im Highlight-Modus */}
+        {drag && mode === "highlight" && (
           <div
             style={{
               position: 'absolute',
