@@ -101,11 +101,11 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
         file_type: uploadFile.file.type || 'application/pdf',
         file_size: uploadFile.file.size,
         user_id: user.id,
-        is_global: !accountGroupId // Mark as global if no specific account
+        is_global: !accountGroupId || accountGroupId === 'no-group' // Mark as global if no specific account group
       };
 
-      // Add specific account assignment if provided
-      if (accountGroupId && assignmentId) {
+      // Only add account_group_id if it's a valid UUID (not 'no-group')
+      if (accountGroupId && accountGroupId !== 'no-group') {
         documentData.account_group_id = accountGroupId;
       }
 
