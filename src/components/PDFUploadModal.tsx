@@ -153,6 +153,8 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
 
           if (fetchError) {
             console.error('Error fetching current temp match:', fetchError);
+            // If the record doesn't exist, we don't need to update it
+            // The document is already saved with is_global: false
           } else {
             const currentDocs = currentMatch.matched_documents || [];
             const updatedDocs = [...currentDocs, insertedDoc.id];
