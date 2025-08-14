@@ -152,6 +152,51 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
         throw new Error(`Nicht alle konfigurierten Spalten wurden gefunden. Verfügbare Spalten: ${headers.join(', ')}`);
       }
 
+      // Function to parse numbers with Swiss/German formatting
+      const parseSwissNumber = (value: any): number => {
+        if (value === null || value === undefined || value === '') return 0;
+        
+        let numStr = String(value).trim();
+        if (numStr === '' || numStr === '-') return 0;
+        
+        // Handle negative numbers
+        const isNegative = numStr.startsWith('-') || numStr.endsWith('-');
+        numStr = numStr.replace(/^-|-$/g, '');
+        
+        // Remove any currency symbols and spaces
+        numStr = numStr.replace(/[€$CHF\s]/g, '');
+        
+        // Handle different number formats
+        // Swiss/German: 1'234'567.89 or 1.234.567,89 or 1 234 567,89
+        // Check if last comma is decimal separator (has 1-3 digits after it)
+        const lastCommaIndex = numStr.lastIndexOf(',');
+        const lastDotIndex = numStr.lastIndexOf('.');
+        
+        if (lastCommaIndex > lastDotIndex && lastCommaIndex > 0) {
+          // Last comma is likely decimal separator
+          const afterComma = numStr.substring(lastCommaIndex + 1);
+          if (afterComma.length <= 3 && /^\d+$/.test(afterComma)) {
+            // Remove thousand separators (dots, apostrophes, spaces) before comma
+            const beforeComma = numStr.substring(0, lastCommaIndex).replace(/[.''\s]/g, '');
+            numStr = beforeComma + '.' + afterComma;
+          }
+        } else if (lastDotIndex > lastCommaIndex && lastDotIndex > 0) {
+          // Last dot is likely decimal separator
+          const afterDot = numStr.substring(lastDotIndex + 1);
+          if (afterDot.length <= 3 && /^\d+$/.test(afterDot)) {
+            // Remove thousand separators (commas, apostrophes, spaces) before dot
+            const beforeDot = numStr.substring(0, lastDotIndex).replace(/[,''\s]/g, '');
+            numStr = beforeDot + '.' + afterDot;
+          }
+        } else {
+          // No decimal separator, just remove thousand separators
+          numStr = numStr.replace(/[.,''\s]/g, '');
+        }
+        
+        const result = parseFloat(numStr) || 0;
+        return isNegative ? -result : result;
+      };
+
       // Parse data rows with better error handling
       const parsedData: TrialBalanceRow[] = dataRows
         .filter((row, index) => {
@@ -170,13 +215,22 @@ const TrialBalancePreview = ({ trialBalanceId, onEdit, onConfirm }: TrialBalance
           const previousYearValue = row[previousYearIndex];
           const foreignCurrencyValue = foreignCurrencyIndex >= 0 ? row[foreignCurrencyIndex] : undefined;
           
+          console.log(`Parsing row ${index + 2}:`, {
+            currentYearValue,
+            previousYearValue,
+            parsed: {
+              currentYear: parseSwissNumber(currentYearValue),
+              previousYear: parseSwissNumber(previousYearValue)
+            }
+          });
+          
           return {
             accountNumber: String(row[accountNumberIndex] || '').trim(),
             accountName: String(row[accountNameIndex] || '').trim(),
-            currentYear: parseFloat(String(currentYearValue || 0)) || 0,
-            previousYear: parseFloat(String(previousYearValue || 0)) || 0,
+            currentYear: parseSwissNumber(currentYearValue),
+            previousYear: parseSwissNumber(previousYearValue),
             foreignCurrency: foreignCurrencyValue !== undefined && foreignCurrencyValue !== '' 
-              ? (parseFloat(String(foreignCurrencyValue)) || undefined)
+              ? parseSwissNumber(foreignCurrencyValue)
               : undefined
           };
         })
