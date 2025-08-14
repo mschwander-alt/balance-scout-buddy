@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { PDFCommentExporter } from '@/components/PDFCommentExporter';
 import * as XLSX from 'xlsx';
+import { PdfUploadDropzone } from '@/components/PdfUploadDropzone';
 
 interface Assignment {
   id: string;
@@ -76,6 +78,8 @@ interface TrialBalanceRow {
 }
 
 const Review: React.FC = () => {
+
+const Review: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const trialBalanceId = searchParams.get('trial_balance_id');
@@ -106,6 +110,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [documentToReassign, setDocumentToReassign] = useState<Document | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showPdfUploadModal, setShowPdfUploadModal] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -1041,27 +1047,87 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     match_status: 'matched' as const,
                     confidence_score: 1.0,
                     matched_documents: updatedMatchedDocuments
-                  };
-                }
-                return assignment;
-              })
-            }))
-          );
+  };
 
-          // Aktualisiere auch assignments array für temp_account_matches wenn verwendet
-          setAssignments(prevAssignments => 
-            prevAssignments.map(assignment => {
-              if (assignment.id === accountId) {
-                return {
-                  ...assignment,
-                  match_status: 'matched' as const,
-                  confidence_score: 1.0,
-                  matched_documents: updatedMatchedDocuments
-                };
-              }
-              return assignment;
-            })
-          );
+  // PDF Upload Handler
+  const handlePdfUpload = async (file: File) => {
+    if (!trialBalanceId || !user) return;
+    
+    setUploadingPdf(true);
+    
+    try {
+      toast.info('PDF wird hochgeladen...');
+      
+      // Upload PDF to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_kontoblaetter.${fileExt}`;
+      const filePath = `${user.id}/${trialBalanceId}/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('account-evidence')
+        .upload(filePath, file);
+      
+      if (uploadError) throw uploadError;
+      
+      // Save to account_evidence table
+      const { error: insertError } = await supabase
+        .from('account_evidence')
+        .insert({
+          trial_balance_id: trialBalanceId,
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          file_type: file.type,
+          file_size: file.size,
+          description: 'Kontoblätter PDF zum Aufteilen'
+        });
+      
+      if (insertError) throw insertError;
+      
+      toast.success('PDF erfolgreich hochgeladen! Das Aufteilen wird als nächstes implementiert.');
+      setShowPdfUploadModal(false);
+      
+      // Reload data to show new document
+      await loadData();
+      
+    } catch (error) {
+      console.error('Error uploading PDF:', error);
+      toast.error('Fehler beim Hochladen des PDFs');
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
+
+  const getUnmatchedDocuments = useCallback(() => {
+    const matchedDocumentIds = new Set();
+    
+    // Collect matched documents from account groups
+    accountGroups.forEach(group => {
+      group.assignments.forEach(assignment => {
+        if (assignment.matched_documents) {
+          assignment.matched_documents.forEach(docId => {
+            matchedDocumentIds.add(docId);
+          });
+        }
+      });
+    });
+    
+    // Also collect matched documents from assignments (for temp_account_matches)
+    assignments.forEach(assignment => {
+      if (assignment.matched_documents) {
+        assignment.matched_documents.forEach(docId => {
+          matchedDocumentIds.add(docId);
+        });
+      }
+    });
+    
+    // Filter out documents that are either matched or have been manually assigned to a group
+    return documents.filter(doc => 
+      !matchedDocumentIds.has(doc.id) && !doc.account_group_id
+    );
+  }, [documents, assignments, accountGroups]);
+
+  const loadData = useCallback(async () => {
 
           console.log('Document assigned successfully to account:', accountId);
         } else {
@@ -1363,7 +1429,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               </Button>
               
               <Button 
-                onClick={() => {/* TODO: PDF Upload Handler */}}
+                onClick={() => {
+                  toast.info('PDF Upload wird im nächsten Schritt implementiert');
+                }}
                 disabled={isProcessing}
                 size="sm"
                 variant="outline"
@@ -2421,6 +2489,27 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 {selectedAccountsForAssign.size} Konten zuweisen
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* PDF Upload Modal */}
+        <Dialog open={showPdfUploadModal} onOpenChange={setShowPdfUploadModal}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Kontoblätter PDF hochladen</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Laden Sie ein PDF mit mehreren Kontoblättern hoch. Das System wird versuchen, 
+                die einzelnen Konten automatisch zu erkennen und zuzuordnen.
+              </p>
+            </DialogHeader>
+            
+            <PdfUploadDropzone 
+              onUpload={(file) => {
+                toast.success(`PDF "${file.name}" wurde ausgewählt. Das Aufteilen wird im nächsten Schritt implementiert.`);
+                setShowPdfUploadModal(false);
+              }}
+              uploading={uploadingPdf}
+            />
           </DialogContent>
         </Dialog>
 
