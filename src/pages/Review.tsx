@@ -280,8 +280,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           account_group_id: 'no-group',
           account_number: match.account_number,
           account_name: match.account_name,
-          current_year_balance: match.current_year_balance || 0,
-          previous_year_balance: match.previous_year_balance || 0,
+           current_year_balance: match.current_year_balance ?? 0,
+           previous_year_balance: match.previous_year_balance ?? 0,
           match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
           confidence_score: match.confidence_score || undefined,
           matched_documents: match.matched_documents || undefined
@@ -341,8 +341,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             account_group_id: 'no-group',
             account_number: match.account_number,
             account_name: match.account_name,
-            current_year_balance: match.current_year_balance || 0,
-            previous_year_balance: match.previous_year_balance || 0,
+           current_year_balance: match.current_year_balance ?? 0,
+           previous_year_balance: match.previous_year_balance ?? 0,
             match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
             confidence_score: match.confidence_score || undefined,
             matched_documents: match.matched_documents || undefined
