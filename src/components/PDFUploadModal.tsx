@@ -149,13 +149,12 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
             .from('temp_account_matches')
             .select('matched_documents')
             .eq('id', assignmentId)
-            .single();
+            .maybeSingle(); // Use maybeSingle instead of single to handle non-existent records
 
           if (fetchError) {
             console.error('Error fetching current temp match:', fetchError);
-            // If the record doesn't exist, we don't need to update it
-            // The document is already saved with is_global: false and will be shown correctly
-          } else {
+          } else if (currentMatch) {
+            // Record exists, update it
             const currentDocs = currentMatch.matched_documents || [];
             const updatedDocs = [...currentDocs, insertedDoc.id];
 
@@ -168,6 +167,7 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
               console.error('Error updating temp match with document:', updateError);
             }
           }
+          // If record doesn't exist, that's fine - the document is saved with is_global: false
         }
       }
 
