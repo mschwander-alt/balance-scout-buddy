@@ -847,14 +847,6 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       
       toast.success(`Nachweis erfolgreich zu ${selectedAccountsForAssign.size} Konto${selectedAccountsForAssign.size > 1 ? 'en' : ''} verschoben`);
       setSearchQuery('');
-      setShowReassignModal(false);
-      setDocumentToReassign(null);
-      setSelectedAccountsForAssign(new Set());
-    } catch (error: any) {
-      console.error('Error during reassign:', error);
-      toast.error('Verschiebung fehlgeschlagen');
-    }
-  };
 
   // Funktion zum Speichern von Kommentaren
   const saveComment = async (assignmentId: string, commentText: string) => {
