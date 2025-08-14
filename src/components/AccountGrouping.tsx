@@ -140,15 +140,60 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
         ? headers.findIndex(h => h === trialBalanceData.foreign_currency_column)
         : -1;
 
+      // Function to parse numbers with Swiss/German formatting
+      const parseSwissNumber = (value: any): number => {
+        if (value === null || value === undefined || value === '') return 0;
+        
+        let numStr = String(value).trim();
+        if (numStr === '' || numStr === '-') return 0;
+        
+        // Handle negative numbers
+        const isNegative = numStr.startsWith('-') || numStr.endsWith('-');
+        numStr = numStr.replace(/^-|-$/g, '');
+        
+        // Remove any currency symbols and spaces
+        numStr = numStr.replace(/[€$CHF\s]/g, '');
+        
+        // Handle different number formats
+        // Swiss/German: 1'234'567.89 or 1.234.567,89 or 1 234 567,89
+        // Check if last comma is decimal separator (has 1-3 digits after it)
+        const lastCommaIndex = numStr.lastIndexOf(',');
+        const lastDotIndex = numStr.lastIndexOf('.');
+        
+        if (lastCommaIndex > lastDotIndex && lastCommaIndex > 0) {
+          // Last comma is likely decimal separator
+          const afterComma = numStr.substring(lastCommaIndex + 1);
+          if (afterComma.length <= 3 && /^\d+$/.test(afterComma)) {
+            // Remove thousand separators (dots, apostrophes, spaces) before comma
+            const beforeComma = numStr.substring(0, lastCommaIndex).replace(/[.''\s]/g, '');
+            numStr = beforeComma + '.' + afterComma;
+          }
+        } else if (lastDotIndex > lastCommaIndex && lastDotIndex > 0) {
+          // Last dot is likely decimal separator
+          const afterDot = numStr.substring(lastDotIndex + 1);
+          if (afterDot.length <= 3 && /^\d+$/.test(afterDot)) {
+            // Remove thousand separators (commas, apostrophes, spaces) before dot
+            const beforeDot = numStr.substring(0, lastDotIndex).replace(/[,''\s]/g, '');
+            numStr = beforeDot + '.' + afterDot;
+          }
+        } else {
+          // No decimal separator, just remove thousand separators
+          numStr = numStr.replace(/[.,''\s]/g, '');
+        }
+        
+        const result = parseFloat(numStr) || 0;
+        return isNegative ? -result : result;
+      };
+
       const parsedData: TrialBalanceRow[] = dataRows
         .filter(row => row[accountNumberIndex] && row[accountNameIndex])
         .map(row => ({
           accountNumber: String(row[accountNumberIndex] || '').trim(),
           accountName: String(row[accountNameIndex] || '').trim(),
-          currentYear: parseFloat(String(row[currentYearIndex] || 0)) || 0,
-          previousYear: parseFloat(String(row[previousYearIndex] || 0)) || 0,
+          currentYear: parseSwissNumber(row[currentYearIndex]),
+          previousYear: parseSwissNumber(row[previousYearIndex]),
           foreignCurrency: foreignCurrencyIndex >= 0 
-            ? (parseFloat(String(row[foreignCurrencyIndex] || 0)) || undefined)
+            ? parseSwissNumber(row[foreignCurrencyIndex]) || undefined
             : undefined
         }));
 
@@ -187,9 +232,9 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
         accounts: (group.account_group_assignments || []).map((assignment: any) => ({
           accountNumber: assignment.account_number,
           accountName: assignment.account_name,
-          currentYear: parseFloat(assignment.current_year_balance),
-          previousYear: parseFloat(assignment.previous_year_balance),
-          foreignCurrency: assignment.foreign_currency_balance ? parseFloat(assignment.foreign_currency_balance) : undefined
+          currentYear: assignment.current_year_balance || 0,
+          previousYear: assignment.previous_year_balance || 0,
+          foreignCurrency: assignment.foreign_currency_balance || undefined
         }))
       }));
 
