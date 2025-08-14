@@ -144,7 +144,7 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
             }
           }
         } else {
-          // Ungrouped assignment - update temp_account_matches
+          // Ungrouped assignment - try to update temp_account_matches
           const { data: currentMatch, error: fetchError } = await supabase
             .from('temp_account_matches')
             .select('matched_documents')
@@ -154,7 +154,7 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
           if (fetchError) {
             console.error('Error fetching current temp match:', fetchError);
             // If the record doesn't exist, we don't need to update it
-            // The document is already saved with is_global: false
+            // The document is already saved with is_global: false and will be shown correctly
           } else {
             const currentDocs = currentMatch.matched_documents || [];
             const updatedDocs = [...currentDocs, insertedDoc.id];
