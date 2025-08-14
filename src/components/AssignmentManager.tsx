@@ -219,9 +219,21 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
     const memberId = pendingAssignments[groupId];
     const group = accountGroups.find(g => g.id === groupId);
 
+    if (!group) {
+      console.error('Error during manual assign: Group not found', { groupId });
+      toast({
+        title: 'Fehler beim Speichern',
+        description: 'Gruppe nicht gefunden',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
+      console.log('Saving assignment:', { groupId, memberId, isTemp: group.is_temp });
+      
       let error;
-      if (group?.is_temp) {
+      if (group.is_temp) {
         const { error: tempError } = await supabase
           .from('temp_account_matches')
           .update({
@@ -235,13 +247,16 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
           .from('account_groups')
           .update({
             assigned_member_id: memberId || null,
-            status: memberId ? 'pending' : 'pending',
+            status: memberId ? 'in_progress' : 'pending',
           })
           .eq('id', groupId);
         error = groupError;
       }
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error during manual assign: Database error', error);
+        throw error;
+      }
 
       toast({
         title: 'Zuordnung gespeichert',
@@ -254,13 +269,13 @@ const AssignmentManager = ({ trialBalanceId, onAssignmentsUpdated }: AssignmentM
         return updated;
       });
 
-      loadData();
+      await loadData();
       onAssignmentsUpdated?.();
     } catch (error: any) {
-      console.error('Error saving assignment:', error);
+      console.error('Error during manual assign:', error);
       toast({
         title: 'Fehler beim Speichern',
-        description: error.message,
+        description: error?.message || 'Unbekannter Fehler beim Speichern der Zuordnung',
         variant: 'destructive',
       });
     }
