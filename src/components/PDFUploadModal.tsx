@@ -109,11 +109,38 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
         documentData.account_group_id = accountGroupId;
       }
 
-      const { error: dbError } = await supabase
+      const { data: insertedDoc, error: dbError } = await supabase
         .from('account_evidence')
-        .insert(documentData);
+        .insert(documentData)
+        .select('id')
+        .single();
 
       if (dbError) throw dbError;
+
+      // If this is for a specific assignment, update the assignment to include this document
+      if (assignmentId && insertedDoc?.id) {
+        const { data: currentAssignment, error: fetchError } = await supabase
+          .from('account_group_assignments')
+          .select('matched_documents')
+          .eq('id', assignmentId)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching current assignment:', fetchError);
+        } else {
+          const currentDocs = currentAssignment.matched_documents || [];
+          const updatedDocs = [...currentDocs, insertedDoc.id];
+
+          const { error: updateError } = await supabase
+            .from('account_group_assignments')
+            .update({ matched_documents: updatedDocs })
+            .eq('id', assignmentId);
+
+          if (updateError) {
+            console.error('Error updating assignment with document:', updateError);
+          }
+        }
+      }
 
       // Mark as completed
       setUploadFiles(prev => prev.map(f => 
