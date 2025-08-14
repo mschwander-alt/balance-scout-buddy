@@ -560,7 +560,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       // Create individual assignments from trial balance entries
       const individualAssignments: Assignment[] = parsedData.map((row, index) => {
         const assignment = {
-          id: `tb-${row.accountNumber}`,
+          id: crypto.randomUUID(), // Generate proper UUID instead of "tb-" prefix
           account_group_id: 'no-group',
           account_number: row.accountNumber,
           account_name: row.accountName,
