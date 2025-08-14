@@ -438,11 +438,51 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       const headers = jsonData[0] as string[];
       const dataRows = jsonData.slice(1);
 
-      // Find column indices
-      const accountNumberIndex = headers.findIndex(h => h === trialBalanceData.account_number_column);
-      const accountNameIndex = headers.findIndex(h => h === trialBalanceData.account_name_column);
-      const currentYearIndex = headers.findIndex(h => h === trialBalanceData.current_year_column);
-      const previousYearIndex = headers.findIndex(h => h === trialBalanceData.previous_year_column);
+      // Find column indices with flexible matching
+      const findColumnIndex = (searchValue: string | undefined, headers: string[]): number => {
+        if (!searchValue || searchValue.trim() === '') return -1;
+        
+        // Exact match first
+        let index = headers.findIndex(h => h === searchValue);
+        if (index !== -1) return index;
+        
+        // Try trimmed match
+        index = headers.findIndex(h => h?.toString().trim() === searchValue.trim());
+        if (index !== -1) return index;
+        
+        // Try case-insensitive match
+        index = headers.findIndex(h => h?.toString().toLowerCase().trim() === searchValue.toLowerCase().trim());
+        return index;
+      };
+
+      const accountNumberIndex = findColumnIndex(trialBalanceData.account_number_column, headers);
+      const accountNameIndex = findColumnIndex(trialBalanceData.account_name_column, headers);
+      const currentYearIndex = findColumnIndex(trialBalanceData.current_year_column, headers);
+      const previousYearIndex = findColumnIndex(trialBalanceData.previous_year_column, headers);
+
+      console.log('Review Direct Excel - Excel headers found:', headers);
+      console.log('Review Direct Excel - Looking for columns:', {
+        accountNumber: trialBalanceData.account_number_column,
+        accountName: trialBalanceData.account_name_column,
+        currentYear: trialBalanceData.current_year_column,
+        previousYear: trialBalanceData.previous_year_column
+      });
+      console.log('Review Direct Excel - Column indices found:', {
+        accountNumber: accountNumberIndex,
+        accountName: accountNameIndex,
+        currentYear: currentYearIndex,
+        previousYear: previousYearIndex
+      });
+
+      if (accountNumberIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1 || previousYearIndex === -1) {
+        console.error('Review Direct Excel - Missing columns:', {
+          accountNumber: accountNumberIndex === -1 ? 'MISSING' : 'FOUND',
+          accountName: accountNameIndex === -1 ? 'MISSING' : 'FOUND', 
+          currentYear: currentYearIndex === -1 ? 'MISSING' : 'FOUND',
+          previousYear: previousYearIndex === -1 ? 'MISSING' : 'FOUND'
+        });
+        throw new Error(`Nicht alle konfigurierten Spalten wurden gefunden. Verfügbare Spalten: ${headers.join(', ')}`);
+      }
 
       // Function to parse numbers with Swiss/German formatting
       const parseSwissNumber = (value: any): number => {
