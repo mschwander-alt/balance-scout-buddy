@@ -21,6 +21,7 @@ import { DocumentViewer } from '@/components/DocumentViewer';
 import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { PDFCommentExporter } from '@/components/PDFCommentExporter';
+import { PDFUploadModal } from '@/components/PDFUploadModal';
 import * as XLSX from 'xlsx';
 
 interface Assignment {
@@ -106,6 +107,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [documentToReassign, setDocumentToReassign] = useState<Document | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showPDFUploadModal, setShowPDFUploadModal] = useState(false);
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -1505,7 +1507,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               </Button>
               
               <Button 
-                onClick={() => {/* TODO: PDF Upload Handler */}}
+                onClick={() => setShowPDFUploadModal(true)}
                 disabled={isProcessing}
                 size="sm"
                 variant="outline"
@@ -2570,6 +2572,19 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
       
       {/* Floating Calculator */}
       <Calculator />
+
+      {/* PDF Upload Modal */}
+      {trialBalanceId && (
+        <PDFUploadModal
+          open={showPDFUploadModal}
+          onOpenChange={setShowPDFUploadModal}
+          trialBalanceId={trialBalanceId}
+          onUploadComplete={() => {
+            loadData();
+            toast.success('Kontoblätter erfolgreich hochgeladen');
+          }}
+        />
+      )}
     </TooltipProvider>
   );
 };
