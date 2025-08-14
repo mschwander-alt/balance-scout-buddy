@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
@@ -55,6 +55,7 @@ interface Document {
   file_type: string;
   file_size: number;
   account_group_id?: string;
+  is_global?: boolean; // For Kontoblätter that should appear in all accounts
 }
 
 interface TrialBalanceData {
@@ -1403,9 +1404,26 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     ? accountGroups.flatMap(group => group.assignments).find(a => a.id === selectedAccount)
     : null;
 
-  const selectedDocuments = selectedAccountData?.matched_documents
-    ? documents.filter(doc => selectedAccountData.matched_documents?.includes(doc.id))
-    : [];
+  // Get documents for selected account: matched documents + global documents (Kontoblätter)
+  const selectedDocuments = useMemo(() => {
+    if (!selectedAccountData) return [];
+    
+    // Get account-specific matched documents
+    const matchedDocs = selectedAccountData.matched_documents
+      ? documents.filter(doc => selectedAccountData.matched_documents?.includes(doc.id))
+      : [];
+    
+    // Get global documents (Kontoblätter) for this trial balance
+    const globalDocs = documents.filter(doc => doc.is_global === true);
+    
+    // Combine and deduplicate
+    const allDocuments = [...matchedDocs, ...globalDocs];
+    const uniqueDocuments = allDocuments.filter((doc, index, self) => 
+      index === self.findIndex(d => d.id === doc.id)
+    );
+    
+    return uniqueDocuments;
+  }, [selectedAccountData, documents]);
 
   // Erweiterte KI-Analyse
   const startAdvancedAnalysis = async () => {
@@ -1989,7 +2007,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                 <div key={doc.id} className="relative group">
                                   <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
                                     <span className="truncate">
-                                      {doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
+                                      {doc.is_global ? '📋 ' : ''}{doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
                                     </span>
                                     <TooltipProvider>
                                       <Tooltip>

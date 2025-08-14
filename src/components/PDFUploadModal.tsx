@@ -90,7 +90,7 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, onUploadCom
 
       if (error) throw error;
 
-      // Save document metadata
+      // Save document metadata as global Kontoblätter
       const { error: dbError } = await supabase
         .from('account_evidence')
         .insert({
@@ -99,7 +99,8 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, onUploadCom
           file_path: filePath,
           file_type: uploadFile.file.type || 'application/pdf',
           file_size: uploadFile.file.size,
-          user_id: user.id
+          user_id: user.id,
+          is_global: true // Mark as global document (Kontoblätter)
         });
 
       if (dbError) throw dbError;

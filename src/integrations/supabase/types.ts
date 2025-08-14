@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
@@ -54,6 +54,7 @@ export type Database = {
           file_size: number
           file_type: string
           id: string
+          is_global: boolean
           trial_balance_id: string
           updated_at: string
           upload_date: string
@@ -68,6 +69,7 @@ export type Database = {
           file_size: number
           file_type: string
           id?: string
+          is_global?: boolean
           trial_balance_id: string
           updated_at?: string
           upload_date?: string
@@ -82,6 +84,7 @@ export type Database = {
           file_size?: number
           file_type?: string
           id?: string
+          is_global?: boolean
           trial_balance_id?: string
           updated_at?: string
           upload_date?: string
@@ -488,9 +491,9 @@ export type Database = {
       }
       extract_and_match_file_content: {
         Args: {
-          trial_balance_id_param: string
           document_id_param: string
           target_balance_param: number
+          trial_balance_id_param: string
         }
         Returns: Json
       }
