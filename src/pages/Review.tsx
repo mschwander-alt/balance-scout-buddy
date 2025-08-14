@@ -1351,7 +1351,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 {isProcessing ? 'KI-Analyse läuft...' : 'KI-Analyse'}
               </Button>
               
-              <Button 
+               <Button 
                 onClick={handleUnmatchAll}
                 disabled={isProcessing}
                 size="sm"
@@ -1360,6 +1360,17 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               >
                 <XCircle className="h-3 w-3" />
                 Unmatch All
+              </Button>
+              
+              <Button 
+                onClick={() => {/* TODO: PDF Upload Handler */}}
+                disabled={isProcessing}
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-3 w-3" />
+                Kontoblätter hochladen
               </Button>
               
               <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>
@@ -1374,7 +1385,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                     className="flex items-center gap-2"
                   >
                     <FileText className="h-3 w-3" />
-                    Nicht gematchte Dateien manuell zuweisen
+                    man. Zuweisung
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-7xl min-h-[80vh] max-h-[90vh] overflow-hidden flex flex-col">
