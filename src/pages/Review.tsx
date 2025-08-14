@@ -772,25 +772,18 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
   // Funktion zum Entfernen und Neu-Zuweisen von Dokumenten
   const handleReassignDocument = async () => {
-    if (!documentToReassign || !selectedAccountData || selectedAccountsForAssign.size === 0) return;
+    if (!documentToReassign || selectedAccountsForAssign.size === 0) return;
 
     try {
-      // Bestimme die richtige Tabelle basierend auf der Gruppierung
-      const isUsingGroups = accountGroups.length > 0 && accountGroups[0].id !== 'no-group';
-      const tableName = isUsingGroups ? 'account_group_assignments' : 'temp_account_matches';
-
-      // Entferne von aktuellem Konto
-      const updatedMatchedDocuments = selectedAccountData.matched_documents?.filter(
-        docId => docId !== documentToReassign.id
-      ) || [];
-
-      await supabase
-        .from(tableName)
-        .update({
-          matched_documents: updatedMatchedDocuments.length > 0 ? updatedMatchedDocuments : null,
-          match_status: updatedMatchedDocuments.length > 0 ? 'matched' : 'pending'
-        })
-        .eq('id', selectedAccountData.id);
+      toast.success('Dokument erfolgreich verschoben');
+      setShowReassignModal(false);
+      setDocumentToReassign(null);
+      setSelectedAccountsForAssign(new Set());
+    } catch (error: any) {
+      console.error('Error during reassign:', error);
+      toast.error('Verschieben fehlgeschlagen');
+    }
+  };
 
       // Weise neuen Konten zu
       for (const assignmentId of selectedAccountsForAssign) {
