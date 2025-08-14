@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2, Upload } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2, Upload, Plus } from 'lucide-react';
 import { Calculator } from '@/components/Calculator';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -109,6 +109,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [documentToReassign, setDocumentToReassign] = useState<Document | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false);
+  const [showAccountSpecificUpload, setShowAccountSpecificUpload] = useState(false);
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -2002,34 +2003,55 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                         <>
                           {/* Document tabs with embedded reassign icons */}
                           <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
-                            <TabsList className="grid w-full mb-3 flex-shrink-0" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
-                              {selectedDocuments.map((doc) => (
-                                <div key={doc.id} className="relative group">
-                                  <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
-                                    <span className="truncate">
-                                      {doc.is_global ? '📋 ' : ''}{doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
-                                    </span>
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Send 
-                                            className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setDocumentToReassign(doc);
-                                              setShowReassignModal(true);
-                                            }}
-                                          />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          Neu zuweisen
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  </TabsTrigger>
-                                </div>
-                              ))}
-                            </TabsList>
+                            <div className="flex items-center gap-2 mb-3">
+                              <TabsList className="grid flex-1" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
+                                {selectedDocuments.map((doc) => (
+                                  <div key={doc.id} className="relative group">
+                                    <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
+                                      <span className="truncate">
+                                        {doc.is_global ? '📋 ' : ''}{doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
+                                      </span>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Send 
+                                              className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDocumentToReassign(doc);
+                                                setShowReassignModal(true);
+                                              }}
+                                            />
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            Neu zuweisen
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    </TabsTrigger>
+                                  </div>
+                                ))}
+                              </TabsList>
+                              
+                              {/* Upload Button for specific account */}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-10 w-10 p-0 shrink-0"
+                                      onClick={() => setShowAccountSpecificUpload(true)}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Nachweis für dieses Konto hochladen
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
                             
                             {selectedDocuments.map((doc) => (
                               <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 flex flex-col">
@@ -2600,6 +2622,22 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           onUploadComplete={() => {
             loadData();
             toast.success('Kontoblätter erfolgreich hochgeladen');
+          }}
+        />
+      )}
+
+      {/* Account-specific Upload Modal */}
+      {trialBalanceId && selectedAccountData && (
+        <PDFUploadModal
+          open={showAccountSpecificUpload}
+          onOpenChange={setShowAccountSpecificUpload}
+          trialBalanceId={trialBalanceId}
+          accountGroupId={selectedAccountData.account_group_id}
+          assignmentId={selectedAccountData.id}
+          onUploadComplete={() => {
+            loadData();
+            setShowAccountSpecificUpload(false);
+            toast.success('Nachweis erfolgreich hochgeladen');
           }}
         />
       )}

@@ -13,6 +13,8 @@ interface PDFUploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   trialBalanceId: string;
+  accountGroupId?: string;
+  assignmentId?: string;
   onUploadComplete?: () => void;
 }
 
@@ -24,7 +26,7 @@ interface UploadFile {
   error?: string;
 }
 
-export function PDFUploadModal({ open, onOpenChange, trialBalanceId, onUploadComplete }: PDFUploadModalProps) {
+export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGroupId, assignmentId, onUploadComplete }: PDFUploadModalProps) {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -80,7 +82,8 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, onUploadCom
     ));
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filePath = `${user.id}/${trialBalanceId}/account-sheets/${timestamp}-${uploadFile.file.name}`;
+    const folderPath = accountGroupId && assignmentId ? 'account-documents' : 'account-sheets';
+    const filePath = `${user.id}/${trialBalanceId}/${folderPath}/${timestamp}-${uploadFile.file.name}`;
 
     try {
       // Upload file
@@ -90,18 +93,25 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, onUploadCom
 
       if (error) throw error;
 
-      // Save document metadata as global Kontoblätter
+      // Save document metadata
+      const documentData: any = {
+        trial_balance_id: trialBalanceId,
+        file_name: uploadFile.file.name,
+        file_path: filePath,
+        file_type: uploadFile.file.type || 'application/pdf',
+        file_size: uploadFile.file.size,
+        user_id: user.id,
+        is_global: !accountGroupId // Mark as global if no specific account
+      };
+
+      // Add specific account assignment if provided
+      if (accountGroupId && assignmentId) {
+        documentData.account_group_id = accountGroupId;
+      }
+
       const { error: dbError } = await supabase
         .from('account_evidence')
-        .insert({
-          trial_balance_id: trialBalanceId,
-          file_name: uploadFile.file.name,
-          file_path: filePath,
-          file_type: uploadFile.file.type || 'application/pdf',
-          file_size: uploadFile.file.size,
-          user_id: user.id,
-          is_global: true // Mark as global document (Kontoblätter)
-        });
+        .insert(documentData);
 
       if (dbError) throw dbError;
 
@@ -185,7 +195,9 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, onUploadCom
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Kontoblätter hochladen</DialogTitle>
+          <DialogTitle>
+            {accountGroupId ? 'Nachweis für Konto hochladen' : 'Kontoblätter hochladen'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-auto space-y-4">
