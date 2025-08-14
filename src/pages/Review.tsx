@@ -491,25 +491,56 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
       const parsedData: TrialBalanceRow[] = dataRows
         .filter(row => row[accountNumberIndex] && row[accountNameIndex])
-        .map(row => ({
-          accountNumber: String(row[accountNumberIndex] || '').trim(),
-          accountName: String(row[accountNameIndex] || '').trim(),
-          currentYear: parseSwissNumber(row[currentYearIndex]),
-          previousYear: parseSwissNumber(row[previousYearIndex]),
-        }));
+        .map((row, index) => {
+          const currentYearValue = row[currentYearIndex];
+          const previousYearValue = row[previousYearIndex];
+          
+          const parsedRow = {
+            accountNumber: String(row[accountNumberIndex] || '').trim(),
+            accountName: String(row[accountNameIndex] || '').trim(),
+            currentYear: parseSwissNumber(currentYearValue),
+            previousYear: parseSwissNumber(previousYearValue),
+          };
+          
+          if (index < 3) {
+            console.log(`Review Direct Excel - Row ${index + 2}:`, {
+              accountNumber: parsedRow.accountNumber,
+              rawCurrentYear: currentYearValue,
+              rawPreviousYear: previousYearValue,
+              parsedCurrentYear: parsedRow.currentYear,
+              parsedPreviousYear: parsedRow.previousYear
+            });
+          }
+          
+          return parsedRow;
+        });
+
+      console.log(`Review Direct Excel - Parsed ${parsedData.length} rows. Sample:`, parsedData.slice(0, 3));
 
       // Create individual assignments from trial balance entries
-      const individualAssignments: Assignment[] = parsedData.map(row => ({
-        id: `tb-${row.accountNumber}`,
-        account_group_id: 'no-group',
-        account_number: row.accountNumber,
-        account_name: row.accountName,
-        current_year_balance: row.currentYear,
-        previous_year_balance: row.previousYear,
-        match_status: 'pending' as const,
-        confidence_score: undefined,
-        matched_documents: undefined
-      })).sort((a, b) => {
+      const individualAssignments: Assignment[] = parsedData.map((row, index) => {
+        const assignment = {
+          id: `tb-${row.accountNumber}`,
+          account_group_id: 'no-group',
+          account_number: row.accountNumber,
+          account_name: row.accountName,
+          current_year_balance: row.currentYear,
+          previous_year_balance: row.previousYear,
+          match_status: 'pending' as const,
+          confidence_score: undefined,
+          matched_documents: undefined
+        };
+        
+        if (index < 3) {
+          console.log(`Review Direct Excel - Assignment ${index}:`, {
+            account: assignment.account_number,
+            current_balance: assignment.current_year_balance,
+            previous_balance: assignment.previous_year_balance
+          });
+        }
+        
+        return assignment;
+      }).sort((a, b) => {
         // Sortiere nach Kontonummer numerisch aufsteigend
         const aNum = parseInt(a.account_number);
         const bNum = parseInt(b.account_number);
@@ -529,6 +560,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         isOpen: true
       };
 
+      console.log(`Review Direct Excel - Created virtual group with ${virtualGroup.assignments.length} assignments`);
+      console.log('Review Direct Excel - Sample assignments:', virtualGroup.assignments.slice(0, 3));
+      
       setAccountGroups([virtualGroup]);
       // Nur setze assignments für ungrouped, nicht zusätzlich
       setAssignments([]);
