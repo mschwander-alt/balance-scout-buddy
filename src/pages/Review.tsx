@@ -275,17 +275,29 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
       if (tempMatches && tempMatches.length > 0) {
         // Use existing temp matches
-        const tempAssignments: Assignment[] = tempMatches.map(match => ({
-          id: match.id,
-          account_group_id: 'no-group',
-          account_number: match.account_number,
-          account_name: match.account_name,
-           current_year_balance: match.current_year_balance ?? 0,
-           previous_year_balance: match.previous_year_balance ?? 0,
-          match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
-          confidence_score: match.confidence_score || undefined,
-          matched_documents: match.matched_documents || undefined
-        })).sort((a, b) => {
+        console.log('Review - Found temp matches:', tempMatches.length);
+        console.log('Review - Sample temp match:', tempMatches[0]);
+        
+        const tempAssignments: Assignment[] = tempMatches.map(match => {
+          const assignment = {
+            id: match.id,
+            account_group_id: 'no-group',
+            account_number: match.account_number,
+            account_name: match.account_name,
+            current_year_balance: match.current_year_balance ?? 0,
+            previous_year_balance: match.previous_year_balance ?? 0,
+            match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+            confidence_score: match.confidence_score || undefined,
+            matched_documents: match.matched_documents || undefined
+          };
+          
+          console.log(`Review - Processing temp match ${match.account_number}:`, {
+            original: { current: match.current_year_balance, previous: match.previous_year_balance },
+            processed: { current: assignment.current_year_balance, previous: assignment.previous_year_balance }
+          });
+          
+          return assignment;
+        }).sort((a, b) => {
           // Sortiere nach Kontonummer numerisch aufsteigend
           const aNum = parseInt(a.account_number);
           const bNum = parseInt(b.account_number);
@@ -295,6 +307,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           return a.account_number.localeCompare(b.account_number);
         });
 
+        console.log('Review - Created temp assignments:', tempAssignments.slice(0, 3));
+        
         const virtualGroup: AccountGroup = {
           id: 'no-group',
           trial_balance_id: trialBalanceId!,
@@ -304,6 +318,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           isOpen: true
         };
 
+        console.log('Review - Setting virtual group with assignments:', virtualGroup.assignments.length);
         setAccountGroups([virtualGroup]);
         // Nur setze assignments für ungrouped, nicht zusätzlich
         setAssignments([]);
