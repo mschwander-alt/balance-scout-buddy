@@ -110,6 +110,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   const [isUploading, setIsUploading] = useState(false);
   const [showPDFUploadModal, setShowPDFUploadModal] = useState(false);
   const [showAccountSpecificUpload, setShowAccountSpecificUpload] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   const getUnmatchedDocuments = useCallback(() => {
     const matchedDocumentIds = new Set();
@@ -141,7 +142,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
   }, [documents, assignments, accountGroups]);
 
   const loadData = useCallback(async () => {
-    if (!trialBalanceId || !user) return;
+    if (!trialBalanceId || !user || isLoadingData) return;
+    
+    setIsLoadingData(true);
     
     // Only preserve completion status during reload if it was not called after an upload
     // Check if we're in an upload context by checking if there are any pending document assignments
@@ -253,6 +256,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         setAssignments([]);
       } else {
         // No groups exist - load from temp_account_matches or create from trial balance
+        // No groups exist - load from temp_account_matches or create from trial balance
         await loadTemporaryMatches();
       }
       
@@ -264,8 +268,10 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
     } catch (error: any) {
       console.error('Error loading data:', error);
       toast.error('Fehler beim Laden der Daten');
+    } finally {
+      setIsLoadingData(false);
     }
-  }, [trialBalanceId, user]);
+  }, [trialBalanceId, user, isLoadingData]);
 
   const loadTemporaryMatches = async () => {
     try {
