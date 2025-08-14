@@ -1897,23 +1897,21 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                     <span className="truncate">
                                       {doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
                                     </span>
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Send 
-                                            className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setDocumentToReassign(doc);
-                                              setShowReassignModal(true);
-                                            }}
-                                          />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          Neu zuweisen
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                     <Tooltip>
+                                       <TooltipTrigger asChild>
+                                         <Send 
+                                           className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setDocumentToReassign(doc);
+                                             setShowReassignModal(true);
+                                           }}
+                                         />
+                                       </TooltipTrigger>
+                                       <TooltipContent>
+                                         Neu zuweisen
+                                       </TooltipContent>
+                                     </Tooltip>
                                   </TabsTrigger>
                                 </div>
                               ))}
