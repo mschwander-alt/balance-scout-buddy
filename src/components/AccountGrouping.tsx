@@ -131,14 +131,54 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
       const headers = jsonData[0] as string[];
       const dataRows = jsonData.slice(1);
 
-      // Find column indices
-      const accountNumberIndex = headers.findIndex(h => h === trialBalanceData.account_number_column);
-      const accountNameIndex = headers.findIndex(h => h === trialBalanceData.account_name_column);
-      const currentYearIndex = headers.findIndex(h => h === trialBalanceData.current_year_column);
-      const previousYearIndex = headers.findIndex(h => h === trialBalanceData.previous_year_column);
-      const foreignCurrencyIndex = trialBalanceData.foreign_currency_column 
-        ? headers.findIndex(h => h === trialBalanceData.foreign_currency_column)
-        : -1;
+      // Find column indices with flexible matching
+      const findColumnIndex = (searchValue: string | undefined, headers: string[]): number => {
+        if (!searchValue || searchValue.trim() === '') return -1;
+        
+        // Exact match first
+        let index = headers.findIndex(h => h === searchValue);
+        if (index !== -1) return index;
+        
+        // Try trimmed match
+        index = headers.findIndex(h => h?.toString().trim() === searchValue.trim());
+        if (index !== -1) return index;
+        
+        // Try case-insensitive match
+        index = headers.findIndex(h => h?.toString().toLowerCase().trim() === searchValue.toLowerCase().trim());
+        return index;
+      };
+
+      const accountNumberIndex = findColumnIndex(trialBalanceData.account_number_column, headers);
+      const accountNameIndex = findColumnIndex(trialBalanceData.account_name_column, headers);
+      const currentYearIndex = findColumnIndex(trialBalanceData.current_year_column, headers);
+      const previousYearIndex = findColumnIndex(trialBalanceData.previous_year_column, headers);
+      const foreignCurrencyIndex = findColumnIndex(trialBalanceData.foreign_currency_column, headers);
+
+      console.log('AccountGrouping - Excel headers found:', headers);
+      console.log('AccountGrouping - Looking for columns:', {
+        accountNumber: trialBalanceData.account_number_column,
+        accountName: trialBalanceData.account_name_column,
+        currentYear: trialBalanceData.current_year_column,
+        previousYear: trialBalanceData.previous_year_column,
+        foreignCurrency: trialBalanceData.foreign_currency_column
+      });
+      console.log('AccountGrouping - Column indices found:', {
+        accountNumber: accountNumberIndex,
+        accountName: accountNameIndex,
+        currentYear: currentYearIndex,
+        previousYear: previousYearIndex,
+        foreignCurrency: foreignCurrencyIndex
+      });
+
+      if (accountNumberIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1 || previousYearIndex === -1) {
+        console.error('AccountGrouping - Missing columns:', {
+          accountNumber: accountNumberIndex === -1 ? 'MISSING' : 'FOUND',
+          accountName: accountNameIndex === -1 ? 'MISSING' : 'FOUND', 
+          currentYear: currentYearIndex === -1 ? 'MISSING' : 'FOUND',
+          previousYear: previousYearIndex === -1 ? 'MISSING' : 'FOUND'
+        });
+        throw new Error(`Nicht alle konfigurierten Spalten wurden gefunden. Verfügbare Spalten: ${headers.join(', ')}`);
+      }
 
       // Function to parse numbers with Swiss/German formatting
       const parseSwissNumber = (value: any): number => {
@@ -186,17 +226,44 @@ const AccountGrouping = ({ trialBalanceId, trialBalanceData, onGroupingComplete 
       };
 
       const parsedData: TrialBalanceRow[] = dataRows
-        .filter(row => row[accountNumberIndex] && row[accountNameIndex])
-        .map(row => ({
-          accountNumber: String(row[accountNumberIndex] || '').trim(),
-          accountName: String(row[accountNameIndex] || '').trim(),
-          currentYear: parseSwissNumber(row[currentYearIndex]),
-          previousYear: parseSwissNumber(row[previousYearIndex]),
-          foreignCurrency: foreignCurrencyIndex >= 0 
-            ? parseSwissNumber(row[foreignCurrencyIndex]) || undefined
-            : undefined
-        }));
+        .filter((row, index) => {
+          const hasAccountNumber = row[accountNumberIndex] && String(row[accountNumberIndex]).trim() !== '';
+          const hasAccountName = row[accountNameIndex] && String(row[accountNameIndex]).trim() !== '';
+          if (!hasAccountNumber || !hasAccountName) {
+            console.log(`AccountGrouping - Skipping row ${index + 2}: missing account data`, {
+              accountNumber: row[accountNumberIndex],
+              accountName: row[accountNameIndex]
+            });
+          }
+          return hasAccountNumber && hasAccountName;
+        })
+        .map((row, index) => {
+          const currentYearValue = row[currentYearIndex];
+          const previousYearValue = row[previousYearIndex];
+          const foreignCurrencyValue = foreignCurrencyIndex >= 0 ? row[foreignCurrencyIndex] : undefined;
+          
+          console.log(`AccountGrouping - Parsing row ${index + 2}:`, {
+            accountNumber: row[accountNumberIndex],
+            currentYearValue,
+            previousYearValue,
+            parsed: {
+              currentYear: parseSwissNumber(currentYearValue),
+              previousYear: parseSwissNumber(previousYearValue)
+            }
+          });
+          
+          return {
+            accountNumber: String(row[accountNumberIndex] || '').trim(),
+            accountName: String(row[accountNameIndex] || '').trim(),
+            currentYear: parseSwissNumber(currentYearValue),
+            previousYear: parseSwissNumber(previousYearValue),
+            foreignCurrency: foreignCurrencyIndex >= 0 
+              ? parseSwissNumber(foreignCurrencyValue) || undefined
+              : undefined
+          };
+        });
 
+      console.log(`AccountGrouping - Parsed ${parsedData.length} rows successfully:`, parsedData.slice(0, 3));
       setTrialBalanceRows(parsedData);
     } catch (error: any) {
       console.error('Error loading trial balance data:', error);
