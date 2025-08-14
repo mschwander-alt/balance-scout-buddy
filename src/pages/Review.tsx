@@ -323,16 +323,24 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
         // Nur setze assignments für ungrouped, nicht zusätzlich
         setAssignments([]);
       } else {
-        // No temp matches exist, use auto-match-ungrouped instead of unified-auto-match
-        console.log('No temp matches found, using lighter auto-match...');
+        // No temp matches exist, try direct Excel loading first
+        console.log('No temp matches found, loading directly from Excel...');
         
+        try {
+          await loadTrialBalanceDirectly();
+          return; // Success, exit early
+        } catch (error) {
+          console.error('Direct Excel loading failed, trying auto-match...', error);
+        }
+        
+        // Fallback to auto-match-ungrouped if direct loading fails
         const { data: matchResult, error: matchError } = await supabase.functions.invoke('auto-match-ungrouped', {
           body: { trial_balance_id: trialBalanceId }
         });
 
         if (matchError) {
           console.error('Error with auto-match-ungrouped:', matchError);
-          // Fallback to direct trial balance loading
+          // Final fallback to direct trial balance loading
           await loadTrialBalanceDirectly();
           return;
         }
