@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileSpreadsheet, Check } from 'lucide-react';
+import { createUniqueFilePath } from '@/lib/fileUtils';
 
 interface UploadTrialBalanceProps {
   onUploadSuccess: (trialBalanceId: string) => void;
@@ -40,9 +41,7 @@ const UploadTrialBalance = ({ onUploadSuccess }: UploadTrialBalanceProps) => {
       }
 
       // Create file path with user ID folder
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = createUniqueFilePath(user.id, file.name);
 
       // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage

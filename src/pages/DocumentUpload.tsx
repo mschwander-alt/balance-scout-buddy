@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileText, Download, Trash2, Plus } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
+import { createUniqueFilePath } from '@/lib/fileUtils';
 
 interface AccountGroup {
   id: string;
@@ -113,7 +114,7 @@ const DocumentUpload = () => {
     try {
       for (const file of acceptedFiles) {
         // Upload to storage
-        const filePath = `${user.id}/${Date.now()}_${file.name}`;
+        const filePath = createUniqueFilePath(user.id, file.name);
         
         const { error: uploadError } = await supabase.storage
           .from('account-evidence')

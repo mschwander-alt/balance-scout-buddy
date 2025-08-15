@@ -8,6 +8,7 @@ import { Upload, X, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { createUniqueFilePath } from '@/lib/fileUtils';
 
 interface PDFUploadModalProps {
   open: boolean;
@@ -81,9 +82,8 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
       f.id === uploadFile.id ? { ...f, status: 'uploading' as const } : f
     ));
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const folderPath = accountGroupId && assignmentId ? 'account-documents' : 'account-sheets';
-    const filePath = `${user.id}/${trialBalanceId}/${folderPath}/${timestamp}-${uploadFile.file.name}`;
+    const filePath = createUniqueFilePath(user.id, uploadFile.file.name, `${trialBalanceId}/${folderPath}`);
 
     try {
       // Upload file
