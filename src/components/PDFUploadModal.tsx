@@ -101,75 +101,19 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
         file_type: uploadFile.file.type || 'application/pdf',
         file_size: uploadFile.file.size,
         user_id: user.id,
-        is_global: !assignmentId // Mark as global only if this is not for a specific assignment
+        is_global: !accountGroupId // Mark as global if no specific account
       };
 
-      // Only add account_group_id if it's a valid UUID (not 'no-group')
-      if (accountGroupId && accountGroupId !== 'no-group') {
+      // Add specific account assignment if provided
+      if (accountGroupId && assignmentId) {
         documentData.account_group_id = accountGroupId;
       }
 
-      const { data: insertedDoc, error: dbError } = await supabase
+      const { error: dbError } = await supabase
         .from('account_evidence')
-        .insert(documentData)
-        .select('id')
-        .single();
+        .insert(documentData);
 
       if (dbError) throw dbError;
-
-      // If this is for a specific assignment, update the assignment to include this document
-      if (assignmentId && insertedDoc?.id) {
-        // Check if this is a grouped or ungrouped assignment
-        if (accountGroupId && accountGroupId !== 'no-group') {
-          // Grouped assignment - update account_group_assignments
-          const { data: currentAssignment, error: fetchError } = await supabase
-            .from('account_group_assignments')
-            .select('matched_documents')
-            .eq('id', assignmentId)
-            .single();
-
-          if (fetchError) {
-            console.error('Error fetching current assignment:', fetchError);
-          } else {
-            const currentDocs = currentAssignment.matched_documents || [];
-            const updatedDocs = [...currentDocs, insertedDoc.id];
-
-            const { error: updateError } = await supabase
-              .from('account_group_assignments')
-              .update({ matched_documents: updatedDocs })
-              .eq('id', assignmentId);
-
-            if (updateError) {
-              console.error('Error updating assignment with document:', updateError);
-            }
-          }
-        } else {
-          // Ungrouped assignment - try to update temp_account_matches
-          const { data: currentMatch, error: fetchError } = await supabase
-            .from('temp_account_matches')
-            .select('matched_documents')
-            .eq('id', assignmentId)
-            .maybeSingle(); // Use maybeSingle instead of single to handle non-existent records
-
-          if (fetchError) {
-            console.error('Error fetching current temp match:', fetchError);
-          } else if (currentMatch) {
-            // Record exists, update it
-            const currentDocs = currentMatch.matched_documents || [];
-            const updatedDocs = [...currentDocs, insertedDoc.id];
-
-            const { error: updateError } = await supabase
-              .from('temp_account_matches')
-              .update({ matched_documents: updatedDocs })
-              .eq('id', assignmentId);
-
-            if (updateError) {
-              console.error('Error updating temp match with document:', updateError);
-            }
-          }
-          // If record doesn't exist, that's fine - the document is saved with is_global: false
-        }
-      }
 
       // Mark as completed
       setUploadFiles(prev => prev.map(f => 

@@ -270,21 +270,12 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
             userId={user?.id || ''}
           />
         ) : (
-          <div className="w-full h-full bg-background border rounded">
-            <div className="h-full p-4 flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-4">
-                  PDF Viewer nicht verfügbar. Verwenden Sie den Annotator-Modus.
-                </p>
-                <button
-                  onClick={() => setViewerMode('annotator')}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                >
-                  Zum Annotator wechseln
-                </button>
-              </div>
-            </div>
-          </div>
+          <iframe
+            src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
+            className="w-full h-full max-h-full border rounded"
+            title="PDF.js Viewer"
+            style={{ height: '100%', maxHeight: '100%' }}
+          />
         )}
       </div>
       

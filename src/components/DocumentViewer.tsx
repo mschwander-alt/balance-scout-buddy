@@ -216,17 +216,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       {/* Document Content */}
       <div className="flex-1 overflow-hidden">
         {isPDF && fileUrl ? (
-          <div className="h-full w-full bg-background border rounded">
-            <div className="h-full p-4 flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-4">
-                  PDF Vorschau nicht verfügbar. Bitte laden Sie die Datei herunter.
-                </p>
-                <Button onClick={downloadDocument} variant="outline">
-                  PDF herunterladen
-                </Button>
-              </div>
-            </div>
+          <div className="h-full w-full">
+            <iframe
+              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(fileUrl)}`}
+              className="w-full h-full border-0"
+              title={document.file_name}
+              allow="cross-origin-isolated"
+            />
           </div>
         ) : isExcel ? (
           <div className="flex flex-col h-full">
