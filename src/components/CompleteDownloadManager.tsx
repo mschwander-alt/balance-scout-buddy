@@ -339,24 +339,40 @@ Generated: ${new Date().toLocaleString('de-DE')}
         return acc;
       }, {} as Record<string, Account[]>);
 
-      let totalFileCounter = 1;
+      // Prefetch all comments for this TB and current user
+      const { data: allComments } = await supabase
+        .from('account_comments')
+        .select('assignment_id, comment_text')
+        .eq('trial_balance_id', trialBalanceId)
+        .eq('user_id', user?.id || '');
+
+      const commentsMap: Record<string, string[]> = {};
+      (allComments || []).forEach((c: any) => {
+        const key = c.assignment_id as string;
+        if (!commentsMap[key]) commentsMap[key] = [];
+        commentsMap[key].push(c.comment_text as string);
+      });
+
+      let anyFilesAdded = false;
 
       for (const [letter, letterAccounts] of Object.entries(accountsByLetter)) {
+        let letterCounter = 1; // reset counter for each letter
         for (const account of letterAccounts) {
           const prefix = letter === 'UNASSIGNED' ? 'X' : letter;
-          
-          // Add cover sheet
-          const coverSheet = generateCoverSheet(account);
-          const coverFileName = `${prefix}_${totalFileCounter}_Deckblatt_${account.account_number}.txt`;
-          zip.file(coverFileName, coverSheet);
-          totalFileCounter++;
 
-          // Add comments and evidence files for each account
+          // Add cover sheet (PDF) only if comments exist
+          const comments = commentsMap[account.id] || [];
+          if (comments.length > 0) {
+            const commentPdf = await generateCommentPDF(comments);
+            const coverName = `${prefix}_${letterCounter}_Deckblatt_${account.account_number}.pdf`;
+            zip.file(coverName, commentPdf);
+            letterCounter++;
+            anyFilesAdded = true;
+          }
+
+          // Add evidence files
           for (const evidenceFile of account.evidence_files || []) {
             try {
-              // Load comments for this account
-              const comments = await loadAccountComments(account.id);
-              
               // Download original file
               const { data: fileData } = await supabase.storage
                 .from('account-evidence')
@@ -365,24 +381,21 @@ Generated: ${new Date().toLocaleString('de-DE')}
               if (fileData) {
                 const fileBuffer = await fileData.arrayBuffer();
                 const ext = evidenceFile.file_name.split('.').pop()?.toLowerCase();
-                const prefixName = `${prefix}_${totalFileCounter}_${evidenceFile.file_name}`;
+                const fileName = `${prefix}_${letterCounter}_${evidenceFile.file_name}`;
 
                 if (ext === 'pdf') {
                   const originalPdf = new Uint8Array(fileBuffer);
                   // Load annotations and embed them
                   const annotations = await loadPDFAnnotations(evidenceFile.id);
                   const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
-                  
-                  // Generate comment PDF (if any) and combine
-                  const commentPdf = comments.length > 0 ? await generateCommentPDF(comments) : null;
-                  const finalPdf = commentPdf ? await combinePDFs(commentPdf, annotatedPdf) : annotatedPdf;
-                  
-                  zip.file(prefixName, finalPdf);
+                  zip.file(fileName, annotatedPdf);
                 } else {
                   // Non-PDF: include original file as-is
-                  zip.file(prefixName, fileData);
+                  zip.file(fileName, fileData);
                 }
-                totalFileCounter++;
+
+                letterCounter++;
+                anyFilesAdded = true;
               }
             } catch (error) {
               console.error(`Error processing file ${evidenceFile.file_name}:`, error);
@@ -392,11 +405,14 @@ Generated: ${new Date().toLocaleString('de-DE')}
         }
       }
 
+      if (!anyFilesAdded) {
+        toast.error('Keine Dateien zum Download');
+        return;
+      }
       // Generate and download ZIP
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const fileName = `Prüfungsunterlagen_${new Date().toISOString().split('T')[0]}.zip`;
       saveAs(zipBlob, fileName);
-      
       toast.success('Komplettdownload erfolgreich erstellt');
     } catch (error) {
       console.error('Error creating complete download:', error);
