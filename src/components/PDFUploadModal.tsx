@@ -88,48 +88,44 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
     const filePath = createUniqueFilePath(user.id, uploadFile.file.name, `${trialBalanceId}/${folderPath}`);
 
     try {
-      // For very large files use resumable uploads via TUS
-      if (uploadFile.file.size > 50 * 1024 * 1024) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('Sitzung abgelaufen');
-
-        await new Promise<void>((resolve, reject) => {
-          const tusUpload = new TusUpload(uploadFile.file, {
-            endpoint: `${DIRECT_STORAGE_URL}/storage/v1/upload/resumable`,
-            retryDelays: [0, 3000, 5000, 10000, 20000],
+      // For files larger than 6MB, use chunked uploads
+      if (uploadFile.file.size > 6 * 1024 * 1024) {
+        const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+        const totalChunks = Math.ceil(uploadFile.file.size / chunkSize);
+        
+        // Create multipart upload
+        const { data: uploadData, error: createError } = await supabase.storage
+          .from('account-evidence')
+          .createSignedUploadUrl(filePath);
+          
+        if (createError) throw createError;
+        
+        // Upload file in chunks
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * chunkSize;
+          const end = Math.min(start + chunkSize, uploadFile.file.size);
+          const chunk = uploadFile.file.slice(start, end);
+          
+          const formData = new FormData();
+          formData.append('file', chunk);
+          
+          const response = await fetch(uploadData.signedUrl, {
+            method: 'POST',
+            body: formData,
             headers: {
-              authorization: `Bearer ${session.access_token}`,
-              'x-upsert': 'true',
-            },
-            uploadDataDuringCreation: true,
-            removeFingerprintOnSuccess: true,
-            metadata: {
-              bucketName: 'account-evidence',
-              objectName: filePath,
-              contentType: uploadFile.file.type || 'application/pdf',
-              cacheControl: '3600',
-              metadata: JSON.stringify({
-                trialBalanceId,
-                accountGroupId: accountGroupId || null,
-                assignmentId: assignmentId || null,
-              }),
-            },
-            chunkSize: 6 * 1024 * 1024, // required by Supabase currently
-            onError: (error) => {
-              reject(error);
-            },
-            onProgress: (bytesUploaded, bytesTotal) => {
-              const progress = Math.round((bytesUploaded / bytesTotal) * 100);
-              setUploadFiles(prev => prev.map(f => f.id === uploadFile.id ? { ...f, progress } : f));
-            },
-            onSuccess: () => resolve(),
+              'x-chunk-index': i.toString(),
+              'x-chunk-total': totalChunks.toString(),
+            }
           });
-
-          tusUpload.findPreviousUploads().then((previous) => {
-            if (previous.length) tusUpload.resumeFromPreviousUpload(previous[0]);
-            tusUpload.start();
-          });
-        });
+          
+          if (!response.ok) {
+            throw new Error(`Chunk upload failed: ${response.statusText}`);
+          }
+          
+          // Update progress
+          const progress = Math.round(((i + 1) / totalChunks) * 100);
+          setUploadFiles(prev => prev.map(f => f.id === uploadFile.id ? { ...f, progress } : f));
+        }
       } else {
         // Standard upload for small files
         const { error } = await supabase.storage
