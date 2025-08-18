@@ -326,40 +326,166 @@ Generated: ${new Date().toLocaleString('de-DE')}
     }
   };
 
-  const generateCommentPDF = async (comments: string[]): Promise<Uint8Array> => {
+  const generateCommentPDF = async (account: Account, comments: string[]): Promise<Uint8Array> => {
     try {
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage();
-      const { width, height } = page.getSize();
+      // Import the same logic as PDFCommentExporter for consistent formatting
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF();
       
-      let yPosition = height - 50;
-      const lineHeight = 20;
+      let currentY = 30;
       
-      page.drawText('Kommentare:', {
-        x: 50,
-        y: yPosition,
-        size: 16,
-      });
+      // Logo placeholder box - top right like in your design
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.5);
+      pdf.rect(150, 20, 40, 25);
       
-      yPosition -= 30;
+      // Logo placeholder text
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Platzhalter', 170, 30);
+      pdf.text('Für Logo', 170, 35);
       
-      comments.forEach((comment, index) => {
-        if (yPosition < 50) {
-          // Add new page if needed
-          const newPage = pdfDoc.addPage();
-          yPosition = height - 50;
+      currentY = 70;
+      
+      // Account information table - exactly like PDFCommentExporter
+      const tableData = [
+        ['Konto:', `${account.account_number} – ${account.account_name}`],
+        ['Dokument:', account.evidence_files?.[0]?.file_name || 'Kein Dokument'],
+        ['Erstellungsdatum:', `${new Date().toLocaleDateString('de-DE')} um ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`]
+      ];
+      
+      const tableStartX = 20;
+      const tableWidth = 170;
+      const labelWidth = 40;
+      const valueWidth = 130;
+      const rowHeight = 7;
+      
+      // Draw table outline
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.3);
+      pdf.rect(tableStartX, currentY, tableWidth, tableData.length * rowHeight);
+      
+      // Draw table content
+      tableData.forEach((row, index) => {
+        const y = currentY + (index * rowHeight);
+        
+        // Horizontal lines between rows
+        if (index > 0) {
+          pdf.line(tableStartX, y, tableStartX + tableWidth, y);
         }
         
-        page.drawText(`${index + 1}. ${comment}`, {
-          x: 50,
-          y: yPosition,
-          size: 12,
-        });
+        // Vertical line between columns
+        pdf.line(tableStartX + labelWidth, y, tableStartX + labelWidth, y + rowHeight);
         
-        yPosition -= lineHeight;
+        // Add text
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(0, 0, 0);
+        pdf.text(row[0], tableStartX + 2, y + 5);
+        pdf.text(row[1], tableStartX + labelWidth + 2, y + 5);
       });
       
-      return await pdfDoc.save();
+      currentY += (tableData.length * rowHeight) + 20;
+      
+      // Prüfungsnotizen section
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Prüfungsnotizen', tableStartX, currentY);
+      
+      currentY += 15;
+      
+      // Vorjahresvergleich table
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Vorjahresvergleich:', tableStartX, currentY);
+      
+      currentY += 8;
+      
+      // Comparison table headers and data
+      const compHeaders = ['Lfd. Jahr', 'Vorjahr', 'Abw.', '%'];
+      const compData = ['CHF 233.50', 'CHF 2\'200.75', 'CHF -1\'967.25', '-89.4%'];
+      const compTableWidth = 120;
+      const compColWidth = compTableWidth / 4;
+      const compTableHeight = 14;
+      
+      // Draw comparison table
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.3);
+      pdf.rect(tableStartX, currentY, compTableWidth, compTableHeight);
+      
+      // Headers
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      compHeaders.forEach((header, index) => {
+        const x = tableStartX + (index * compColWidth);
+        
+        // Vertical lines
+        if (index > 0) {
+          pdf.line(x, currentY, x, currentY + compTableHeight);
+        }
+        
+        pdf.text(header, x + 1, currentY + 5);
+      });
+      
+      // Horizontal line under headers
+      pdf.line(tableStartX, currentY + 7, tableStartX + compTableWidth, currentY + 7);
+      
+      // Data row
+      compData.forEach((data, index) => {
+        const x = tableStartX + (index * compColWidth);
+        
+        // Set red color for negative percentage
+        if (index === 3 && data.startsWith('-')) {
+          pdf.setTextColor(255, 0, 0);
+        } else {
+          pdf.setTextColor(0, 0, 0);
+        }
+        
+        pdf.text(data, x + 1, currentY + 11);
+      });
+      
+      pdf.setTextColor(0, 0, 0); // Reset color
+      
+      currentY += compTableHeight + 15;
+      
+      // Comments section
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Kommentare:', tableStartX, currentY);
+      
+      currentY += 8;
+      
+      // Comments content - simple text, no table
+      if (comments.length === 0) {
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Hier kommt der Kommentar rein', tableStartX, currentY);
+      } else {
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(0, 0, 0);
+        
+        comments.forEach((comment, index) => {
+          const lines = pdf.splitTextToSize(comment, 160);
+          lines.forEach((line: string) => {
+            if (currentY > 270) {
+              pdf.addPage();
+              currentY = 20;
+            }
+            pdf.text(line, tableStartX, currentY);
+            currentY += 4;
+          });
+          
+          if (index < comments.length - 1) {
+            currentY += 5;
+          }
+        });
+      }
+      
+      return new Uint8Array(pdf.output('arraybuffer'));
     } catch (error) {
       console.error('Error generating comment PDF:', error);
       const pdfDoc = await PDFDocument.create();
@@ -442,7 +568,7 @@ Generated: ${new Date().toLocaleString('de-DE')}
 
         // If only comments and no evidence -> export cover sheet alone
         if (hasComments && !hasEvidence) {
-          const commentPdf = await generateCommentPDF(comments);
+          const commentPdf = await generateCommentPDF(account, comments);
           const coverName = `${prefix}_${letterCounters[letter]}_Deckblatt_${account.account_number}.pdf`;
           zip.file(coverName, commentPdf);
           letterCounters[letter]++;
@@ -471,7 +597,7 @@ Generated: ${new Date().toLocaleString('de-DE')}
                 // Combine cover sheet (comments) with annotated PDF into a single PDF
                 let finalPdf = annotatedPdf;
                 if (hasComments) {
-                  const commentPdf = await generateCommentPDF(comments);
+                  const commentPdf = await generateCommentPDF(account, comments);
                   finalPdf = await combinePDFs(commentPdf, annotatedPdf);
                 }
 
