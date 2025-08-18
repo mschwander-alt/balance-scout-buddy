@@ -1689,7 +1689,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
             </div>
           )}
 
-          <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-12rem)]">
+          <div className={`flex gap-6 min-h-[calc(100vh-12rem)] ${sidebarCollapsed ? 'flex-row' : 'flex-col xl:flex-row'}`}>
             <Card className={`transition-all duration-300 flex-shrink-0 ${
               sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-full xl:w-1/2'
             }`}>
@@ -2006,10 +2006,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col py-3 overflow-hidden" style={{height: 'calc(100vh - 12rem)'}}>
-                {selectedAccountData ? (
-                  selectedDocuments.length > 0 || (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
-                    <div className="flex flex-col h-full">
+              <CardContent className={`flex py-3 overflow-hidden ${sidebarCollapsed ? 'flex-row gap-6' : 'flex-col'}`} style={{height: 'calc(100vh - 12rem)'}}>
+                <div className={`${sidebarCollapsed ? 'flex-1' : 'w-full'}`}>
+                  {selectedAccountData ? (
+                    selectedDocuments.length > 0 || (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
+                      <div className="flex flex-col h-full">
                       {selectedDocuments.length > 0 ? (
                         <>
                           {/* Document tabs with embedded reassign icons */}
@@ -2295,15 +2296,70 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                       </div>
                     )
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                    <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
-                  </div>
+                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                      <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Kommentarfeld - nur rechts anzeigen wenn sidebar collapsed und Konto ausgewählt */}
+                {sidebarCollapsed && selectedAccountData && (
+                  <Card className="w-80 flex-shrink-0">
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-sm">Kommentare</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">
+                          Konto-Aktionen
+                        </label>
+                        <Button 
+                          variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Notizen und Anmerkungen zu diesem Konto..."
+                          value={accountComments[selectedAccountData.id] || ""}
+                          onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                          className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                        />
+                        {loadedComments[selectedAccountData.id] && (
+                          <p className="text-xs text-muted-foreground">
+                            ✓ Kommentar gespeichert
+                          </p>
+                        )}
+                        
+                        <div className="pt-4 border-t">
+                          <PDFCommentExporter
+                            document={selectedDocuments.length > 0 ? selectedDocuments[0] : {
+                              id: 'no-document',
+                              file_name: 'Kein Nachweis',
+                              file_path: '',
+                              file_type: 'none'
+                            }}
+                            assignmentId={selectedAccountData.id}
+                            trialBalanceId={trialBalanceId}
+                            accountName={selectedAccountData.account_name}
+                            accountNumber={selectedAccountData.account_number}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
               </CardContent>
              </Card>
-           </div>
+          </div>
 
-           <div className="flex justify-center gap-3 py-2">
+            <div className="flex justify-center gap-3 py-2">
              <Button variant="outline" size="sm" onClick={() => navigate(`/documents?trial_balance_id=${trialBalanceId}`)}>
                Zurück zu Dokumenten
              </Button>
