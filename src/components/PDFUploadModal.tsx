@@ -219,7 +219,7 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
                 PDF-Dateien hier ablegen oder auswählen
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Unterstützte Formate: PDF (max. 2GB pro Datei)
+                Unterstützte Formate: PDF (bis zu 5GB pro Datei)
               </p>
               <Button 
                 onClick={() => fileInputRef.current?.click()}
