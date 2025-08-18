@@ -365,7 +365,15 @@ Generated: ${new Date().toLocaleString('de-DE')}
 
       for (const [letter, letterAccounts] of sortedEntries) {
         let letterCounter = 1; // reset counter for each letter
-        for (const account of letterAccounts) {
+        
+        // Sort accounts within each letter by account number (descending)
+        const sortedAccounts = letterAccounts.sort((a, b) => {
+          const numA = parseInt(a.account_number) || 0;
+          const numB = parseInt(b.account_number) || 0;
+          return numB - numA; // descending order
+        });
+        
+        for (const account of sortedAccounts) {
           const prefix = letter === 'UNASSIGNED' ? 'X' : letter;
           const comments = commentsMap[account.id] || [];
           const hasEvidence = (account.evidence_files?.length || 0) > 0;
