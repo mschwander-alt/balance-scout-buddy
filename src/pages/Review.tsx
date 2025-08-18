@@ -2120,8 +2120,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                       ) : null}
                         
                         
-                        {/* Kommentarfeld */}
-                        <div className="mt-4 bg-muted/30 rounded-lg p-4 border">
+                        {/* Kommentarfeld - nur anzeigen wenn Saldobilanz sichtbar */}
+                        {!sidebarCollapsed && (
+                          <div className="mt-4 bg-muted/30 rounded-lg p-4 border">
                           <div className="space-y-3">
                              <div className="flex items-center justify-between">
                                <label className="text-sm font-medium text-foreground">
@@ -2201,10 +2202,11 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                   />
                                 </div>
                               )}
-                             </div>
-                          </div>
-                       </div>
-                    </div>
+                              </div>
+                           </div>
+                        </div>
+                        )}
+                     </div>
                     ) : (
                       <div className="h-full flex flex-col">
                         <div className="text-center py-8 text-muted-foreground flex flex-col items-center justify-center flex-1">
