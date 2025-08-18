@@ -34,6 +34,8 @@ interface SimplePDFViewerProps {
   trialBalanceId?: string;
   accountName?: string;
   accountNumber?: string;
+  // Steuerung: Kommentarfeld innerhalb des Viewers anzeigen?
+  showInlineComment?: boolean; // default: true
   // Props für die echte Funktionalität aus Review.tsx
   completedAccounts?: Set<string>;
   onMarkCompleted?: (assignmentId: string) => void;
@@ -48,6 +50,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   trialBalanceId, 
   accountName, 
   accountNumber,
+  showInlineComment = true,
   // Echte Funktionalität aus Review.tsx
   completedAccounts = new Set(),
   onMarkCompleted,
@@ -279,8 +282,8 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         )}
       </div>
       
-      {/* Comment Section - nur im Annotator Modus */}
-      {assignmentId && viewerMode === 'annotator' ? (
+      {/* Comment Section - nur im Annotator Modus und nur wenn Inline-Kommentar erlaubt */}
+      {assignmentId && viewerMode === 'annotator' && showInlineComment ? (
         <div className="flex-shrink-0 mt-2 bg-muted/30 rounded-lg p-3 border">
           <div className="space-y-2">
             <div className="flex items-center justify-between">

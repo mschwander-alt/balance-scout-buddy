@@ -120,6 +120,9 @@ export default function PdfAnnotator({
   const [anns, setAnns] = useState<Ann[]>([]);
   const [mode, setMode] = useState<"highlight" | "freetext" | "none">("highlight");
   
+  const hasLoadedRef = useRef(false);
+  const hasChangedRef = useRef(false);
+  
   console.log("🎯 Current mode:", mode); // Debug current mode
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const debouncedAnns = useDebounced(anns, 700);
@@ -152,7 +155,10 @@ export default function PdfAnnotator({
   // Bisherige Annotations laden
   useEffect(() => {
     if (!docId || !userId) return;
-    loadAnnotations(docId, userId).then(setAnns);
+    loadAnnotations(docId, userId).then((loaded) => {
+      setAnns(loaded);
+      hasLoadedRef.current = true; // mark initial load complete
+    });
   }, [docId, userId]);
 
   // Speichern (debounced)

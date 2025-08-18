@@ -2075,6 +2075,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                       trialBalanceId={trialBalanceId}
                                       accountName={selectedAccountData.account_name}
                                       accountNumber={selectedAccountData.account_number}
+                                      showInlineComment={!sidebarCollapsed}
                                       completedAccounts={completedAccounts}
                                       onMarkCompleted={handleMarkCompleted}
                                       onShowMultiAssign={(document) => {
