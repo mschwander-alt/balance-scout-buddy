@@ -2304,7 +2304,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 
                 {/* Kommentarfeld - nur rechts anzeigen wenn sidebar collapsed und Konto ausgewählt */}
                 {sidebarCollapsed && selectedAccountData && (
-                  <Card className="w-80 flex-shrink-0">
+                  <Card className="w-[600px] flex-shrink-0">
                     <CardHeader className="py-3">
                       <CardTitle className="text-sm">Kommentare</CardTitle>
                     </CardHeader>
@@ -2329,7 +2329,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           placeholder="Notizen und Anmerkungen zu diesem Konto..."
                           value={accountComments[selectedAccountData.id] || ""}
                           onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
-                          className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                          className="min-h-[300px] max-h-[500px] resize-none bg-background border-input w-full"
                         />
                         {loadedComments[selectedAccountData.id] && (
                           <p className="text-xs text-muted-foreground">
