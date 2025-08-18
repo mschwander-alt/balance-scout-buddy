@@ -22,7 +22,6 @@ import { SimplePDFViewer } from '@/components/SimplePDFViewer';
 import { ExcelViewer } from '@/components/ExcelViewer';
 import { PDFCommentExporter } from '@/components/PDFCommentExporter';
 import { PDFUploadModal } from '@/components/PDFUploadModal';
-import { CommentSection } from '@/components/CommentSection';
 import * as XLSX from 'xlsx';
 
 interface Assignment {
@@ -2010,139 +2009,203 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               <CardContent className="flex flex-col py-3 overflow-hidden" style={{height: 'calc(100vh - 12rem)'}}>
                 {selectedAccountData ? (
                   selectedDocuments.length > 0 || (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
-                    <div className={`flex ${sidebarCollapsed ? 'flex-row gap-4' : 'flex-col'} h-full`}>
-                      {/* Document viewer section */}
-                      <div className={`flex flex-col ${sidebarCollapsed ? 'flex-1' : 'h-full'}`}>
-                        {selectedDocuments.length > 0 ? (
-                          <>
-                            {/* Document tabs with embedded reassign icons */}
-                            <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
-                              <div className="flex items-center gap-2 mb-3">
-                                <TabsList className="grid flex-1" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
-                                  {selectedDocuments.map((doc) => (
-                                    <div key={doc.id} className="relative group">
-                                      <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
-                                        <span className="truncate">
-                                          {doc.is_global ? '📋 ' : ''}{doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
-                                        </span>
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Send 
-                                                className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setDocumentToReassign(doc);
-                                                  setShowReassignModal(true);
-                                                }}
-                                              />
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              Neu zuweisen
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </TabsTrigger>
-                                    </div>
-                                  ))}
-                                </TabsList>
-                                
-                                {/* Upload Button for specific account */}
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-10 w-10 p-0 shrink-0"
-                                        onClick={() => setShowAccountSpecificUpload(true)}
-                                      >
-                                        <Plus className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      Nachweis für dieses Konto hochladen
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
+                    <div className="flex flex-col h-full">
+                      {selectedDocuments.length > 0 ? (
+                        <>
+                          {/* Document tabs with embedded reassign icons */}
+                          <Tabs defaultValue={selectedDocuments[0]?.id} className="flex flex-col h-full">
+                            <div className="flex items-center gap-2 mb-3">
+                              <TabsList className="grid flex-1" style={{gridTemplateColumns: `repeat(${selectedDocuments.length}, 1fr)`}}>
+                                {selectedDocuments.map((doc) => (
+                                  <div key={doc.id} className="relative group">
+                                    <TabsTrigger value={doc.id} className="text-xs px-2 truncate w-full flex items-center gap-1">
+                                      <span className="truncate">
+                                        {doc.is_global ? '📋 ' : ''}{doc.file_name.length > 15 ? `${doc.file_name.substring(0, 15)}...` : doc.file_name}
+                                      </span>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Send 
+                                              className="h-3 w-3 opacity-60 hover:opacity-100 cursor-pointer flex-shrink-0" 
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDocumentToReassign(doc);
+                                                setShowReassignModal(true);
+                                              }}
+                                            />
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            Neu zuweisen
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    </TabsTrigger>
+                                  </div>
+                                ))}
+                              </TabsList>
                               
-                              {selectedDocuments.map((doc) => (
-                                <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 flex flex-col">
-                                  <div className="flex-1 flex flex-col border rounded-lg">{/* Removed overflow-hidden to show toggle */}
-                                    {doc.file_type === 'application/pdf' ? (
-                                      <SimplePDFViewer 
-                                        document={doc} 
-                                        assignmentId={selectedAccountData.id}
-                                        trialBalanceId={trialBalanceId}
-                                        accountName={selectedAccountData.account_name}
-                                        accountNumber={selectedAccountData.account_number}
-                                        completedAccounts={completedAccounts}
-                                        onMarkCompleted={handleMarkCompleted}
-                                        onShowMultiAssign={(document) => {
-                                          setSelectedDocumentForMultiAssign(document);
+                              {/* Upload Button for specific account */}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-10 w-10 p-0 shrink-0"
+                                      onClick={() => setShowAccountSpecificUpload(true)}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Nachweis für dieses Konto hochladen
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                            
+                            {selectedDocuments.map((doc) => (
+                              <TabsContent key={doc.id} value={doc.id} className="flex-1 mt-0 flex flex-col">
+                                <div className="flex-1 flex flex-col border rounded-lg">{/* Removed overflow-hidden to show toggle */}
+                                  {doc.file_type === 'application/pdf' ? (
+                                    <SimplePDFViewer 
+                                      document={doc} 
+                                      assignmentId={selectedAccountData.id}
+                                      trialBalanceId={trialBalanceId}
+                                      accountName={selectedAccountData.account_name}
+                                      accountNumber={selectedAccountData.account_number}
+                                      completedAccounts={completedAccounts}
+                                      onMarkCompleted={handleMarkCompleted}
+                                      onShowMultiAssign={(document) => {
+                                        setSelectedDocumentForMultiAssign(document);
+                                        setShowMultiAssignModal(true);
+                                      }}
+                                      selectedDocuments={selectedDocuments}
+                                      assignments={assignments}
+                                    />
+                                  ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                                       doc.file_type === 'application/vnd.ms-excel' ? (
+                                    <ExcelViewer document={doc} />
+                                  ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
+                                      <FileText className="h-16 w-16 mb-4 opacity-60" />
+                                      <p className="text-center">
+                                        {doc.file_name}
+                                      </p>
+                                      <p className="text-sm text-center mt-2">
+                                        Vorschau für diesen Dateityp nicht verfügbar
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </TabsContent>
+                            ))}
+                          </Tabs>
+                        </>
+                      ) : (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
+                        // Preview for newly uploaded document
+                        <div className="flex-1 border rounded-lg overflow-hidden">
+                          <div className="p-3 border-b bg-muted/30">
+                            <h5 className="font-medium">Neues Dokument</h5>
+                          </div>
+                          <div className="h-full">
+                            <iframe
+                              src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentPreviews[selectedAccountData.id])}`}
+                              className="w-full h-full border-0"
+                              title="Neu hochgeladenes Dokument"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                        
+                        
+                        {/* Kommentarfeld */}
+                        <div className="mt-4 bg-muted/30 rounded-lg p-4 border">
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                               <label className="text-sm font-medium text-foreground">
+                                 Kommentare
+                               </label>
+                                <div className="flex items-center gap-2">
+                                  {(() => {
+                                    // Count how many other accounts share documents with this account
+                                    const documentsForThisAccount = selectedDocuments.map(doc => doc.id);
+                                    const otherAccountsWithSameDocuments = new Set<string>();
+                                    
+                                    documentsForThisAccount.forEach(docId => {
+                                      assignments.forEach(assignment => {
+                                        if (assignment.matched_documents?.includes(docId) && assignment.id !== selectedAccountData.id) {
+                                          otherAccountsWithSameDocuments.add(assignment.id);
+                                        }
+                                      });
+                                    });
+                                    
+                                    const additionalAccountsCount = otherAccountsWithSameDocuments.size;
+                                    
+                                    return (
+                                      <Button 
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedDocumentForMultiAssign(selectedDocuments[0]);
                                           setShowMultiAssignModal(true);
                                         }}
-                                        selectedDocuments={selectedDocuments}
-                                        assignments={assignments}
-                                      />
-                                    ) : doc.file_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                                           doc.file_type === 'application/vnd.ms-excel' ? (
-                                      <ExcelViewer document={doc} />
-                                    ) : (
-                                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/30">
-                                        <FileText className="h-16 w-16 mb-4 opacity-60" />
-                                        <p className="text-center">
-                                          {doc.file_name}
-                                        </p>
-                                        <p className="text-sm text-center mt-2">
-                                          Vorschau für diesen Dateityp nicht verfügbar
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </TabsContent>
-                              ))}
-                            </Tabs>
-                          </>
-                        ) : (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
-                          // Preview for newly uploaded document
-                          <div className="flex-1 border rounded-lg overflow-hidden">
-                            <div className="p-3 border-b bg-muted/30">
-                              <h5 className="font-medium">Neues Dokument</h5>
-                            </div>
-                            <div className="h-full">
-                              <iframe
-                                src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentPreviews[selectedAccountData.id])}`}
-                                className="w-full h-full border-0"
-                                title="Neu hochgeladenes Dokument"
-                              />
-                            </div>
+                                        className="flex items-center gap-2"
+                                        disabled={selectedDocuments.length === 0}
+                                      >
+                                         <Link className="h-4 w-4" />
+                                         Konten {additionalAccountsCount > 0 && `(${additionalAccountsCount})`}
+                                      </Button>
+                                    );
+                                  })()}
+                                  <Button 
+                                    variant={completedAccounts.has(selectedAccountData.id) ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => handleMarkCompleted(selectedAccountData.id)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <CheckCircle className="h-4 w-4" />
+                                    {completedAccounts.has(selectedAccountData.id) ? 'Vollständig' : 'Als vollständig markieren'}
+                                  </Button>
+                                </div>
+                              </div>
+                             
+                             {/* Kommentarfeld in einem festen Container */}
+                             <div className="flex-shrink-0 border-t pt-4 space-y-2">
+                             <Textarea
+                               placeholder="Notizen und Anmerkungen zu diesem Konto und den Nachweisen..."
+                               value={accountComments[selectedAccountData.id] || (
+                                 selectedAccountData.match_status === 'matched' && selectedAccountData.confidence_score === 0.8
+                                   ? "Nachweis konnte mit der Saldobilanz abgestimmt werden; es ergaben sich keine Differenzen."
+                                   : ""
+                               )}
+                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                               className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                             />
+                              {loadedComments[selectedAccountData.id] && (
+                                <p className="text-xs text-muted-foreground">
+                                  ✓ Kommentar gespeichert
+                                </p>
+                              )}
+                              
+                              {/* Export Buttons */}
+                              {selectedDocuments.length > 0 && (
+                                <div className="pt-4 border-t">
+                                  <PDFCommentExporter
+                                    document={selectedDocuments[0]}
+                                    assignmentId={selectedAccountData.id}
+                                    trialBalanceId={trialBalanceId}
+                                    accountName={selectedAccountData.account_name}
+                                    accountNumber={selectedAccountData.account_number}
+                                  />
+                                </div>
+                              )}
+                             </div>
                           </div>
-                        ) : null}
-                      </div>
-                      
-                      {/* Kommentarfeld - position depends on sidebar state */}
-                      <CommentSection
-                        selectedAccountData={selectedAccountData}
-                        selectedDocuments={selectedDocuments}
-                        accountComments={accountComments}
-                        loadedComments={loadedComments}
-                        completedAccounts={completedAccounts}
-                        assignments={assignments}
-                        sidebarCollapsed={sidebarCollapsed}
-                        trialBalanceId={trialBalanceId!}
-                        onCommentChange={handleCommentChange}
-                        onMarkCompleted={handleMarkCompleted}
-                        onShowMultiAssign={(document) => {
-                          setSelectedDocumentForMultiAssign(document);
-                          setShowMultiAssignModal(true);
-                        }}
-                      />
+                       </div>
                     </div>
                     ) : (
-                      <div className={`flex ${sidebarCollapsed ? 'flex-row gap-4' : 'flex-col'} h-full`}>
-                        <div className={`${sidebarCollapsed ? 'flex-1' : 'h-full'} flex flex-col`}>
+                      <div className="h-full flex flex-col">
                         <div className="text-center py-8 text-muted-foreground flex flex-col items-center justify-center flex-1">
                           <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p className="mb-4">Keine Nachweise für dieses Konto gefunden</p>
@@ -2182,8 +2245,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           </div>
                         </div>
 
-                        {/* Kommentar- und Aktionsbereich für Konten ohne Nachweise - position depends on sidebar state */}
-                        <div className={`${sidebarCollapsed ? 'w-96 flex-shrink-0' : 'flex-shrink-0 border-t'} bg-background p-4 space-y-4`}>
+                        {/* Kommentar- und Aktionsbereich für Konten ohne Nachweise */}
+                        <div className="flex-shrink-0 border-t bg-background p-4 space-y-4">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-medium">
                               Konto-Aktionen
@@ -2199,43 +2262,38 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                             </Button>
                           </div>
                           
-                          <div className="space-y-2">
-                            <Textarea
-                              placeholder="Notizen und Anmerkungen zu diesem Konto..."
-                              value={accountComments[selectedAccountData.id] || ""}
-                              onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
-                              className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
-                            />
-                            {loadedComments[selectedAccountData.id] && (
-                              <p className="text-xs text-muted-foreground">
-                                ✓ Kommentar gespeichert
-                              </p>
-                            )}
-                            
-                            {/* Save and Print buttons for accounts without documents */}
-                            <div className="pt-4 border-t">
-                              <PDFCommentExporter
-                                document={{
-                                  id: 'no-document',
-                                  file_name: 'Kein Nachweis',
-                                  file_path: '',
-                                  file_type: 'none'
-                                }}
-                                assignmentId={selectedAccountData.id}
-                                trialBalanceId={trialBalanceId}
-                                accountName={selectedAccountData.account_name}
-                                accountNumber={selectedAccountData.account_number}
-                              />
-                            </div>
-                          </div>
+                           <div className="space-y-2">
+                             <Textarea
+                               placeholder="Notizen und Anmerkungen zu diesem Konto..."
+                               value={accountComments[selectedAccountData.id] || ""}
+                               onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                               className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                             />
+                             {loadedComments[selectedAccountData.id] && (
+                               <p className="text-xs text-muted-foreground">
+                                 ✓ Kommentar gespeichert
+                               </p>
+                             )}
+                             
+                             {/* Save and Print buttons for accounts without documents */}
+                             <div className="pt-4 border-t">
+                               <PDFCommentExporter
+                                 document={{
+                                   id: 'no-document',
+                                   file_name: 'Kein Nachweis',
+                                   file_path: '',
+                                   file_type: 'none'
+                                 }}
+                                 assignmentId={selectedAccountData.id}
+                                 trialBalanceId={trialBalanceId}
+                                 accountName={selectedAccountData.account_name}
+                                 accountNumber={selectedAccountData.account_number}
+                               />
+                             </div>
+                           </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                      <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
-                    </div>
-                  )
+                    )
                 ) : (
                   <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
