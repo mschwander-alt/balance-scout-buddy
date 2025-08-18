@@ -149,7 +149,8 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
         is_global: !accountGroupId
       };
 
-      if (accountGroupId && assignmentId) {
+      // Only add account_group_id if we actually have one (avoid null/undefined values)
+      if (accountGroupId) {
         documentData.account_group_id = accountGroupId;
       }
 
