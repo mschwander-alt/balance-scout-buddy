@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2, Upload, Plus } from 'lucide-react';
+import { Search, ArrowLeft, ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, FileText, Eye, PanelLeft, PanelLeftClose, Link, Send, Sparkles, Loader2, Upload, Plus, Download } from 'lucide-react';
 import { Calculator } from '@/components/Calculator';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -1525,7 +1525,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                 Unmatch All
               </Button>
               
-              <Button 
+               <Button 
                 onClick={() => setShowPDFUploadModal(true)}
                 disabled={isProcessing}
                 size="sm"
@@ -1534,6 +1534,15 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               >
                 <Upload className="h-3 w-3" />
                 Kontoblätter hochladen
+              </Button>
+
+              <Button 
+                onClick={() => navigate(`/download-center?trial_balance_id=${trialBalanceId}`)}
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Download className="h-3 w-3" />
+                Download Center
               </Button>
               
               <Dialog open={showManualAssignModal} onOpenChange={setShowManualAssignModal}>

@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import DocumentUpload from "./pages/DocumentUpload";
 import Review from "./pages/Review";
+import DownloadCenter from "./pages/DownloadCenter";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,11 @@ const App = () => (
           <Route path="/review" element={
             <ProtectedRoute>
               <Review />
+            </ProtectedRoute>
+          } />
+          <Route path="/download-center" element={
+            <ProtectedRoute>
+              <DownloadCenter />
             </ProtectedRoute>
           } />
             <Route path="/" element={
