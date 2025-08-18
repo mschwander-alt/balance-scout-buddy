@@ -331,14 +331,12 @@ Generated: ${new Date().toLocaleString('de-DE')}
       setDownloading(true);
       const zip = new JSZip();
 
-      // Group accounts by assigned letter (sanitize and normalize)
-      const accountsByLetter = accounts.reduce((acc, account) => {
-        const raw = account.assigned_letter?.trim().toUpperCase();
-        const letter = raw && /^[A-Z]$/.test(raw) ? raw : 'UNASSIGNED';
-        if (!acc[letter]) acc[letter] = [];
-        acc[letter].push(account);
-        return acc;
-      }, {} as Record<string, Account[]>);
+      // First sort all accounts by account number (descending), regardless of letter
+      const sortedAccounts = accounts.sort((a, b) => {
+        const numA = parseInt(a.account_number) || 0;
+        const numB = parseInt(b.account_number) || 0;
+        return numB - numA; // descending order
+      });
 
       // Prefetch all comments for this TB and current user
       const { data: allComments } = await supabase
@@ -354,78 +352,78 @@ Generated: ${new Date().toLocaleString('de-DE')}
         commentsMap[key].push(c.comment_text as string);
       });
 
+      // Track counters per letter (reset for each letter)
+      const letterCounters: { [key: string]: number } = {};
+
       let anyFilesAdded = false;
 
-      // Sort letters alphabetically, put UNASSIGNED last
-      const sortedEntries = Object.entries(accountsByLetter).sort(([a], [b]) => {
-        if (a === 'UNASSIGNED') return 1;
-        if (b === 'UNASSIGNED') return -1;
-        return a.localeCompare(b);
-      });
-
-      for (const [letter, letterAccounts] of sortedEntries) {
-        let letterCounter = 1; // reset counter for each letter
+      for (const account of sortedAccounts) {
+        // Normalize letter assignment
+        const raw = account.assigned_letter?.trim().toUpperCase();
+        const letter = raw && /^[A-Z]$/.test(raw) ? raw : 'UNASSIGNED';
+        const prefix = letter === 'UNASSIGNED' ? 'X' : letter;
         
-        // Sort accounts within each letter by account number (descending)
-        const sortedAccounts = letterAccounts.sort((a, b) => {
-          const numA = parseInt(a.account_number) || 0;
-          const numB = parseInt(b.account_number) || 0;
-          return numB - numA; // descending order
-        });
+        // Initialize counter for this letter if not exists
+        if (!letterCounters[letter]) {
+          letterCounters[letter] = 1;
+        }
         
-        for (const account of sortedAccounts) {
-          const prefix = letter === 'UNASSIGNED' ? 'X' : letter;
-          const comments = commentsMap[account.id] || [];
-          const hasEvidence = (account.evidence_files?.length || 0) > 0;
+        const comments = commentsMap[account.id] || [];
+        const hasEvidence = (account.evidence_files?.length || 0) > 0;
+        const hasComments = comments.length > 0;
+        
+        // Skip accounts with no comments and no evidence
+        if (!hasComments && !hasEvidence) {
+          continue;
+        }
 
-          // If only comments and no evidence -> export cover sheet alone
-          if (comments.length > 0 && !hasEvidence) {
-            const commentPdf = await generateCommentPDF(comments);
-            const coverName = `${prefix}_${letterCounter}_Deckblatt_${account.account_number}.pdf`;
-            zip.file(coverName, commentPdf);
-            letterCounter++;
-            anyFilesAdded = true;
-          }
+        // If only comments and no evidence -> export cover sheet alone
+        if (hasComments && !hasEvidence) {
+          const commentPdf = await generateCommentPDF(comments);
+          const coverName = `${prefix}_${letterCounters[letter]}_Deckblatt_${account.account_number}.pdf`;
+          zip.file(coverName, commentPdf);
+          letterCounters[letter]++;
+          anyFilesAdded = true;
+        }
 
-          // Add evidence files
-          for (const evidenceFile of account.evidence_files || []) {
-            try {
-              // Download original file
-              const { data: fileData } = await supabase.storage
-                .from('account-evidence')
-                .download(evidenceFile.file_path);
+        // Add evidence files
+        for (const evidenceFile of account.evidence_files || []) {
+          try {
+            // Download original file
+            const { data: fileData } = await supabase.storage
+              .from('account-evidence')
+              .download(evidenceFile.file_path);
 
-              if (fileData) {
-                const fileBuffer = await fileData.arrayBuffer();
-                const ext = evidenceFile.file_name.split('.').pop()?.toLowerCase();
-                const fileName = `${prefix}_${letterCounter}_${evidenceFile.file_name}`;
+            if (fileData) {
+              const fileBuffer = await fileData.arrayBuffer();
+              const ext = evidenceFile.file_name.split('.').pop()?.toLowerCase();
+              const fileName = `${prefix}_${letterCounters[letter]}_${evidenceFile.file_name}`;
 
-                if (ext === 'pdf') {
-                  const originalPdf = new Uint8Array(fileBuffer);
-                  // Load annotations and embed them
-                  const annotations = await loadPDFAnnotations(evidenceFile.id);
-                  const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
+              if (ext === 'pdf') {
+                const originalPdf = new Uint8Array(fileBuffer);
+                // Load annotations and embed them
+                const annotations = await loadPDFAnnotations(evidenceFile.id);
+                const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
 
-                  // Combine cover sheet (comments) with annotated PDF into a single PDF
-                  let finalPdf = annotatedPdf;
-                  if (comments.length > 0) {
-                    const commentPdf = await generateCommentPDF(comments);
-                    finalPdf = await combinePDFs(commentPdf, annotatedPdf);
-                  }
-
-                  zip.file(fileName, finalPdf);
-                } else {
-                  // Non-PDF: include original file as-is (cannot combine client-side)
-                  zip.file(fileName, fileData);
+                // Combine cover sheet (comments) with annotated PDF into a single PDF
+                let finalPdf = annotatedPdf;
+                if (hasComments) {
+                  const commentPdf = await generateCommentPDF(comments);
+                  finalPdf = await combinePDFs(commentPdf, annotatedPdf);
                 }
 
-                letterCounter++;
-                anyFilesAdded = true;
+                zip.file(fileName, finalPdf);
+              } else {
+                // Non-PDF: include original file as-is (cannot combine client-side)
+                zip.file(fileName, fileData);
               }
-            } catch (error) {
-              console.error(`Error processing file ${evidenceFile.file_name}:`, error);
-              toast.error(`Fehler beim Verarbeiten von ${evidenceFile.file_name}`);
+
+              letterCounters[letter]++;
+              anyFilesAdded = true;
             }
+          } catch (error) {
+            console.error(`Error processing file ${evidenceFile.file_name}:`, error);
+            toast.error(`Fehler beim Verarbeiten von ${evidenceFile.file_name}`);
           }
         }
       }
