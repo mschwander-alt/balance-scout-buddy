@@ -2009,6 +2009,46 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
               </CardHeader>
               <CardContent className="flex flex-col py-3 overflow-hidden" style={{height: 'calc(100vh - 12rem)'}}>
                 {selectedAccountData ? (
+                  <div className={`flex ${sidebarCollapsed ? 'flex-row gap-4' : 'flex-col'} h-full`}>
+                    {/* Document viewer section */}
+                    <div className={`flex flex-col ${sidebarCollapsed ? 'flex-1' : 'h-full'}`}>
+                      {selectedDocuments.length > 0 ? (
+                        <div className="h-full">
+                          <p>Documents found - display logic here</p>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>Keine Nachweise für dieses Konto gefunden</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Comment section - positioned based on sidebar state */}
+                    <div className={`${sidebarCollapsed ? 'w-96 flex-shrink-0' : 'mt-4'} bg-muted/30 rounded-lg p-4 border`}>
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-foreground">
+                          Kommentare
+                        </label>
+                        <Textarea
+                          placeholder="Notizen und Anmerkungen zu diesem Konto..."
+                          value={accountComments[selectedAccountData.id] || ""}
+                          onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
+                          className="min-h-[100px] max-h-[200px] resize-none bg-background border-input w-full"
+                        />
+                        {loadedComments[selectedAccountData.id] && (
+                          <p className="text-xs text-muted-foreground">
+                            ✓ Kommentar gespeichert
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                    <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
+                  </div>
+                )}
                   selectedDocuments.length > 0 || (selectedAccountData && documentPreviews[selectedAccountData.id]) ? (
                     <div className={`flex ${sidebarCollapsed ? 'flex-row gap-4' : 'flex-col'} h-full`}>
                       {/* Document viewer section */}
@@ -2231,16 +2271,16 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                      <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
-                    </div>
-                  )
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
-                    <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
-                  </div>
-                )}
+                   ) : (
+                     <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                       <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
+                     </div>
+                   )
+                 ) : (
+                   <div className="text-center py-8 text-muted-foreground h-full flex flex-col items-center justify-center">
+                     <p>Wählen Sie ein Konto aus, um die Nachweise anzuzeigen</p>
+                   </div>
+                 )}
               </CardContent>
              </Card>
            </div>
