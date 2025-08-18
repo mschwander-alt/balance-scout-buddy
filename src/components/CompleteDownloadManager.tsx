@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, FileText, Package, CheckCircle, XCircle, Clock, X } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
@@ -40,14 +41,31 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
   const [hasGroups, setHasGroups] = useState(false);
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
 
-  // Sort accounts by account number (descending) for display, independent of evidence
+  // Sort accounts by account number (ascending) for display, independent of evidence
   const displayAccounts = useMemo(() => {
     const toNum = (v: string) => {
       const cleaned = String(v).replace(/[^0-9]/g, "");
       return cleaned ? parseInt(cleaned, 10) : 0;
     };
-    return [...accounts].sort((a, b) => toNum(b.account_number) - toNum(a.account_number));
+    return [...accounts].sort((a, b) => toNum(a.account_number) - toNum(b.account_number));
   }, [accounts]);
+
+  // Separate accounts for Balance Sheet (1000-2999) and Income Statement (3000+)
+  const balanceSheetAccounts = useMemo(() => 
+    displayAccounts.filter(acc => {
+      const num = parseInt(acc.account_number.replace(/[^0-9]/g, ""), 10);
+      return num >= 1000 && num <= 2999;
+    }), 
+    [displayAccounts]
+  );
+
+  const incomeStatementAccounts = useMemo(() => 
+    displayAccounts.filter(acc => {
+      const num = parseInt(acc.account_number.replace(/[^0-9]/g, ""), 10);
+      return num >= 3000;
+    }), 
+    [displayAccounts]
+  );
 
   useEffect(() => {
     loadAccounts();
@@ -624,65 +642,136 @@ Generated: ${new Date().toLocaleString('de-DE')}
           )}
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Konto</TableHead>
-                <TableHead>Bezeichnung</TableHead>
-                <TableHead>Saldo</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Nachweise</TableHead>
-                <TableHead>Buchstabe</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-               {displayAccounts.map((account) => (
-                 <TableRow 
-                   key={account.id} 
-                   className={`h-6 cursor-pointer transition-colors ${
-                     selectedAccounts.has(account.id) 
-                       ? 'bg-primary/10 border-primary/30' 
-                       : 'hover:bg-muted/50'
-                   }`}
-                   onClick={(e) => handleRowClick(account.id, e)}
-                 >
-                   <TableCell className="font-mono py-1">{account.account_number}</TableCell>
-                   <TableCell className="py-1">{account.account_name}</TableCell>
-                   <TableCell className="text-right py-1">
-                     {account.current_year_balance.toLocaleString('de-DE', { 
-                       style: 'currency', 
-                       currency: 'EUR' 
-                     })}
-                   </TableCell>
-                   <TableCell className="py-1">{getStatusBadge(account.match_status)}</TableCell>
-                   <TableCell className="py-1">
-                     <div className="space-y-1">
-                       {account.evidence_files?.map((file, index) => (
-                         <div key={file.id} className="flex items-center gap-1 text-xs">
-                           <FileText className="h-3 w-3" />
-                           <span className="truncate max-w-[200px]" title={file.file_name}>
-                             {file.file_name}
-                           </span>
+          <Tabs defaultValue="bilanz" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="bilanz">Bilanz</TabsTrigger>
+              <TabsTrigger value="erfolgsrechnung">Erfolgsrechnung</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="bilanz" className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Konto</TableHead>
+                    <TableHead>Bezeichnung</TableHead>
+                    <TableHead>Saldo</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Nachweise</TableHead>
+                    <TableHead>Buchstabe</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                   {balanceSheetAccounts.map((account) => (
+                     <TableRow 
+                       key={account.id} 
+                       className={`h-6 cursor-pointer transition-colors ${
+                         selectedAccounts.has(account.id) 
+                           ? 'bg-primary/10 border-primary/30' 
+                           : 'hover:bg-muted/50'
+                       }`}
+                       onClick={(e) => handleRowClick(account.id, e)}
+                     >
+                       <TableCell className="font-mono py-1">{account.account_number}</TableCell>
+                       <TableCell className="py-1">{account.account_name}</TableCell>
+                       <TableCell className="text-right py-1">
+                         {account.current_year_balance.toLocaleString('de-DE', { 
+                           style: 'currency', 
+                           currency: 'EUR' 
+                         })}
+                       </TableCell>
+                       <TableCell className="py-1">{getStatusBadge(account.match_status)}</TableCell>
+                       <TableCell className="py-1">
+                         <div className="space-y-1">
+                           {account.evidence_files?.map((file, index) => (
+                             <div key={file.id} className="flex items-center gap-1 text-xs">
+                               <FileText className="h-3 w-3" />
+                               <span className="truncate max-w-[200px]" title={file.file_name}>
+                                 {file.file_name}
+                               </span>
+                             </div>
+                           ))}
+                           {(!account.evidence_files || account.evidence_files.length === 0) && (
+                             <span className="text-muted-foreground text-xs">Keine Nachweise</span>
+                           )}
                          </div>
-                       ))}
-                       {(!account.evidence_files || account.evidence_files.length === 0) && (
-                         <span className="text-muted-foreground text-xs">Keine Nachweise</span>
-                       )}
-                     </div>
-                   </TableCell>
-                   <TableCell className="py-1">
-                     <Input
-                       value={account.assigned_letter || ''}
-                       onChange={(e) => updateAccountLetter(account.id, e.target.value)}
-                       placeholder="A-Z"
-                       maxLength={1}
-                       className="w-12 text-center h-6"
-                     />
-                   </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                       </TableCell>
+                       <TableCell className="py-1">
+                         <Input
+                           value={account.assigned_letter || ''}
+                           onChange={(e) => updateAccountLetter(account.id, e.target.value)}
+                           placeholder="A-Z"
+                           maxLength={1}
+                           className="w-12 text-center h-6"
+                         />
+                       </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            <TabsContent value="erfolgsrechnung" className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Konto</TableHead>
+                    <TableHead>Bezeichnung</TableHead>
+                    <TableHead>Saldo</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Nachweise</TableHead>
+                    <TableHead>Buchstabe</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                   {incomeStatementAccounts.map((account) => (
+                     <TableRow 
+                       key={account.id} 
+                       className={`h-6 cursor-pointer transition-colors ${
+                         selectedAccounts.has(account.id) 
+                           ? 'bg-primary/10 border-primary/30' 
+                           : 'hover:bg-muted/50'
+                       }`}
+                       onClick={(e) => handleRowClick(account.id, e)}
+                     >
+                       <TableCell className="font-mono py-1">{account.account_number}</TableCell>
+                       <TableCell className="py-1">{account.account_name}</TableCell>
+                       <TableCell className="text-right py-1">
+                         {account.current_year_balance.toLocaleString('de-DE', { 
+                           style: 'currency', 
+                           currency: 'EUR' 
+                         })}
+                       </TableCell>
+                       <TableCell className="py-1">{getStatusBadge(account.match_status)}</TableCell>
+                       <TableCell className="py-1">
+                         <div className="space-y-1">
+                           {account.evidence_files?.map((file, index) => (
+                             <div key={file.id} className="flex items-center gap-1 text-xs">
+                               <FileText className="h-3 w-3" />
+                               <span className="truncate max-w-[200px]" title={file.file_name}>
+                                 {file.file_name}
+                               </span>
+                             </div>
+                           ))}
+                           {(!account.evidence_files || account.evidence_files.length === 0) && (
+                             <span className="text-muted-foreground text-xs">Keine Nachweise</span>
+                           )}
+                         </div>
+                       </TableCell>
+                       <TableCell className="py-1">
+                         <Input
+                           value={account.assigned_letter || ''}
+                           onChange={(e) => updateAccountLetter(account.id, e.target.value)}
+                           placeholder="A-Z"
+                           maxLength={1}
+                           className="w-12 text-center h-6"
+                         />
+                       </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
