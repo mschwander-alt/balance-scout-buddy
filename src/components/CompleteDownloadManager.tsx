@@ -369,9 +369,9 @@ Generated: ${new Date().toLocaleString('de-DE')}
 
       // First sort all accounts by account number (descending), regardless of letter
       const sortedAccounts = accounts.sort((a, b) => {
-        const numA = parseInt(a.account_number) || 0;
-        const numB = parseInt(b.account_number) || 0;
-        return numB - numA; // descending order
+        const numA = parseInt(a.account_number, 10) || 0;
+        const numB = parseInt(b.account_number, 10) || 0;
+        return numB - numA; // descending order: higher numbers first
       });
 
       // Prefetch all comments for this TB and current user
