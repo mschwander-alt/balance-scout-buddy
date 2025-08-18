@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { PDFDocument, rgb } from "pdf-lib";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Account {
   id: string;
@@ -32,6 +33,7 @@ interface CompleteDownloadManagerProps {
 }
 
 const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProps) => {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -80,7 +82,7 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
 
         accountsData = assignments || [];
       } else {
-        // Load ungrouped accounts - if no temp matches exist, create dummy accounts for demonstration
+        // Load ungrouped accounts
         const { data: tempMatches } = await supabase
           .from('temp_account_matches')
           .select(`
@@ -94,40 +96,7 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
           `)
           .eq('trial_balance_id', trialBalanceId);
 
-        if (tempMatches && tempMatches.length > 0) {
-          accountsData = tempMatches;
-        } else {
-          // Create sample accounts for demonstration if no data exists
-          accountsData = [
-            {
-              id: '1',
-              account_number: '1000',
-              account_name: 'Kasse',
-              current_year_balance: 5000,
-              match_status: 'matched',
-              confidence_score: 0.9,
-              matched_documents: []
-            },
-            {
-              id: '2', 
-              account_number: '1020',
-              account_name: 'Bank',
-              current_year_balance: 15000,
-              match_status: 'unmatched',
-              confidence_score: null,
-              matched_documents: []
-            },
-            {
-              id: '3',
-              account_number: '1100',
-              account_name: 'Debitoren',
-              current_year_balance: 25000,
-              match_status: 'matched',
-              confidence_score: 0.8,
-              matched_documents: []
-            }
-          ];
-        }
+        accountsData = tempMatches || [];
       }
 
       // Load evidence files for each account
@@ -210,7 +179,7 @@ Generated: ${new Date().toLocaleString('de-DE')}
         .from('pdf_annotations')
         .select('annotations')
         .eq('doc_id', documentId)
-        .eq('user_id', accounts[0]?.id) // Use first account's user context
+        .eq('user_id', user?.id || '')
         .maybeSingle();
       
       if (error) throw error;
@@ -388,32 +357,31 @@ Generated: ${new Date().toLocaleString('de-DE')}
               // Load comments for this account
               const comments = await loadAccountComments(account.id);
               
-              // Download original PDF
+              // Download original file
               const { data: fileData } = await supabase.storage
                 .from('account-evidence')
                 .download(evidenceFile.file_path);
 
               if (fileData) {
                 const fileBuffer = await fileData.arrayBuffer();
-                const originalPdf = new Uint8Array(fileBuffer);
-                
-                // Load annotations and embed them
-                const annotations = await loadPDFAnnotations(evidenceFile.id);
-                const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
-                
-                // Generate comment PDF
-                const commentPdf = comments.length > 0 
-                  ? await generateCommentPDF(comments)
-                  : null;
-                
-                // Combine PDFs if there are comments
-                const finalPdf = commentPdf 
-                  ? await combinePDFs(commentPdf, annotatedPdf)
-                  : annotatedPdf;
-                
-                const fileExtension = 'pdf'; // Always PDF now
-                const evidenceFileName = `${prefix}_${totalFileCounter}_${evidenceFile.file_name}`;
-                zip.file(evidenceFileName, finalPdf);
+                const ext = evidenceFile.file_name.split('.').pop()?.toLowerCase();
+                const prefixName = `${prefix}_${totalFileCounter}_${evidenceFile.file_name}`;
+
+                if (ext === 'pdf') {
+                  const originalPdf = new Uint8Array(fileBuffer);
+                  // Load annotations and embed them
+                  const annotations = await loadPDFAnnotations(evidenceFile.id);
+                  const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
+                  
+                  // Generate comment PDF (if any) and combine
+                  const commentPdf = comments.length > 0 ? await generateCommentPDF(comments) : null;
+                  const finalPdf = commentPdf ? await combinePDFs(commentPdf, annotatedPdf) : annotatedPdf;
+                  
+                  zip.file(prefixName, finalPdf);
+                } else {
+                  // Non-PDF: include original file as-is
+                  zip.file(prefixName, fileData);
+                }
                 totalFileCounter++;
               }
             } catch (error) {

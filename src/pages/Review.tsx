@@ -561,54 +561,56 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
 
       console.log(`Review Direct Excel - Parsed ${parsedData.length} rows. Sample:`, parsedData.slice(0, 3));
 
-      // Create individual assignments from trial balance entries
-      const individualAssignments: Assignment[] = parsedData.map((row, index) => {
-        const assignment = {
-          id: crypto.randomUUID(), // Generate proper UUID instead of "tb-" prefix
-          account_group_id: 'no-group',
-          account_number: row.accountNumber,
-          account_name: row.accountName,
-          current_year_balance: row.currentYear,
-          previous_year_balance: row.previousYear,
-          match_status: 'pending' as const,
-          confidence_score: undefined,
-          matched_documents: undefined
-        };
-        
-        if (index < 3) {
-          console.log(`Review Direct Excel - Assignment ${index}:`, {
-            account: assignment.account_number,
-            current_balance: assignment.current_year_balance,
-            previous_balance: assignment.previous_year_balance
-          });
-        }
-        
-        return assignment;
-      }).sort((a, b) => {
-        // Sortiere nach Kontonummer numerisch aufsteigend
+      // Persist parsed rows into temp_account_matches so IDs are stable and changes persist
+      const rowsToInsert = parsedData.map(row => ({
+        trial_balance_id: trialBalanceId!,
+        account_number: row.accountNumber,
+        account_name: row.accountName,
+        current_year_balance: row.currentYear,
+        previous_year_balance: row.previousYear,
+        match_status: 'pending' as const,
+      }));
+
+      // Insert only if table has no entries for this TB yet (we already checked earlier)
+      const { data: inserted, error: insertError } = await supabase
+        .from('temp_account_matches')
+        .insert(rowsToInsert)
+        .select('*');
+
+      if (insertError) {
+        console.error('Review Direct Excel - Insert into temp_account_matches failed:', insertError);
+        throw insertError;
+      }
+
+      // Build assignments from persisted rows (guarantees stable IDs)
+      const tempAssignments: Assignment[] = (inserted || []).map(match => ({
+        id: match.id,
+        account_group_id: 'no-group',
+        account_number: match.account_number,
+        account_name: match.account_name,
+        current_year_balance: match.current_year_balance ?? 0,
+        previous_year_balance: match.previous_year_balance ?? 0,
+        match_status: (match.match_status || 'pending') as 'pending' | 'matched' | 'unmatched',
+        confidence_score: match.confidence_score || undefined,
+        matched_documents: match.matched_documents || undefined
+      })).sort((a, b) => {
         const aNum = parseInt(a.account_number);
         const bNum = parseInt(b.account_number);
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-          return aNum - bNum;
-        }
+        if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
         return a.account_number.localeCompare(b.account_number);
       });
 
-      // Create a virtual group for ungrouped accounts
       const virtualGroup: AccountGroup = {
         id: 'no-group',
         trial_balance_id: trialBalanceId!,
         name: 'Alle Konten',
         description: 'Ungroupierte Saldobilanz',
-        assignments: individualAssignments,
+        assignments: tempAssignments,
         isOpen: true
       };
 
-      console.log(`Review Direct Excel - Created virtual group with ${virtualGroup.assignments.length} assignments`);
-      console.log('Review Direct Excel - Sample assignments:', virtualGroup.assignments.slice(0, 3));
-      
+      console.log(`Review Direct Excel - Created virtual group with ${virtualGroup.assignments.length} assignments (persisted)`);
       setAccountGroups([virtualGroup]);
-      // Nur setze assignments für ungrouped, nicht zusätzlich
       setAssignments([]);
     } catch (error) {
       console.error('Error loading trial balance directly:', error);
