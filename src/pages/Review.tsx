@@ -2704,7 +2704,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
           open={showAccountSpecificUpload}
           onOpenChange={setShowAccountSpecificUpload}
           trialBalanceId={trialBalanceId}
-          accountGroupId={selectedAccountData.account_group_id}
+          accountGroupId={selectedAccountData.account_group_id === 'no-group' ? undefined : selectedAccountData.account_group_id}
           assignmentId={selectedAccountData.id}
           onUploadComplete={() => {
             loadData();
