@@ -331,9 +331,10 @@ Generated: ${new Date().toLocaleString('de-DE')}
       setDownloading(true);
       const zip = new JSZip();
 
-      // Group accounts by assigned letter
+      // Group accounts by assigned letter (sanitize and normalize)
       const accountsByLetter = accounts.reduce((acc, account) => {
-        const letter = account.assigned_letter || 'UNASSIGNED';
+        const raw = account.assigned_letter?.trim().toUpperCase();
+        const letter = raw && /^[A-Z]$/.test(raw) ? raw : 'UNASSIGNED';
         if (!acc[letter]) acc[letter] = [];
         acc[letter].push(account);
         return acc;
@@ -355,14 +356,22 @@ Generated: ${new Date().toLocaleString('de-DE')}
 
       let anyFilesAdded = false;
 
-      for (const [letter, letterAccounts] of Object.entries(accountsByLetter)) {
+      // Sort letters alphabetically, put UNASSIGNED last
+      const sortedEntries = Object.entries(accountsByLetter).sort(([a], [b]) => {
+        if (a === 'UNASSIGNED') return 1;
+        if (b === 'UNASSIGNED') return -1;
+        return a.localeCompare(b);
+      });
+
+      for (const [letter, letterAccounts] of sortedEntries) {
         let letterCounter = 1; // reset counter for each letter
         for (const account of letterAccounts) {
           const prefix = letter === 'UNASSIGNED' ? 'X' : letter;
-
-          // Add cover sheet (PDF) only if comments exist
           const comments = commentsMap[account.id] || [];
-          if (comments.length > 0) {
+          const hasEvidence = (account.evidence_files?.length || 0) > 0;
+
+          // If only comments and no evidence -> export cover sheet alone
+          if (comments.length > 0 && !hasEvidence) {
             const commentPdf = await generateCommentPDF(comments);
             const coverName = `${prefix}_${letterCounter}_Deckblatt_${account.account_number}.pdf`;
             zip.file(coverName, commentPdf);
@@ -388,9 +397,17 @@ Generated: ${new Date().toLocaleString('de-DE')}
                   // Load annotations and embed them
                   const annotations = await loadPDFAnnotations(evidenceFile.id);
                   const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
-                  zip.file(fileName, annotatedPdf);
+
+                  // Combine cover sheet (comments) with annotated PDF into a single PDF
+                  let finalPdf = annotatedPdf;
+                  if (comments.length > 0) {
+                    const commentPdf = await generateCommentPDF(comments);
+                    finalPdf = await combinePDFs(commentPdf, annotatedPdf);
+                  }
+
+                  zip.file(fileName, finalPdf);
                 } else {
-                  // Non-PDF: include original file as-is
+                  // Non-PDF: include original file as-is (cannot combine client-side)
                   zip.file(fileName, fileData);
                 }
 
