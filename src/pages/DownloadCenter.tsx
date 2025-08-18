@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download, FileText, Table, PieChart } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import CompleteDownloadManager from "@/components/CompleteDownloadManager";
 
 const DownloadCenter = () => {
@@ -69,89 +69,6 @@ const DownloadCenter = () => {
           <CompleteDownloadManager trialBalanceId={trialBalanceId} />
         )}
 
-        {/* Standard Downloads */}
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-4">Standard Downloads</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            {/* Prüfungsbericht */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Prüfungsbericht
-                </CardTitle>
-                <CardDescription>
-                  Vollständiger Bericht der durchgeführten Prüfung
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" disabled>
-                  <Download className="h-4 w-4 mr-2" />
-                  PDF herunterladen
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Saldenbilanz Export */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Table className="h-5 w-5 text-primary" />
-                  Saldenbilanz
-                </CardTitle>
-                <CardDescription>
-                  Exportierte Saldenbilanz mit allen Anpassungen
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" disabled>
-                  <Download className="h-4 w-4 mr-2" />
-                  Excel herunterladen
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Prüfungsnachweis */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="h-5 w-5 text-primary" />
-                  Prüfungsnachweis
-                </CardTitle>
-                <CardDescription>
-                  Zusammenfassung aller geprüften Positionen
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" disabled>
-                  <Download className="h-4 w-4 mr-2" />
-                  PDF herunterladen
-                </Button>
-              </CardContent>
-            </Card>
-
-          </div>
-        </div>
-
-        {/* Zusätzliche Informationen */}
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informationen</CardTitle>
-              <CardDescription>
-                Wichtige Hinweise zu Ihren Downloads
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                <p>• Alle Berichte werden basierend auf den aktuellen Prüfungsergebnissen generiert</p>
-                <p>• Downloads sind 30 Tage nach der Erstellung verfügbar</p>
-                <p>• Bei Fragen wenden Sie sich an den Support</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </main>
     </div>
   );
