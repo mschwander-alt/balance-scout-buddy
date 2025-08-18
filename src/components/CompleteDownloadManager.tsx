@@ -556,41 +556,41 @@ Generated: ${new Date().toLocaleString('de-DE')}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accounts.map((account) => (
-                <TableRow key={account.id}>
-                  <TableCell className="font-mono">{account.account_number}</TableCell>
-                  <TableCell>{account.account_name}</TableCell>
-                  <TableCell className="text-right">
-                    {account.current_year_balance.toLocaleString('de-DE', { 
-                      style: 'currency', 
-                      currency: 'EUR' 
-                    })}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(account.match_status)}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {account.evidence_files?.map((file, index) => (
-                        <div key={file.id} className="flex items-center gap-1 text-xs">
-                          <FileText className="h-3 w-3" />
-                          <span className="truncate max-w-[200px]" title={file.file_name}>
-                            {file.file_name}
-                          </span>
-                        </div>
-                      ))}
-                      {(!account.evidence_files || account.evidence_files.length === 0) && (
-                        <span className="text-muted-foreground text-xs">Keine Nachweise</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={account.assigned_letter || ''}
-                      onChange={(e) => updateAccountLetter(account.id, e.target.value)}
-                      placeholder="A-Z"
-                      maxLength={1}
-                      className="w-12 text-center"
-                    />
-                  </TableCell>
+               {accounts.map((account) => (
+                 <TableRow key={account.id} className="h-6">
+                   <TableCell className="font-mono py-1">{account.account_number}</TableCell>
+                   <TableCell className="py-1">{account.account_name}</TableCell>
+                   <TableCell className="text-right py-1">
+                     {account.current_year_balance.toLocaleString('de-DE', { 
+                       style: 'currency', 
+                       currency: 'EUR' 
+                     })}
+                   </TableCell>
+                   <TableCell className="py-1">{getStatusBadge(account.match_status)}</TableCell>
+                   <TableCell className="py-1">
+                     <div className="space-y-1">
+                       {account.evidence_files?.map((file, index) => (
+                         <div key={file.id} className="flex items-center gap-1 text-xs">
+                           <FileText className="h-3 w-3" />
+                           <span className="truncate max-w-[200px]" title={file.file_name}>
+                             {file.file_name}
+                           </span>
+                         </div>
+                       ))}
+                       {(!account.evidence_files || account.evidence_files.length === 0) && (
+                         <span className="text-muted-foreground text-xs">Keine Nachweise</span>
+                       )}
+                     </div>
+                   </TableCell>
+                   <TableCell className="py-1">
+                     <Input
+                       value={account.assigned_letter || ''}
+                       onChange={(e) => updateAccountLetter(account.id, e.target.value)}
+                       placeholder="A-Z"
+                       maxLength={1}
+                       className="w-12 text-center h-6"
+                     />
+                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
