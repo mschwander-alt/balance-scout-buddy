@@ -213,7 +213,7 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
 
   const generateCoverSheet = (account: Account): string => {
     const comments = `Kommentare für Konto ${account.account_number} - ${account.account_name}`;
-    const balance = account.current_year_balance.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    const balance = account.current_year_balance.toLocaleString('de-DE', { style: 'currency', currency: 'CHF' });
     const status = account.match_status || 'Ungeprüft';
     
     return `
@@ -674,10 +674,10 @@ Generated: ${new Date().toLocaleString('de-DE')}
                        <TableCell className="font-mono py-1">{account.account_number}</TableCell>
                        <TableCell className="py-1">{account.account_name}</TableCell>
                        <TableCell className="text-right py-1">
-                         {account.current_year_balance.toLocaleString('de-DE', { 
-                           style: 'currency', 
-                           currency: 'EUR' 
-                         })}
+                          {account.current_year_balance.toLocaleString('de-DE', { 
+                            style: 'currency', 
+                            currency: 'CHF' 
+                          })}
                        </TableCell>
                        <TableCell className="py-1">{getStatusBadge(account.match_status)}</TableCell>
                        <TableCell className="py-1">
@@ -736,10 +736,10 @@ Generated: ${new Date().toLocaleString('de-DE')}
                        <TableCell className="font-mono py-1">{account.account_number}</TableCell>
                        <TableCell className="py-1">{account.account_name}</TableCell>
                        <TableCell className="text-right py-1">
-                         {account.current_year_balance.toLocaleString('de-DE', { 
-                           style: 'currency', 
-                           currency: 'EUR' 
-                         })}
+                          {account.current_year_balance.toLocaleString('de-DE', { 
+                            style: 'currency', 
+                            currency: 'CHF' 
+                          })}
                        </TableCell>
                        <TableCell className="py-1">{getStatusBadge(account.match_status)}</TableCell>
                        <TableCell className="py-1">
