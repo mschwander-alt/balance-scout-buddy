@@ -575,44 +575,93 @@ Generated: ${new Date().toLocaleString('de-DE')}
           anyFilesAdded = true;
         }
 
-        // Add evidence files
-        for (const evidenceFile of account.evidence_files || []) {
-          try {
-            // Download original file
-            const { data: fileData } = await supabase.storage
-              .from('account-evidence')
-              .download(evidenceFile.file_path);
+        // Process evidence files - merge multiple files for same account
+        if (account.evidence_files && account.evidence_files.length > 0) {
+          const pdfFiles: Uint8Array[] = [];
+          const nonPdfFiles: { name: string; data: Blob }[] = [];
+          
+          // Collect all files for this account
+          for (const evidenceFile of account.evidence_files) {
+            try {
+              // Download original file
+              const { data: fileData } = await supabase.storage
+                .from('account-evidence')
+                .download(evidenceFile.file_path);
 
-            if (fileData) {
-              const fileBuffer = await fileData.arrayBuffer();
-              const ext = evidenceFile.file_name.split('.').pop()?.toLowerCase();
-              const fileName = `${prefix}_${letterCounters[letter]}_${evidenceFile.file_name}`;
+              if (fileData) {
+                const fileBuffer = await fileData.arrayBuffer();
+                const ext = evidenceFile.file_name.split('.').pop()?.toLowerCase();
 
-              if (ext === 'pdf') {
-                const originalPdf = new Uint8Array(fileBuffer);
-                // Load annotations and embed them
-                const annotations = await loadPDFAnnotations(evidenceFile.id);
-                const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
+                if (ext === 'pdf') {
+                  const originalPdf = new Uint8Array(fileBuffer);
+                  // Load annotations and embed them
+                  const annotations = await loadPDFAnnotations(evidenceFile.id);
+                  const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
+                  pdfFiles.push(annotatedPdf);
+                } else {
+                  // Store non-PDF files separately
+                  nonPdfFiles.push({
+                    name: evidenceFile.file_name,
+                    data: fileData
+                  });
+                }
+              }
+            } catch (error) {
+              console.error(`Error processing file ${evidenceFile.file_name}:`, error);
+              toast.error(`Fehler beim Verarbeiten von ${evidenceFile.file_name}`);
+            }
+          }
 
-                // Combine cover sheet (comments) with annotated PDF into a single PDF
-                let finalPdf = annotatedPdf;
+          // Create merged PDF if we have PDF files
+          if (pdfFiles.length > 0) {
+            try {
+              let finalPdf: Uint8Array;
+              
+              if (pdfFiles.length === 1 && hasComments) {
+                // Single PDF with comments
+                const commentPdf = await generateCommentPDF(account, comments);
+                finalPdf = await combinePDFs(commentPdf, pdfFiles[0]);
+              } else if (pdfFiles.length === 1) {
+                // Single PDF without comments
+                finalPdf = pdfFiles[0];
+              } else {
+                // Multiple PDFs - merge them all
+                const mergedDoc = await PDFDocument.create();
+                
+                // Add comment page first if we have comments
                 if (hasComments) {
                   const commentPdf = await generateCommentPDF(account, comments);
-                  finalPdf = await combinePDFs(commentPdf, annotatedPdf);
+                  const commentDoc = await PDFDocument.load(commentPdf);
+                  const commentPages = await mergedDoc.copyPages(commentDoc, commentDoc.getPageIndices());
+                  commentPages.forEach(page => mergedDoc.addPage(page));
                 }
-
-                zip.file(fileName, finalPdf);
-              } else {
-                // Non-PDF: include original file as-is (cannot combine client-side)
-                zip.file(fileName, fileData);
+                
+                // Add all PDF files
+                for (const pdfData of pdfFiles) {
+                  const pdfDoc = await PDFDocument.load(pdfData);
+                  const pages = await mergedDoc.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                  pages.forEach(page => mergedDoc.addPage(page));
+                }
+                
+                finalPdf = await mergedDoc.save();
               }
-
+              
+              const mergedFileName = `${prefix}_${letterCounters[letter]}_Nachweis_${account.account_number}.pdf`;
+              zip.file(mergedFileName, finalPdf);
               letterCounters[letter]++;
               anyFilesAdded = true;
+            } catch (error) {
+              console.error('Error merging PDFs:', error);
+              toast.error(`Fehler beim Zusammenführen der PDFs für Konto ${account.account_number}`);
             }
-          } catch (error) {
-            console.error(`Error processing file ${evidenceFile.file_name}:`, error);
-            toast.error(`Fehler beim Verarbeiten von ${evidenceFile.file_name}`);
+          }
+          
+          // Add non-PDF files separately
+          for (const nonPdfFile of nonPdfFiles) {
+            const fileName = `${prefix}_${letterCounters[letter]}_${nonPdfFile.name}`;
+            zip.file(fileName, nonPdfFile.data);
+            letterCounters[letter]++;
+            anyFilesAdded = true;
           }
         }
       }
