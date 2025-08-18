@@ -9,6 +9,7 @@ import { Download, FileText, Package } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { PDFDocument, rgb } from "pdf-lib";
 
 interface Account {
   id: string;
@@ -203,6 +204,159 @@ Generated: ${new Date().toLocaleString('de-DE')}
     `.trim();
   };
 
+  const loadPDFAnnotations = async (documentId: string): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('pdf_annotations')
+        .select('annotations')
+        .eq('doc_id', documentId)
+        .eq('user_id', accounts[0]?.id) // Use first account's user context
+        .maybeSingle();
+      
+      if (error) throw error;
+      return (data?.annotations as any[]) || [];
+    } catch (error) {
+      console.error('Error loading PDF annotations:', error);
+      return [];
+    }
+  };
+
+  const loadAccountComments = async (accountId: string): Promise<string[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('account_comments')
+        .select('comment_text')
+        .eq('assignment_id', accountId);
+      
+      if (error) throw error;
+      return data?.map(c => c.comment_text) || [];
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      return [];
+    }
+  };
+
+  const embedAnnotationsInPDF = async (originalPdfData: Uint8Array, annotations: any[]): Promise<Uint8Array> => {
+    try {
+      const pdfDoc = await PDFDocument.load(originalPdfData);
+      const pages = pdfDoc.getPages();
+      
+      // Group annotations by page
+      const annotationsByPage: { [pageNum: number]: any[] } = {};
+      annotations.forEach(ann => {
+        if (!annotationsByPage[ann.page]) {
+          annotationsByPage[ann.page] = [];
+        }
+        annotationsByPage[ann.page].push(ann);
+      });
+      
+      // Add annotations to each page
+      Object.entries(annotationsByPage).forEach(([pageNumStr, pageAnnotations]) => {
+        const pageNum = parseInt(pageNumStr) - 1; // Convert to 0-based
+        if (pageNum >= 0 && pageNum < pages.length) {
+          const page = pages[pageNum];
+          const { width, height } = page.getSize();
+          
+          pageAnnotations.forEach(ann => {
+            if (ann.type === 'highlight') {
+              // Add highlight rectangles
+              ann.rects?.forEach((rect: any) => {
+                const x = rect.x * width;
+                const y = height - (rect.y * height) - (rect.h * height);
+                const w = rect.w * width;
+                const h = rect.h * height;
+                
+                page.drawRectangle({
+                  x, y, width: w, height: h,
+                  color: rgb(1, 1, 0),
+                  opacity: 0.3,
+                });
+              });
+            } else if (ann.type === 'freetext') {
+              // Add text annotations
+              const x = ann.x * width;
+              const y = height - (ann.y * height);
+              
+              page.drawText(ann.text, {
+                x, y,
+                size: ann.fontSize || 12,
+                color: rgb(1, 0, 0),
+              });
+            }
+          });
+        }
+      });
+      
+      return await pdfDoc.save();
+    } catch (error) {
+      console.error('Error embedding annotations:', error);
+      return originalPdfData;
+    }
+  };
+
+  const generateCommentPDF = async (comments: string[]): Promise<Uint8Array> => {
+    try {
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage();
+      const { width, height } = page.getSize();
+      
+      let yPosition = height - 50;
+      const lineHeight = 20;
+      
+      page.drawText('Kommentare:', {
+        x: 50,
+        y: yPosition,
+        size: 16,
+      });
+      
+      yPosition -= 30;
+      
+      comments.forEach((comment, index) => {
+        if (yPosition < 50) {
+          // Add new page if needed
+          const newPage = pdfDoc.addPage();
+          yPosition = height - 50;
+        }
+        
+        page.drawText(`${index + 1}. ${comment}`, {
+          x: 50,
+          y: yPosition,
+          size: 12,
+        });
+        
+        yPosition -= lineHeight;
+      });
+      
+      return await pdfDoc.save();
+    } catch (error) {
+      console.error('Error generating comment PDF:', error);
+      const pdfDoc = await PDFDocument.create();
+      pdfDoc.addPage();
+      return await pdfDoc.save();
+    }
+  };
+
+  const combinePDFs = async (commentPdf: Uint8Array, annotatedPdf: Uint8Array): Promise<Uint8Array> => {
+    try {
+      const finalDoc = await PDFDocument.create();
+      
+      // Add comment pages first
+      const commentDoc = await PDFDocument.load(commentPdf);
+      const commentPages = await finalDoc.copyPages(commentDoc, commentDoc.getPageIndices());
+      commentPages.forEach(page => finalDoc.addPage(page));
+      
+      // Add annotated PDF pages
+      const annotatedDoc = await PDFDocument.load(annotatedPdf);
+      const annotatedPages = await finalDoc.copyPages(annotatedDoc, annotatedDoc.getPageIndices());
+      annotatedPages.forEach(page => finalDoc.addPage(page));
+      
+      return await finalDoc.save();
+    } catch (error) {
+      console.error('Error combining PDFs:', error);
+      return annotatedPdf;
+    }
+  };
+
   const downloadCompletePackage = async () => {
     try {
       setDownloading(true);
@@ -228,22 +382,43 @@ Generated: ${new Date().toLocaleString('de-DE')}
           zip.file(coverFileName, coverSheet);
           totalFileCounter++;
 
-          // Add evidence files
+          // Add comments and evidence files for each account
           for (const evidenceFile of account.evidence_files || []) {
             try {
+              // Load comments for this account
+              const comments = await loadAccountComments(account.id);
+              
+              // Download original PDF
               const { data: fileData } = await supabase.storage
                 .from('account-evidence')
                 .download(evidenceFile.file_path);
 
               if (fileData) {
-                const fileExtension = evidenceFile.file_name.split('.').pop() || 'pdf';
+                const fileBuffer = await fileData.arrayBuffer();
+                const originalPdf = new Uint8Array(fileBuffer);
+                
+                // Load annotations and embed them
+                const annotations = await loadPDFAnnotations(evidenceFile.id);
+                const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
+                
+                // Generate comment PDF
+                const commentPdf = comments.length > 0 
+                  ? await generateCommentPDF(comments)
+                  : null;
+                
+                // Combine PDFs if there are comments
+                const finalPdf = commentPdf 
+                  ? await combinePDFs(commentPdf, annotatedPdf)
+                  : annotatedPdf;
+                
+                const fileExtension = 'pdf'; // Always PDF now
                 const evidenceFileName = `${prefix}_${totalFileCounter}_${evidenceFile.file_name}`;
-                zip.file(evidenceFileName, fileData);
+                zip.file(evidenceFileName, finalPdf);
                 totalFileCounter++;
               }
             } catch (error) {
-              console.error(`Error downloading file ${evidenceFile.file_name}:`, error);
-              toast.error(`Fehler beim Download von ${evidenceFile.file_name}`);
+              console.error(`Error processing file ${evidenceFile.file_name}:`, error);
+              toast.error(`Fehler beim Verarbeiten von ${evidenceFile.file_name}`);
             }
           }
         }
