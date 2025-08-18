@@ -122,6 +122,10 @@ export default function PdfAnnotator({
   
   const hasLoadedRef = useRef(false);
   const hasChangedRef = useRef(false);
+
+  const markDirty = React.useCallback(() => {
+    hasChangedRef.current = true;
+  }, []);
   
   console.log("🎯 Current mode:", mode); // Debug current mode
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
@@ -155,26 +159,45 @@ export default function PdfAnnotator({
   // Bisherige Annotations laden
   useEffect(() => {
     if (!docId || !userId) return;
+    // Reset Flags und State beim Dokumentwechsel
+    hasLoadedRef.current = false;
+    hasChangedRef.current = false;
+    setSaving("idle");
+    setAnns([]); // clear to avoid cross-doc bleed while loading
+
     loadAnnotations(docId, userId).then((loaded) => {
       setAnns(loaded);
       hasLoadedRef.current = true; // mark initial load complete
     });
   }, [docId, userId]);
 
-  // Speichern (debounced)
+  // Speichern (debounced) – nur wenn geladen und geändert, und für das aktuelle Dokument
   useEffect(() => {
     if (!docId || !userId) {
       console.log("⚠️ Missing docId or userId for saving:", { docId, userId });
       return;
     }
-    
-    console.log("💾 Debounced save triggered for:", debouncedAnns.length, "annotations");
-    
+    if (!hasLoadedRef.current) {
+      // Noch nicht geladen (oder Dokumentwechsel) – nicht speichern
+      return;
+    }
+    if (!hasChangedRef.current) {
+      // Nichts geändert – kein Save nötig
+      return;
+    }
+
+    const currentDocId = docId;
+    console.log("💾 Debounced save triggered for:", debouncedAnns.length, "annotations (doc:", currentDocId, ")");
     setSaving("saving");
     saveAnnotations(docId, userId, debouncedAnns)
       .then(() => {
-        console.log("✅ Save completed successfully");
+        if (currentDocId !== docId) {
+          // Während des Saves wurde das Dokument gewechselt – Status nicht überschreiben
+          return;
+        }
+        console.log("✅ Save completed successfully (doc:", currentDocId, ")");
         setSaving("saved");
+        hasChangedRef.current = false;
       })
       .catch((e) => {
         console.error("❌ Save failed:", e);
@@ -206,6 +229,7 @@ export default function PdfAnnotator({
             mode={mode}
             anns={anns}
             setAnns={setAnns}
+            onDirty={markDirty}
           />
         ))}
       </div>
@@ -309,6 +333,7 @@ function PageView({
   mode,
   anns,
   setAnns,
+  onDirty,
 }: {
   pdf: PDFDocumentProxy;
   pageNumber: number;
@@ -316,6 +341,7 @@ function PageView({
   mode: "highlight" | "freetext" | "none";
   anns: Ann[];
   setAnns: React.Dispatch<React.SetStateAction<Ann[]>>;
+  onDirty: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
@@ -490,7 +516,7 @@ function PageView({
         };
         
         console.log("✅ Creating box highlight:", newHighlight);
-        
+        onDirty();
         setAnns(a => {
           const newAnns = [...a, newHighlight];
           console.log("📊 Updated annotations:", newAnns);
@@ -540,6 +566,7 @@ function PageView({
     
     console.log("✅ Creating freetext:", newFreeText);
     
+    onDirty();
     setAnns((a) => {
       const newAnns = [...a, newFreeText];
       console.log("📊 Updated annotations:", newAnns);
@@ -547,10 +574,14 @@ function PageView({
     });
   };
 
-  const updateFreeText = (id: string, next: Partial<FreeTextAnn>) =>
+  const updateFreeText = (id: string, next: Partial<FreeTextAnn>) => {
+    onDirty();
     setAnns((all) => all.map((x) => (x.id === id ? ({ ...x, ...next } as Ann) : x)));
-
-  const removeAnn = (id: string) => setAnns((all) => all.filter((x) => x.id !== id));
+  };
+  const removeAnn = (id: string) => {
+    onDirty();
+    setAnns((all) => all.filter((x) => x.id !== id));
+  };
 
   return (
     <div
