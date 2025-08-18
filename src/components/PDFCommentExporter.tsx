@@ -132,6 +132,11 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
 
   const embedAnnotationsInPDF = async (originalPdfData: Uint8Array, annotations: any[]): Promise<Uint8Array> => {
     try {
+      // Validate PDF data first
+      if (!originalPdfData || originalPdfData.length === 0) {
+        throw new Error('Invalid PDF data provided');
+      }
+
       const pdfDoc = await PDFDocument.load(originalPdfData);
       const pages = pdfDoc.getPages();
       
@@ -454,13 +459,23 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
         downloadOriginalPDF()
       ]);
       
-      // Embed annotations directly into the original PDF
-      const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
-      const commentPdf = await generateCommentPage(comments);
-      const combinedPdf = await combinePDFs(commentPdf, annotatedPdf);
+      let finalPdf: Uint8Array;
+      
+      // Try to embed annotations, fall back to original PDF if parsing fails
+      try {
+        const annotatedPdf = await embedAnnotationsInPDF(originalPdf, annotations);
+        const commentPdf = await generateCommentPage(comments);
+        finalPdf = await combinePDFs(commentPdf, annotatedPdf);
+      } catch (embedError) {
+        console.warn('Failed to embed annotations, using original PDF:', embedError);
+        // Fallback: just combine comment page with original PDF
+        const commentPdf = await generateCommentPage(comments);
+        finalPdf = await combinePDFs(commentPdf, originalPdf);
+        toast.warning('Annotationen konnten nicht eingebettet werden, aber Kommentare wurden hinzugefügt');
+      }
       
       // Download combined PDF
-      const blob = new Blob([combinedPdf], { type: 'application/pdf' });
+      const blob = new Blob([finalPdf], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -468,7 +483,7 @@ export const PDFCommentExporter: React.FC<PDFCommentExporterProps> = ({
       link.click();
       
       URL.revokeObjectURL(url);
-      toast.success('PDF mit Kommentaren und Annotationen heruntergeladen');
+      toast.success('PDF mit Kommentaren heruntergeladen');
       
     } catch (error) {
       console.error('Error exporting PDF with comments:', error);
