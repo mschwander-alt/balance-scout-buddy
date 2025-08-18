@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { createUniqueFilePath } from '@/lib/fileUtils';
+import { Upload as TusUpload } from 'tus-js-client';
+const DIRECT_STORAGE_URL = 'https://szrpyhwjqftwxhaagcds.storage.supabase.co';
 
 interface PDFUploadModalProps {
   open: boolean;
@@ -79,19 +81,62 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
 
     // Update status to uploading
     setUploadFiles(prev => prev.map(f => 
-      f.id === uploadFile.id ? { ...f, status: 'uploading' as const } : f
+      f.id === uploadFile.id ? { ...f, status: 'uploading' as const, progress: 0 } : f
     ));
 
     const folderPath = accountGroupId && assignmentId ? 'account-documents' : 'account-sheets';
     const filePath = createUniqueFilePath(user.id, uploadFile.file.name, `${trialBalanceId}/${folderPath}`);
 
     try {
-      // Upload file
-      const { data, error } = await supabase.storage
-        .from('account-evidence')
-        .upload(filePath, uploadFile.file);
+      // For very large files use resumable uploads via TUS
+      if (uploadFile.file.size > 50 * 1024 * 1024) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sitzung abgelaufen');
 
-      if (error) throw error;
+        await new Promise<void>((resolve, reject) => {
+          const tusUpload = new TusUpload(uploadFile.file, {
+            endpoint: `${DIRECT_STORAGE_URL}/storage/v1/upload/resumable`,
+            retryDelays: [0, 3000, 5000, 10000, 20000],
+            headers: {
+              authorization: `Bearer ${session.access_token}`,
+              'x-upsert': 'true',
+            },
+            uploadDataDuringCreation: true,
+            removeFingerprintOnSuccess: true,
+            metadata: {
+              bucketName: 'account-evidence',
+              objectName: filePath,
+              contentType: uploadFile.file.type || 'application/pdf',
+              cacheControl: '3600',
+              metadata: JSON.stringify({
+                trialBalanceId,
+                accountGroupId: accountGroupId || null,
+                assignmentId: assignmentId || null,
+              }),
+            },
+            chunkSize: 6 * 1024 * 1024, // required by Supabase currently
+            onError: (error) => {
+              reject(error);
+            },
+            onProgress: (bytesUploaded, bytesTotal) => {
+              const progress = Math.round((bytesUploaded / bytesTotal) * 100);
+              setUploadFiles(prev => prev.map(f => f.id === uploadFile.id ? { ...f, progress } : f));
+            },
+            onSuccess: () => resolve(),
+          });
+
+          tusUpload.findPreviousUploads().then((previous) => {
+            if (previous.length) tusUpload.resumeFromPreviousUpload(previous[0]);
+            tusUpload.start();
+          });
+        });
+      } else {
+        // Standard upload for small files
+        const { error } = await supabase.storage
+          .from('account-evidence')
+          .upload(filePath, uploadFile.file);
+        if (error) throw error;
+      }
 
       // Save document metadata
       const documentData: any = {
@@ -101,10 +146,9 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
         file_type: uploadFile.file.type || 'application/pdf',
         file_size: uploadFile.file.size,
         user_id: user.id,
-        is_global: !accountGroupId // Mark as global if no specific account
+        is_global: !accountGroupId
       };
 
-      // Add specific account assignment if provided
       if (accountGroupId && assignmentId) {
         documentData.account_group_id = accountGroupId;
       }
@@ -115,7 +159,6 @@ export function PDFUploadModal({ open, onOpenChange, trialBalanceId, accountGrou
 
       if (dbError) throw dbError;
 
-      // Mark as completed
       setUploadFiles(prev => prev.map(f => 
         f.id === uploadFile.id ? { ...f, status: 'completed' as const, progress: 100 } : f
       ));
