@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, FileText, Package } from "lucide-react";
+import { Download, FileText, Package, CheckCircle, XCircle, Clock, X } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -38,6 +38,7 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [hasGroups, setHasGroups] = useState(false);
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadAccounts();
@@ -133,6 +134,41 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
         ? { ...account, assigned_letter: letter.toUpperCase() }
         : account
     ));
+  };
+
+  const handleRowClick = (accountId: string, event: React.MouseEvent) => {
+    event.preventDefault();
+    setSelectedAccounts(prev => {
+      const newSet = new Set(prev);
+      if (event.ctrlKey || event.metaKey) {
+        // CTRL/CMD click: toggle selection
+        if (newSet.has(accountId)) {
+          newSet.delete(accountId);
+        } else {
+          newSet.add(accountId);
+        }
+      } else {
+        // Regular click: select only this item
+        newSet.clear();
+        newSet.add(accountId);
+      }
+      return newSet;
+    });
+  };
+
+  const assignLetterToSelected = (letter: string) => {
+    const upperLetter = letter.toUpperCase();
+    setAccounts(prev => prev.map(account => 
+      selectedAccounts.has(account.id) 
+        ? { ...account, assigned_letter: upperLetter }
+        : account
+    ));
+    // Clear selection after assignment
+    setSelectedAccounts(new Set());
+  };
+
+  const clearSelection = () => {
+    setSelectedAccounts(new Set());
   };
 
   const applyLetterToRange = (fromAccount: string, toAccount: string, letter: string) => {
@@ -541,7 +577,42 @@ Generated: ${new Date().toLocaleString('de-DE')}
 
       <Card>
         <CardHeader>
-          <CardTitle>Kontenübersicht</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Kontenübersicht</CardTitle>
+            {selectedAccounts.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {selectedAccounts.size} ausgewählt
+                </span>
+                <div className="flex items-center gap-1">
+                  {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map(letter => (
+                    <Button
+                      key={letter}
+                      size="sm"
+                      variant="outline"
+                      className="h-6 w-6 p-0"
+                      onClick={() => assignLetterToSelected(letter)}
+                    >
+                      {letter}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearSelection}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
+          {selectedAccounts.size > 0 && (
+            <p className="text-sm text-muted-foreground">
+              STRG+Klick für Mehrfachauswahl. Klicken Sie auf einen Buchstaben, um ihn den ausgewählten Konten zuzuweisen.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <Table>
@@ -557,7 +628,15 @@ Generated: ${new Date().toLocaleString('de-DE')}
             </TableHeader>
             <TableBody>
                {accounts.map((account) => (
-                 <TableRow key={account.id} className="h-6">
+                 <TableRow 
+                   key={account.id} 
+                   className={`h-6 cursor-pointer transition-colors ${
+                     selectedAccounts.has(account.id) 
+                       ? 'bg-primary/10 border-primary/30' 
+                       : 'hover:bg-muted/50'
+                   }`}
+                   onClick={(e) => handleRowClick(account.id, e)}
+                 >
                    <TableCell className="font-mono py-1">{account.account_number}</TableCell>
                    <TableCell className="py-1">{account.account_name}</TableCell>
                    <TableCell className="text-right py-1">
