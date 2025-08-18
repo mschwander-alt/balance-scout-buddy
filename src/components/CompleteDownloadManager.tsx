@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,15 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
   const [downloading, setDownloading] = useState(false);
   const [hasGroups, setHasGroups] = useState(false);
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+
+  // Sort accounts by account number (descending) for display, independent of evidence
+  const displayAccounts = useMemo(() => {
+    const toNum = (v: string) => {
+      const cleaned = String(v).replace(/[^0-9]/g, "");
+      return cleaned ? parseInt(cleaned, 10) : 0;
+    };
+    return [...accounts].sort((a, b) => toNum(b.account_number) - toNum(a.account_number));
+  }, [accounts]);
 
   useEffect(() => {
     loadAccounts();
@@ -627,7 +636,7 @@ Generated: ${new Date().toLocaleString('de-DE')}
               </TableRow>
             </TableHeader>
             <TableBody>
-               {accounts.map((account) => (
+               {displayAccounts.map((account) => (
                  <TableRow 
                    key={account.id} 
                    className={`h-6 cursor-pointer transition-colors ${
