@@ -2246,8 +2246,9 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           </div>
                         </div>
 
-                        {/* Kommentar- und Aktionsbereich für Konten ohne Nachweise */}
-                        <div className="flex-shrink-0 border-t bg-background p-4 space-y-4">
+                        {/* Kommentar- und Aktionsbereich für Konten ohne Nachweise - nur anzeigen wenn Saldobilanz sichtbar */}
+                        {!sidebarCollapsed && (
+                          <div className="flex-shrink-0 border-t bg-background p-4 space-y-4">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-medium">
                               Konto-Aktionen
@@ -2292,7 +2293,8 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                                />
                              </div>
                            </div>
-                        </div>
+                         </div>
+                        )}
                       </div>
                     )
                 ) : (
@@ -2329,7 +2331,7 @@ const [accountComments, setAccountComments] = useState<{[key: string]: string}>(
                           placeholder="Notizen und Anmerkungen zu diesem Konto..."
                           value={accountComments[selectedAccountData.id] || ""}
                           onChange={(e) => handleCommentChange(selectedAccountData.id, e.target.value)}
-                          className="min-h-[300px] max-h-[500px] resize-none bg-background border-input w-full"
+                          className="min-h-[400px] max-h-[600px] resize-none bg-background border-input w-full"
                         />
                         {loadedComments[selectedAccountData.id] && (
                           <p className="text-xs text-muted-foreground">
