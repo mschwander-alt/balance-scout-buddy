@@ -275,9 +275,14 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
         ) : (
           <iframe
             src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(documentUrl)}`}
-            className="w-full h-full max-h-full border rounded"
+            className="w-full border rounded"
             title="PDF.js Viewer"
-            style={{ height: '100%', maxHeight: '100%' }}
+            style={{ 
+              height: '100%', 
+              minHeight: '100%',
+              maxHeight: '100%',
+              display: 'block'
+            }}
           />
         )}
       </div>
