@@ -520,11 +520,11 @@ Generated: ${new Date().toLocaleString('de-DE')}
       setDownloading(true);
       const zip = new JSZip();
 
-      // First sort all accounts by account number (descending), regardless of letter
+      // First sort all accounts by account number (ascending) for proper counter progression
       const sortedAccounts = accounts.sort((a, b) => {
         const numA = parseInt(a.account_number, 10) || 0;
         const numB = parseInt(b.account_number, 10) || 0;
-        return numB - numA; // descending order: higher numbers first
+        return numA - numB; // ascending order: lower numbers first for correct counter sequence
       });
 
       // Prefetch all comments for this TB and current user
