@@ -240,7 +240,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-256px)]">
+    <div className={`h-full flex flex-col ${viewerMode === 'annotator' ? 'max-h-[calc(100vh-256px)]' : ''}`}>
       {/* Toggle Button - übergeordnet platziert */}
       <div className="flex-shrink-0 pb-1 pl-3 pt-1 flex justify-end">
         <Button
@@ -265,7 +265,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
       </div>
       
       {/* PDF Viewer Container - Vergrößerte Höhe für PDF.js Viewer */}
-      <div className={`flex-1 min-h-0 ${viewerMode === 'pdfjs' ? 'h-[800px]' : 'h-full'}`}>
+      <div className={`flex-1 min-h-0 ${viewerMode === 'pdfjs' ? 'h-[70vh]' : 'h-full'}`}>
         {viewerMode === 'annotator' ? (
           <PdfAnnotator
             docUrl={documentUrl}
