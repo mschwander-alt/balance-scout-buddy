@@ -787,7 +787,7 @@ Generated: ${new Date().toLocaleString('de-DE')}
                   {selectedAccounts.size} ausgewählt
                 </span>
                 <div className="flex items-center gap-1">
-                  {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map(letter => (
+                  {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'].map(letter => (
                     <Button
                       key={letter}
                       size="sm"
