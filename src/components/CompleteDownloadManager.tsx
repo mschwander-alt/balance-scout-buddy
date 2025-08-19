@@ -617,24 +617,19 @@ Generated: ${new Date().toLocaleString('de-DE')}
             try {
               let finalPdf: Uint8Array;
               
-              if (pdfFiles.length === 1 && hasComments) {
-                // Single PDF with comments
+              if (pdfFiles.length === 1) {
+                // Single PDF - always add comment page (Deckblatt) first
                 const commentPdf = await generateCommentPDF(account, comments);
                 finalPdf = await combinePDFs(commentPdf, pdfFiles[0]);
-              } else if (pdfFiles.length === 1) {
-                // Single PDF without comments
-                finalPdf = pdfFiles[0];
               } else {
                 // Multiple PDFs - merge them all
                 const mergedDoc = await PDFDocument.create();
                 
-                // Add comment page first if we have comments
-                if (hasComments) {
-                  const commentPdf = await generateCommentPDF(account, comments);
-                  const commentDoc = await PDFDocument.load(commentPdf);
-                  const commentPages = await mergedDoc.copyPages(commentDoc, commentDoc.getPageIndices());
-                  commentPages.forEach(page => mergedDoc.addPage(page));
-                }
+                // Always add comment page first (Deckblatt) - matches review page behavior
+                const commentPdf = await generateCommentPDF(account, comments);
+                const commentDoc = await PDFDocument.load(commentPdf);
+                const commentPages = await mergedDoc.copyPages(commentDoc, commentDoc.getPageIndices());
+                commentPages.forEach(page => mergedDoc.addPage(page));
                 
                 // Add all PDF files
                 for (const pdfData of pdfFiles) {
