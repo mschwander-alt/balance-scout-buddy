@@ -265,7 +265,7 @@ export const SimplePDFViewer: React.FC<SimplePDFViewerProps> = ({
       </div>
       
       {/* PDF Viewer Container - Vergrößerte Höhe für PDF.js Viewer */}
-      <div className={`flex-1 min-h-0 ${viewerMode === 'pdfjs' ? 'h-[500px]' : 'h-full'}`}>
+      <div className={`flex-1 min-h-0 ${viewerMode === 'pdfjs' ? 'h-[800px]' : 'h-full'}`}>
         {viewerMode === 'annotator' ? (
           <PdfAnnotator
             docUrl={documentUrl}
