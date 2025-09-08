@@ -68,7 +68,19 @@ const CompleteDownloadManager = ({ trialBalanceId }: CompleteDownloadManagerProp
   );
 
   useEffect(() => {
-    loadAccounts();
+    let isMounted = true;
+    
+    const fetchData = async () => {
+      if (isMounted) {
+        await loadAccounts();
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [trialBalanceId]);
 
   const loadAccounts = async () => {
@@ -521,7 +533,7 @@ Generated: ${new Date().toLocaleString('de-DE')}
       const zip = new JSZip();
 
       // First sort all accounts by account number (ascending) for proper counter progression
-      const sortedAccounts = accounts.sort((a, b) => {
+      const sortedAccounts = [...accounts].sort((a, b) => {
         const numA = parseInt(a.account_number, 10) || 0;
         const numB = parseInt(b.account_number, 10) || 0;
         return numA - numB; // ascending order: lower numbers first for correct counter sequence
